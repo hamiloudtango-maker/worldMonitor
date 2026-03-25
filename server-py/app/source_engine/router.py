@@ -96,16 +96,24 @@ async def get_data(
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Fetch failed: {e}")
 
-    # Run ingestion pipeline (dedup ensures no double-inserts)
-    try:
-        await ingest_articles(db, source_id, rows)
-    except Exception:
-        pass  # Non-blocking — raw data still returned if ingestion fails
-
-    # Enrich rows with translations + NER from articles table
+    # Check if enriched articles already exist in DB
     articles = (await db.scalars(
         select(Article).where(Article.source_id == source_id).order_by(Article.pub_date.desc()).limit(200)
     )).all()
+
+    # Trigger ingestion in background (non-blocking) if no articles yet
+    if not articles:
+        import asyncio
+        from app.db import async_session
+
+        async def _bg_ingest():
+            try:
+                async with async_session() as bg_db:
+                    await ingest_articles(bg_db, source_id, rows)
+            except Exception:
+                pass
+
+        asyncio.create_task(_bg_ingest())
 
     if articles:
         # Build lookup by link hash
