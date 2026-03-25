@@ -180,3 +180,90 @@ async def trigger_ingest(
     inserted = await ingest_articles(db, source_id, rows)
 
     return {"source_id": source_id, "fetched": len(rows), "inserted": inserted}
+
+
+@router.post("/ingest-gdelt")
+async def ingest_gdelt(
+    theme: str = Query("", description="Theme: conflict, economic, tech, military, etc."),
+    country: str = Query("", description="Country ISO-2 code"),
+    max_records: int = Query(100, ge=10, le=250),
+    user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ingest articles from GDELT API (3-day backfill)."""
+    from app.source_engine.gdelt import fetch_gdelt
+
+    rows = await fetch_gdelt(theme=theme, country=country, max_records=max_records)
+    source_id = f"gdelt_{theme or 'world'}_{country or 'all'}"
+    inserted = await ingest_articles(db, source_id, rows)
+
+    return {"source": "gdelt", "theme": theme, "country": country, "fetched": len(rows), "inserted": inserted}
+
+
+@router.post("/ingest-google-news")
+async def ingest_google_news(
+    query: str = Query("", description="Search query"),
+    theme: str = Query("", description="Theme filter"),
+    country: str = Query("", description="Country name or code"),
+    lang: str = Query("en"),
+    user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ingest articles from Google News RSS (with GDELT fallback)."""
+    from app.source_engine.google_news import fetch_google_news
+
+    rows = await fetch_google_news(query=query, theme=theme, country=country, lang=lang)
+    source_id = f"gnews_{theme or query or 'world'}_{country or 'all'}"
+    inserted = await ingest_articles(db, source_id, rows)
+
+    return {"source": "google_news", "query": query, "theme": theme, "fetched": len(rows), "inserted": inserted}
+
+
+@router.get("/countries")
+async def list_countries(db: AsyncSession = Depends(get_db)):
+    """Get all countries with article counts, for sidebar filters."""
+    # Extract country codes from JSON and count
+    result = await db.scalars(
+        select(Article.country_codes_json).where(Article.country_codes_json.isnot(None))
+    )
+    country_counts: dict[str, int] = {}
+    for row in result:
+        try:
+            codes = json.loads(row)
+            for code in codes:
+                country_counts[code] = country_counts.get(code, 0) + 1
+        except Exception:
+            pass
+
+    return {"countries": sorted(country_counts.items(), key=lambda x: -x[1])}
+
+
+@router.get("/themes")
+async def list_themes(db: AsyncSession = Depends(get_db)):
+    """Get all themes with article counts."""
+    rows = await db.execute(
+        select(Article.theme, func.count())
+        .where(Article.theme.isnot(None))
+        .group_by(Article.theme)
+        .order_by(desc(func.count()))
+    )
+    return {"themes": [(row[0], row[1]) for row in rows]}
+
+
+@router.get("/entities")
+async def list_entities(limit: int = Query(50, ge=1, le=200), db: AsyncSession = Depends(get_db)):
+    """Get most mentioned entities across all articles."""
+    result = await db.scalars(
+        select(Article.entities_json).where(Article.entities_json.isnot(None)).limit(1000)
+    )
+    entity_counts: dict[str, int] = {}
+    for row in result:
+        try:
+            entities = json.loads(row)
+            for e in entities:
+                entity_counts[e] = entity_counts.get(e, 0) + 1
+        except Exception:
+            pass
+
+    top = sorted(entity_counts.items(), key=lambda x: -x[1])[:limit]
+    return {"entities": top}
