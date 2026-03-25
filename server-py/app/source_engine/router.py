@@ -63,7 +63,12 @@ async def get_data(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get parsed data for a source. Uses cache if fresh, fetches if not."""
+    """Get parsed data for a source. Returns translated titles when available."""
+    import json as _json
+
+    from app.models.article import Article
+    from app.source_engine.article_pipeline import ingest_articles
+
     # Load template from DB
     row = await db.scalar(
         select(SourceTemplateModel).where(
@@ -90,6 +95,36 @@ async def get_data(
         rows, cached = await fetch_source_data(template)
     except Exception as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Fetch failed: {e}")
+
+    # Run ingestion pipeline (dedup ensures no double-inserts)
+    try:
+        await ingest_articles(db, source_id, rows)
+    except Exception:
+        pass  # Non-blocking — raw data still returned if ingestion fails
+
+    # Enrich rows with translations + NER from articles table
+    articles = (await db.scalars(
+        select(Article).where(Article.source_id == source_id).order_by(Article.pub_date.desc()).limit(200)
+    )).all()
+
+    if articles:
+        # Build lookup by link hash
+        enriched_rows = []
+        for a in articles:
+            enriched = {
+                "title": a.title_translated or a.title,
+                "title_original": a.title if a.title_translated else None,
+                "description": a.description,
+                "link": a.link,
+                "pubDate": a.pub_date.isoformat() if a.pub_date else "",
+                "lang": a.lang,
+                "threat_level": a.threat_level,
+                "theme": a.theme,
+                "entities": _json.loads(a.entities_json) if a.entities_json else [],
+                "country_codes": _json.loads(a.country_codes_json) if a.country_codes_json else [],
+            }
+            enriched_rows.append(enriched)
+        rows = enriched_rows
 
     return DataResponse(
         source_id=source_id,
