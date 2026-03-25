@@ -379,8 +379,6 @@ export class App {
       const PANEL_KEY_RENAMES_MIGRATION_KEY = 'worldmonitor-panel-key-renames-v2.6';
       if (!localStorage.getItem(PANEL_KEY_RENAMES_MIGRATION_KEY)) {
         const keyRenames: Array<[string, string]> = [
-          ['live-youtube', 'live-webcams'],
-          ['pinned-webcams', 'windy-webcams'],
         ];
         let migrated = false;
         for (const [legacyKey, nextKey] of keyRenames) {

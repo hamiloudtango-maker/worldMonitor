@@ -24,8 +24,6 @@ import {
   LiveNewsPanel,
   getDefaultLiveChannels,
   loadChannelsFromStorage,
-  LiveWebcamsPanel,
-  PinnedWebcamsPanel,
   CIIPanel,
   CascadePanel,
   StrategicRiskPanel,
@@ -857,13 +855,6 @@ export class PanelLayoutManager implements AppModule {
       this.ctx.panels['live-news'] = new LiveNewsPanel();
     }
 
-    if (this.shouldCreatePanel('live-webcams')) {
-      this.ctx.panels['live-webcams'] = new LiveWebcamsPanel();
-    }
-
-    if (this.shouldCreatePanel('windy-webcams')) {
-      this.ctx.panels['windy-webcams'] = new PinnedWebcamsPanel();
-    }
 
     this.createPanel('events', () => new TechEventsPanel('events', () => this.ctx.allNews));
     this.createPanel('internet-disruptions', () => new InternetDisruptionsPanel());
@@ -1041,12 +1032,6 @@ export class PanelLayoutManager implements AppModule {
           allOrder.unshift('live-news');
         }
 
-        const webcamsIdx = allOrder.indexOf('live-webcams');
-        if (webcamsIdx !== -1 && webcamsIdx !== allOrder.indexOf('live-news') + 1) {
-          allOrder.splice(webcamsIdx, 1);
-          const afterNews = allOrder.indexOf('live-news') + 1;
-          allOrder.splice(afterNews, 0, 'live-webcams');
-        }
       }
 
       if (this.ctx.isDesktopApp) {
