@@ -12,6 +12,8 @@ ROUTERS = [
     "app.auth.router",
     "app.source_engine.router",
     "app.dashboards.router",
+    # Article intelligence pipeline
+    "app.domains.articles.router",
     # Domains with live implementations
     "app.domains.seismology.router",
     "app.domains.radiation.router",
