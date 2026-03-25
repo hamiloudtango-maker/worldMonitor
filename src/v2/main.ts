@@ -3,9 +3,9 @@
  */
 
 import './styles.css';
-import './news-intelligence.css';
+import './tailwind.css';
 import { registerAllRenderers } from '@/components/renderers';
-import { renderNewsIntelligence } from '@/v2/news-intelligence';
+import { mountNewsReact } from '@/v2/news-mount';
 import {
   initGrid,
   loadDashboard,
@@ -26,7 +26,6 @@ import { showAddWidgetModal } from '@/v2/add-widget-modal';
 const app = document.getElementById('app')!;
 registerAllRenderers();
 
-// ===== Toast ====
 export function toast(msg: string, type: 'success' | 'error' = 'success') {
   const el = document.createElement('div');
   el.className = `wm-toast wm-toast-${type}`;
@@ -35,7 +34,6 @@ export function toast(msg: string, type: 'success' | 'error' = 'success') {
   setTimeout(() => el.remove(), 3000);
 }
 
-// ===== Router =====
 async function route() {
   if (!isAuthenticated()) {
     renderAuth();
@@ -50,7 +48,6 @@ async function route() {
   }
 }
 
-// ===== Auth =====
 function renderAuth() {
   let mode: 'login' | 'register' = 'login';
 
@@ -95,11 +92,7 @@ function renderAuth() {
         if (isLogin) {
           await login(data.get('email') as string, data.get('password') as string);
         } else {
-          await register(
-            data.get('email') as string,
-            data.get('password') as string,
-            data.get('org') as string,
-          );
+          await register(data.get('email') as string, data.get('password') as string, data.get('org') as string);
         }
         route();
       } catch (err) {
@@ -112,7 +105,6 @@ function renderAuth() {
   render();
 }
 
-// ===== Dashboard =====
 async function renderDashboard(me: { email: string; org_name: string }) {
   let dashboards = await listDashboards();
   if (dashboards.length === 0) {
@@ -143,7 +135,7 @@ async function renderDashboard(me: { email: string; org_name: string }) {
     <div id="view-dashboard" class="wm-dashboard">
       <div id="grid-container" class="grid-stack"></div>
     </div>
-    <div id="view-news" class="wm-dashboard" style="display:none"></div>
+    <div id="view-news" style="display:none;height:calc(100vh - 48px)"></div>
   `;
 
   const isEmbed = new URLSearchParams(location.search).has('embed');
@@ -152,12 +144,10 @@ async function renderDashboard(me: { email: string; org_name: string }) {
 
   const dash = await loadDashboard(activeDash.id);
 
-  // Show empty state if no panels
   if (dash.panels.length === 0) {
     showEmptyState(container, activeDash.id);
   }
 
-  // Dashboard switcher
   document.getElementById('dash-select')!.addEventListener('change', async (e) => {
     const id = (e.target as HTMLSelectElement).value;
     destroyGrid();
@@ -167,10 +157,9 @@ async function renderDashboard(me: { email: string; org_name: string }) {
     if (d.panels.length === 0) showEmptyState(document.getElementById('grid-container')!, id);
   });
 
-  // Tab switching
   let newsLoaded = false;
   document.querySelectorAll('.wm-tab').forEach(tab => {
-    tab.addEventListener('click', async () => {
+    tab.addEventListener('click', () => {
       const target = (tab as HTMLElement).dataset.tab!;
       document.querySelectorAll('.wm-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
@@ -192,7 +181,7 @@ async function renderDashboard(me: { email: string; org_name: string }) {
         dashSelect.style.display = 'none';
         if (!newsLoaded) {
           newsLoaded = true;
-          await renderNewsIntelligence(newsView);
+          mountNewsReact(newsView);
         }
       }
     });
@@ -231,5 +220,4 @@ function showEmptyState(container: HTMLElement, dashboardId: string) {
   };
 }
 
-// Boot
 route();
