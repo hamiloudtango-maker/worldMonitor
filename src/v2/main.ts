@@ -1,6 +1,5 @@
 /**
  * WorldMonitor v2 — Entry point.
- * Auth → Dashboard → Gridstack + DynamicSourcePanels.
  */
 
 import './styles.css';
@@ -11,6 +10,7 @@ import {
   listDashboards,
   createDashboard,
   destroyGrid,
+  getCurrentDashboard,
 } from '@/app/dashboard-engine';
 import {
   isAuthenticated,
@@ -22,18 +22,25 @@ import {
 import { showAddWidgetModal } from '@/v2/add-widget-modal';
 
 const app = document.getElementById('app')!;
-
-// Register renderers
 registerAllRenderers();
 
-// Route
+// ===== Toast ====
+export function toast(msg: string, type: 'success' | 'error' = 'success') {
+  const el = document.createElement('div');
+  el.className = `wm-toast wm-toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ===== Router =====
 async function route() {
   if (!isAuthenticated()) {
     renderAuth();
   } else {
     try {
       const me = await getMe();
-      await renderDashboard(me);
+      renderDashboard(me);
     } catch {
       clearTokens();
       renderAuth();
@@ -41,21 +48,24 @@ async function route() {
   }
 }
 
-// ===== Auth Page =====
+// ===== Auth =====
 function renderAuth() {
-  let isLogin = true;
+  let mode: 'login' | 'register' = 'login';
 
   function render() {
+    const isLogin = mode === 'login';
     app.innerHTML = `
       <div class="wm-auth-page">
         <div class="wm-auth-card">
           <h1>${isLogin ? 'Sign in' : 'Create account'}</h1>
-          <p>${isLogin ? 'Welcome back to WorldMonitor' : 'Start monitoring the world'}</p>
+          <div class="wm-auth-subtitle">${isLogin ? 'Welcome back to WorldMonitor' : 'Start monitoring the world'}</div>
           <div id="auth-error"></div>
-          ${!isLogin ? '<input id="org-name" type="text" placeholder="Organization name" />' : ''}
-          <input id="email" type="email" placeholder="Email" />
-          <input id="password" type="password" placeholder="Password" />
-          <button id="auth-submit">${isLogin ? 'Sign in' : 'Create account'}</button>
+          <form id="auth-form">
+            ${!isLogin ? '<input name="org" type="text" placeholder="Organization name" required />' : ''}
+            <input name="email" type="email" placeholder="Email" required />
+            <input name="password" type="password" placeholder="Password" minlength="6" required />
+            <button type="submit" class="wm-auth-submit">${isLogin ? 'Sign in' : 'Create account'}</button>
+          </form>
           <div class="wm-auth-switch">
             ${isLogin ? "Don't have an account?" : 'Already have an account?'}
             <a id="auth-toggle">${isLogin ? 'Sign up' : 'Sign in'}</a>
@@ -64,64 +74,64 @@ function renderAuth() {
       </div>
     `;
 
-    document.getElementById('auth-toggle')!.onclick = () => {
-      isLogin = !isLogin;
+    document.getElementById('auth-toggle')!.addEventListener('click', (e) => {
+      e.preventDefault();
+      mode = isLogin ? 'register' : 'login';
       render();
-    };
+    });
 
-    document.getElementById('auth-submit')!.onclick = async () => {
-      const email = (document.getElementById('email') as HTMLInputElement).value;
-      const password = (document.getElementById('password') as HTMLInputElement).value;
+    document.getElementById('auth-form')!.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target as HTMLFormElement;
+      const data = new FormData(form);
+      const btn = form.querySelector('button') as HTMLButtonElement;
       const errEl = document.getElementById('auth-error')!;
       errEl.innerHTML = '';
+      btn.disabled = true;
 
       try {
         if (isLogin) {
-          await login(email, password);
+          await login(data.get('email') as string, data.get('password') as string);
         } else {
-          const orgName = (document.getElementById('org-name') as HTMLInputElement).value;
-          await register(email, password, orgName);
+          await register(
+            data.get('email') as string,
+            data.get('password') as string,
+            data.get('org') as string,
+          );
         }
-        await route();
-      } catch (e) {
-        errEl.innerHTML = `<div class="wm-auth-error">${e instanceof Error ? e.message : 'Error'}</div>`;
+        route();
+      } catch (err) {
+        btn.disabled = false;
+        errEl.innerHTML = `<div class="wm-auth-error">${err instanceof Error ? err.message : 'Something went wrong'}</div>`;
       }
-    };
-
-    // Enter key submit
-    app.querySelectorAll('input').forEach((input) => {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') document.getElementById('auth-submit')!.click();
-      });
     });
   }
 
   render();
 }
 
-// ===== Dashboard Page =====
+// ===== Dashboard =====
 async function renderDashboard(me: { email: string; org_name: string }) {
-  // Get or create default dashboard
   let dashboards = await listDashboards();
   if (dashboards.length === 0) {
     await createDashboard('My Dashboard');
     dashboards = await listDashboards();
   }
 
-  const currentDash = dashboards.find((d) => d.is_default) ?? dashboards[0]!;
+  let activeDash = dashboards.find((d) => d.is_default) ?? dashboards[0]!;
 
   app.innerHTML = `
     <div class="wm-header">
       <div class="wm-header-left">
         <span class="wm-logo">WorldMonitor</span>
         <select id="dash-select" class="wm-dashboard-select">
-          ${dashboards.map((d) => `<option value="${d.id}" ${d.id === currentDash.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+          ${dashboards.map((d) => `<option value="${d.id}" ${d.id === activeDash.id ? 'selected' : ''}>${d.name}</option>`).join('')}
         </select>
       </div>
       <div class="wm-header-right">
         <button id="add-widget-btn" class="wm-btn wm-btn-primary">+ Add Widget</button>
-        <span class="wm-user-badge">${me.email}</span>
-        <button id="logout-btn" class="wm-btn">Logout</button>
+        <span class="wm-user-badge">${me.org_name}</span>
+        <button id="logout-btn" class="wm-btn">Sign out</button>
       </div>
     </div>
     <div class="wm-dashboard">
@@ -129,32 +139,57 @@ async function renderDashboard(me: { email: string; org_name: string }) {
     </div>
   `;
 
-  // Init Gridstack
-  const container = document.getElementById('grid-container')!;
   const isEmbed = new URLSearchParams(location.search).has('embed');
+  const container = document.getElementById('grid-container')!;
   initGrid(container, { readOnly: isEmbed });
 
-  // Load dashboard panels
-  await loadDashboard(currentDash.id);
+  const dash = await loadDashboard(activeDash.id);
+
+  // Show empty state if no panels
+  if (dash.panels.length === 0) {
+    showEmptyState(container, activeDash.id);
+  }
 
   // Dashboard switcher
   document.getElementById('dash-select')!.addEventListener('change', async (e) => {
     const id = (e.target as HTMLSelectElement).value;
     destroyGrid();
     initGrid(document.getElementById('grid-container')!, { readOnly: isEmbed });
-    await loadDashboard(id);
+    const d = await loadDashboard(id);
+    activeDash = dashboards.find((x) => x.id === id) ?? activeDash;
+    if (d.panels.length === 0) showEmptyState(document.getElementById('grid-container')!, id);
   });
 
-  // Add widget
   document.getElementById('add-widget-btn')!.onclick = () => {
-    showAddWidgetModal(currentDash.id);
+    const current = getCurrentDashboard();
+    showAddWidgetModal(current?.id ?? activeDash.id);
   };
 
-  // Logout
   document.getElementById('logout-btn')!.onclick = () => {
     clearTokens();
     destroyGrid();
     route();
+  };
+
+  if (isEmbed) {
+    document.querySelector('.wm-header')?.remove();
+    document.querySelector('.wm-dashboard')!.setAttribute('style', 'height:100vh');
+  }
+}
+
+function showEmptyState(container: HTMLElement, dashboardId: string) {
+  const empty = document.createElement('div');
+  empty.className = 'wm-empty-state';
+  empty.innerHTML = `
+    <div class="wm-empty-state-icon">📡</div>
+    <h2>No widgets yet</h2>
+    <p>Add your first data source — news feeds, earthquake maps, crypto prices, weather, and more.</p>
+    <button class="wm-btn wm-btn-primary" id="empty-add-btn">+ Add Widget</button>
+  `;
+  container.appendChild(empty);
+  document.getElementById('empty-add-btn')!.onclick = () => {
+    empty.remove();
+    showAddWidgetModal(dashboardId);
   };
 }
 

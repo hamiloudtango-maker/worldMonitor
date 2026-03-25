@@ -190,7 +190,7 @@ export function addPanelWidget(panel: DashboardPanel): void {
 }
 
 // Cache of loaded templates by source_id
-const templateCache: Record<string, SourceTemplate> = {};
+export const templateCache: Record<string, SourceTemplate> = {};
 
 /**
  * Fetch data and render a panel.

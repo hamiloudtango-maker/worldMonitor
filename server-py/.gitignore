@@ -4,3 +4,5 @@ __pycache__/
 .env
 *.egg-info/
 dist/
+*.db
+__pycache__/

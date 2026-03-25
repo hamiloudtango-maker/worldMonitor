@@ -2,7 +2,7 @@
  * Add Widget Modal — browse catalog presets or detect custom URL.
  */
 
-import { addPanelWidget } from '@/app/dashboard-engine';
+import { addPanelWidget, templateCache } from '@/app/dashboard-engine';
 import { apiFetch } from '@/services/api-client';
 import { detectSource, createTemplate, validateTemplate } from '@/services/template-store';
 import type { SourceTemplate } from '@/services/template-store';
@@ -162,6 +162,8 @@ async function addPresetWidget(dashboardId: string, preset: WidgetPreset): Promi
   }
 
   const saved = await createTemplate(template);
+  // Populate the renderer cache so refreshPanel can find the template
+  templateCache[template.source_id] = template;
   await addPanelToDashboard(dashboardId, saved.id, template);
 }
 
