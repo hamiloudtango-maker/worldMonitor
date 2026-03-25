@@ -3,7 +3,9 @@
  */
 
 import './styles.css';
+import './news-intelligence.css';
 import { registerAllRenderers } from '@/components/renderers';
+import { renderNewsIntelligence } from '@/v2/news-intelligence';
 import {
   initGrid,
   loadDashboard,
@@ -124,6 +126,10 @@ async function renderDashboard(me: { email: string; org_name: string }) {
     <div class="wm-header">
       <div class="wm-header-left">
         <span class="wm-logo">WorldMonitor</span>
+        <div class="wm-tab-nav">
+          <button class="wm-tab active" data-tab="dashboard">Dashboard</button>
+          <button class="wm-tab" data-tab="news">News</button>
+        </div>
         <select id="dash-select" class="wm-dashboard-select">
           ${dashboards.map((d) => `<option value="${d.id}" ${d.id === activeDash.id ? 'selected' : ''}>${d.name}</option>`).join('')}
         </select>
@@ -134,9 +140,10 @@ async function renderDashboard(me: { email: string; org_name: string }) {
         <button id="logout-btn" class="wm-btn">Sign out</button>
       </div>
     </div>
-    <div class="wm-dashboard">
+    <div id="view-dashboard" class="wm-dashboard">
       <div id="grid-container" class="grid-stack"></div>
     </div>
+    <div id="view-news" class="wm-dashboard" style="display:none"></div>
   `;
 
   const isEmbed = new URLSearchParams(location.search).has('embed');
@@ -158,6 +165,37 @@ async function renderDashboard(me: { email: string; org_name: string }) {
     const d = await loadDashboard(id);
     activeDash = dashboards.find((x) => x.id === id) ?? activeDash;
     if (d.panels.length === 0) showEmptyState(document.getElementById('grid-container')!, id);
+  });
+
+  // Tab switching
+  let newsLoaded = false;
+  document.querySelectorAll('.wm-tab').forEach(tab => {
+    tab.addEventListener('click', async () => {
+      const target = (tab as HTMLElement).dataset.tab!;
+      document.querySelectorAll('.wm-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const dashView = document.getElementById('view-dashboard')!;
+      const newsView = document.getElementById('view-news')!;
+      const addBtn = document.getElementById('add-widget-btn')!;
+      const dashSelect = document.getElementById('dash-select') as HTMLElement;
+
+      if (target === 'dashboard') {
+        dashView.style.display = '';
+        newsView.style.display = 'none';
+        addBtn.style.display = '';
+        dashSelect.style.display = '';
+      } else {
+        dashView.style.display = 'none';
+        newsView.style.display = '';
+        addBtn.style.display = 'none';
+        dashSelect.style.display = 'none';
+        if (!newsLoaded) {
+          newsLoaded = true;
+          await renderNewsIntelligence(newsView);
+        }
+      }
+    });
   });
 
   document.getElementById('add-widget-btn')!.onclick = () => {
