@@ -1,0 +1,114 @@
+{
+  "rss_bbc_world": {
+    "fetch": "OK",
+    "content_type": "text/xml",
+    "size": 500,
+    "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:content=\"http://purl.org/rs"
+  },
+  "rss_guardian": {
+    "fetch": "OK",
+    "content_type": "text/xml",
+    "size": 500,
+    "preview": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r <rss xmlns:media=\"http://search.yahoo.com/mrss/\" xmlns:dc=\"http://purl.org/dc/el"
+  },
+  "rss_npr": {
+    "fetch": "OK",
+    "content_type": "text/xml",
+    "size": 500,
+    "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?> <rss xmlns:npr=\"https://www.npr.org/rss/\" xmlns:nprml=\"https://api.npr.org/nprml\""
+  },
+  "rss_france24_en": {
+    "fetch": "OK",
+    "content_type": "application/rss+xml",
+    "size": 500,
+    "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?> <rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\" xmlns:media=\"http://s"
+  },
+  "rss_dw_en": {
+    "fetch": "OK",
+    "content_type": "application/xml",
+    "size": 500,
+    "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?> <rss version=\"2.0\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:content=\"htt"
+  },
+  "rss_tagesschau": {
+    "fetch": "OK",
+    "content_type": "application/xml",
+    "size": 500,
+    "preview": "<?xml version='1.0' encoding='UTF-8'?> <rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\" xmlns"
+  },
+  "rss_ansa_it": {
+    "fetch": "OK",
+    "content_type": "text/xml",
+    "size": 500,
+    "preview": "<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\">                     <channel>   <atom:link rel=\"self\" type="
+  },
+  "rss_nos_nl": {
+    "fetch": "OK",
+    "content_type": "text/xml",
+    "size": 500,
+    "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><?xml-stylesheet href=\"/public/style.xsl\" type=\"text/xsl\"?>\r <rss xmlns:itunes=\"ht"
+  },
+  "rss_svt_se": {
+    "fetch": "OK",
+    "content_type": "application/xml",
+    "size": 500,
+    "preview": "<?xml version=\"1.0\" encoding=\"utf-8\"?> <rss version=\"2.0\">  <channel>   <title>SVT Nyheter</title>   <link>https://www.s"
+  },
+  "json_usgs_quakes": {
+    "fetch": "OK",
+    "content_type": "application/json",
+    "size": 500,
+    "preview": "{\"type\":\"FeatureCollection\",\"metadata\":{\"generated\":1774425073000,\"url\":\"https://earthquake.usgs.gov/earthquakes/feed/v1"
+  },
+  "json_eonet": {
+    "fetch": "OK",
+    "content_type": "application/rss+xml",
+    "size": 500,
+    "preview": "{ \t\"title\": \"EONET Events\", \t\"description\": \"Natural events from EONET.\", \t\"link\": \"https://eonet.gsfc.nasa.gov/api/v3/e"
+  },
+  "json_open_meteo": {
+    "fetch": "OK",
+    "content_type": "application/json",
+    "size": 365,
+    "preview": "{\"latitude\":48.84,\"longitude\":2.3599997,\"generationtime_ms\":0.05555152893066406,\"utc_offset_seconds\":0,\"timezone\":\"GMT\","
+  },
+  "json_nws_alerts": {
+    "fetch": "FAIL",
+    "error": "Client error '400 Bad Request' for url 'https://api.weather.gov/alerts/active?limit=10'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400"
+  },
+  "json_worldbank_gdp": {
+    "fetch": "OK",
+    "content_type": "application/json",
+    "size": 500,
+    "preview": "[{\"page\":1,\"pages\":14,\"per_page\":5,\"total\":66,\"sourceid\":\"2\",\"lastupdated\":\"2026-02-24\"},[{\"indicator\":{\"id\":\"NY.GDP.MKT"
+  },
+  "json_safecast": {
+    "fetch": "OK",
+    "content_type": "application/json",
+    "size": 500,
+    "preview": "[{\"id\":88470431,\"user_id\":78,\"value\":36.0,\"unit\":\"cpm\",\"location_name\":null,\"device_id\":null,\"original_id\":null,\"measure"
+  },
+  "json_auth_finnhub": {
+    "fetch": "FAIL",
+    "error": "Client error '401 Unauthorized' for url 'https://finnhub.io/api/v1/quote?symbol=AAPL'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401"
+  },
+  "json_auth_acled": {
+    "fetch": "FAIL",
+    "error": "[Errno 11001] getaddrinfo failed"
+  },
+  "json_auth_cloudflare": {
+    "fetch": "FAIL",
+    "error": "Client error '400 Bad Request' for url 'https://api.cloudflare.com/client/v4/radar/annotations/outages?limit=5'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400"
+  },
+  "json_coingecko": {
+    "fetch": "OK",
+    "content_type": "application/json",
+    "size": 500,
+    "preview": "[{\"id\":\"bitcoin\",\"symbol\":\"btc\",\"name\":\"Bitcoin\",\"image\":\"https://coin-images.coingecko.com/coins/images/1/large/bitcoin"
+  },
+  "rss_aljazeera": {
+    "fetch": "OK",
+    "content_type": "application/rss+xml",
+    "size": 500,
+    "preview": "<rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\" xmlns:atom=\"http://www.w3.org/2005/Atom\" xml"
+  }
+}

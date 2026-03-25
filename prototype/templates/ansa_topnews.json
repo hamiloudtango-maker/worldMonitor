@@ -1,0 +1,48 @@
+{
+  "source_id": "ansa_topnews",
+  "source_type": "rss",
+  "category": "news",
+  "refresh_seconds": 300,
+  "namespaces": {
+    "atom": "http://www.w3.org/2005/Atom"
+  },
+  "fields": [
+    {
+      "name": "title",
+      "path": "title",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "path": "description",
+      "type": "string"
+    },
+    {
+      "name": "link",
+      "path": "link",
+      "type": "url"
+    },
+    {
+      "name": "pubDate",
+      "path": "pubDate",
+      "type": "date_iso"
+    },
+    {
+      "name": "guid",
+      "path": "guid",
+      "type": "string"
+    }
+  ],
+  "panel": {
+    "title": "ANSA Top News",
+    "display": "feed",
+    "columns": [
+      "title",
+      "description",
+      "pubDate"
+    ]
+  },
+  "url": "https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml",
+  "content_type_hint": "text/xml",
+  "created_at": "2026-03-25T07:53:43.340167+00:00"
+}

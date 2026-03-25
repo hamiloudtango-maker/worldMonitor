@@ -1,0 +1,56 @@
+{
+  "source_id": "safecast_measurements",
+  "source_type": "json_api",
+  "category": "environmental",
+  "refresh_seconds": 300,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "id",
+      "path": "$[*].id",
+      "type": "number"
+    },
+    {
+      "name": "user_id",
+      "path": "$[*].user_id",
+      "type": "number"
+    },
+    {
+      "name": "value",
+      "path": "$[*].value",
+      "type": "number"
+    },
+    {
+      "name": "unit",
+      "path": "$[*].unit",
+      "type": "string"
+    },
+    {
+      "name": "captured_at",
+      "path": "$[*].captured_at",
+      "type": "date_iso"
+    },
+    {
+      "name": "latitude",
+      "path": "$[*].latitude",
+      "type": "geo_lat"
+    },
+    {
+      "name": "longitude",
+      "path": "$[*].longitude",
+      "type": "geo_lon"
+    }
+  ],
+  "panel": {
+    "title": "Safecast Radiation Measurements",
+    "display": "map_markers",
+    "columns": [
+      "value",
+      "unit",
+      "captured_at"
+    ]
+  },
+  "url": "https://api.safecast.org/measurements.json?distance=1000&latitude=35.6762&longitude=139.6503&per_page=10",
+  "content_type_hint": "application/json",
+  "created_at": "2026-03-25T07:54:51.283909+00:00"
+}

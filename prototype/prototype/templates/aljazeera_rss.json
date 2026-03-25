@@ -1,0 +1,60 @@
+{
+  "source_id": "aljazeera_rss",
+  "source_type": "rss",
+  "category": "news",
+  "refresh_seconds": 300,
+  "namespaces": {
+    "atom": "http://www.w3.org/2005/Atom",
+    "media": "http://search.yahoo.com/mrss/",
+    "wp": "com-wordpress:feed-additions:1"
+  },
+  "fields": [
+    {
+      "name": "title",
+      "path": "title",
+      "type": "string"
+    },
+    {
+      "name": "url",
+      "path": "link",
+      "type": "url"
+    },
+    {
+      "name": "summary",
+      "path": "description",
+      "type": "string"
+    },
+    {
+      "name": "published_at",
+      "path": "pubDate",
+      "type": "date_iso"
+    },
+    {
+      "name": "category",
+      "path": "category",
+      "type": "string"
+    },
+    {
+      "name": "guid",
+      "path": "guid",
+      "type": "string"
+    },
+    {
+      "name": "post_id",
+      "path": "wp:post-id",
+      "type": "string"
+    }
+  ],
+  "panel": {
+    "title": "Al Jazeera Latest News",
+    "display": "feed",
+    "columns": [
+      "title",
+      "published_at",
+      "category"
+    ]
+  },
+  "url": "https://www.aljazeera.com/xml/rss/all.xml",
+  "content_type_hint": "application/rss+xml",
+  "created_at": "2026-03-24T23:39:54.893256+00:00"
+}

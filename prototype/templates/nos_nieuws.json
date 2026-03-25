@@ -1,0 +1,56 @@
+{
+  "source_id": "nos_nieuws",
+  "source_type": "rss",
+  "category": "news",
+  "refresh_seconds": 300,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "title",
+      "path": "title",
+      "type": "string"
+    },
+    {
+      "name": "url",
+      "path": "link",
+      "type": "url"
+    },
+    {
+      "name": "description",
+      "path": "description",
+      "type": "string"
+    },
+    {
+      "name": "published_at",
+      "path": "pubDate",
+      "type": "date_iso"
+    },
+    {
+      "name": "guid",
+      "path": "guid",
+      "type": "string"
+    },
+    {
+      "name": "image_url",
+      "path": "enclosure/@url",
+      "type": "url"
+    },
+    {
+      "name": "image_type",
+      "path": "enclosure/@type",
+      "type": "string"
+    }
+  ],
+  "panel": {
+    "title": "NOS Nieuws",
+    "display": "feed",
+    "columns": [
+      "title",
+      "published_at",
+      "url"
+    ]
+  },
+  "url": "https://feeds.nos.nl/nosnieuwsalgemeen",
+  "content_type_hint": "text/xml",
+  "created_at": "2026-03-25T07:53:54.009246+00:00"
+}

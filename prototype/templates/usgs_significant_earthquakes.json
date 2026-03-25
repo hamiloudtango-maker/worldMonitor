@@ -1,0 +1,73 @@
+{
+  "source_id": "usgs_significant_earthquakes",
+  "source_type": "json_api",
+  "category": "natural_disaster",
+  "refresh_seconds": 300,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "id",
+      "path": "$.features[*].id",
+      "type": "string"
+    },
+    {
+      "name": "title",
+      "path": "$.features[*].properties.title",
+      "type": "string"
+    },
+    {
+      "name": "magnitude",
+      "path": "$.features[*].properties.mag",
+      "type": "number"
+    },
+    {
+      "name": "location_name",
+      "path": "$.features[*].properties.place",
+      "type": "string"
+    },
+    {
+      "name": "event_time",
+      "path": "$.features[*].properties.time",
+      "type": "date_ms"
+    },
+    {
+      "name": "latitude",
+      "path": "$.features[*].geometry.coordinates[1]",
+      "type": "geo_lat"
+    },
+    {
+      "name": "longitude",
+      "path": "$.features[*].geometry.coordinates[0]",
+      "type": "geo_lon"
+    },
+    {
+      "name": "depth_km",
+      "path": "$.features[*].geometry.coordinates[2]",
+      "type": "number"
+    },
+    {
+      "name": "tsunami_warning",
+      "path": "$.features[*].properties.tsunami",
+      "type": "number"
+    },
+    {
+      "name": "event_url",
+      "path": "$.features[*].properties.url",
+      "type": "url"
+    }
+  ],
+  "panel": {
+    "title": "USGS Significant Earthquakes (Past Month)",
+    "display": "table",
+    "columns": [
+      "title",
+      "magnitude",
+      "location_name",
+      "event_time",
+      "tsunami_warning"
+    ]
+  },
+  "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.geojson",
+  "content_type_hint": "application/json",
+  "created_at": "2026-03-25T07:54:09.165627+00:00"
+}

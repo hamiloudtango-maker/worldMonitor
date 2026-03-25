@@ -1,0 +1,67 @@
+{
+  "source_id": "bbc_news_world",
+  "source_type": "rss",
+  "category": "news",
+  "refresh_seconds": 900,
+  "namespaces": {
+    "dc": "http://purl.org/dc/elements/1.1/",
+    "content": "http://purl.org/rss/1.0/modules/content/",
+    "atom": "http://www.w3.org/2005/Atom",
+    "media": "http://search.yahoo.com/mrss/"
+  },
+  "fields": [
+    {
+      "name": "title",
+      "path": "title",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "path": "description",
+      "type": "string"
+    },
+    {
+      "name": "link",
+      "path": "link",
+      "type": "url"
+    },
+    {
+      "name": "guid",
+      "path": "guid",
+      "type": "string"
+    },
+    {
+      "name": "pubDate",
+      "path": "pubDate",
+      "type": "date_iso"
+    },
+    {
+      "name": "thumbnail_url",
+      "path": "media:thumbnail/@url",
+      "type": "url"
+    },
+    {
+      "name": "thumbnail_width",
+      "path": "media:thumbnail/@width",
+      "type": "number"
+    },
+    {
+      "name": "thumbnail_height",
+      "path": "media:thumbnail/@height",
+      "type": "number"
+    }
+  ],
+  "panel": {
+    "title": "BBC News - World",
+    "display": "feed",
+    "columns": [
+      "title",
+      "description",
+      "pubDate",
+      "thumbnail_url"
+    ]
+  },
+  "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+  "content_type_hint": "text/xml",
+  "created_at": "2026-03-25T07:52:57.076166+00:00"
+}

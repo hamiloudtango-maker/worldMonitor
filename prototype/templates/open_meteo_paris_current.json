@@ -1,0 +1,67 @@
+{
+  "source_id": "open_meteo_paris_current",
+  "source_type": "json_api",
+  "category": "weather",
+  "refresh_seconds": 300,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "latitude",
+      "path": "$.latitude",
+      "type": "geo_lat"
+    },
+    {
+      "name": "longitude",
+      "path": "$.longitude",
+      "type": "geo_lon"
+    },
+    {
+      "name": "time",
+      "path": "$.current.time",
+      "type": "date_iso"
+    },
+    {
+      "name": "temperature_2m",
+      "path": "$.current.temperature_2m",
+      "type": "number"
+    },
+    {
+      "name": "temperature_unit",
+      "path": "$.current_units.temperature_2m",
+      "type": "string"
+    },
+    {
+      "name": "wind_speed_10m",
+      "path": "$.current.wind_speed_10m",
+      "type": "number"
+    },
+    {
+      "name": "wind_speed_unit",
+      "path": "$.current_units.wind_speed_10m",
+      "type": "string"
+    },
+    {
+      "name": "elevation",
+      "path": "$.elevation",
+      "type": "number"
+    },
+    {
+      "name": "timezone",
+      "path": "$.timezone",
+      "type": "string"
+    }
+  ],
+  "panel": {
+    "title": "Météo Actuelle Paris",
+    "display": "metric_cards",
+    "columns": [
+      "time",
+      "temperature_2m",
+      "wind_speed_10m",
+      "elevation"
+    ]
+  },
+  "url": "https://api.open-meteo.com/v1/forecast?latitude=48.85&longitude=2.35&current=temperature_2m,wind_speed_10m",
+  "content_type_hint": "application/json",
+  "created_at": "2026-03-25T07:54:28.927071+00:00"
+}

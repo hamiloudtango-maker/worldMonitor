@@ -1,0 +1,46 @@
+{
+  "source_id": "svt_nyheter",
+  "source_type": "rss",
+  "category": "news",
+  "refresh_seconds": 300,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "title",
+      "path": "title",
+      "type": "string"
+    },
+    {
+      "name": "link",
+      "path": "link",
+      "type": "url"
+    },
+    {
+      "name": "description",
+      "path": "description",
+      "type": "string"
+    },
+    {
+      "name": "pubDate",
+      "path": "pubDate",
+      "type": "date_iso"
+    },
+    {
+      "name": "guid",
+      "path": "guid",
+      "type": "url"
+    }
+  ],
+  "panel": {
+    "title": "SVT Nyheter",
+    "display": "feed",
+    "columns": [
+      "title",
+      "description",
+      "pubDate"
+    ]
+  },
+  "url": "https://www.svt.se/nyheter/rss.xml",
+  "content_type_hint": "application/xml",
+  "created_at": "2026-03-25T07:54:00.416451+00:00"
+}

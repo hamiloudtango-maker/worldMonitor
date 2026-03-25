@@ -1,0 +1,64 @@
+{
+  "source_id": "france24_en_rss",
+  "source_type": "rss",
+  "category": "news",
+  "refresh_seconds": 300,
+  "namespaces": {
+    "media": "http://search.yahoo.com/mrss/",
+    "dc": "http://purl.org/dc/elements/1.1/"
+  },
+  "fields": [
+    {
+      "name": "title",
+      "path": "title",
+      "type": "string"
+    },
+    {
+      "name": "link",
+      "path": "link",
+      "type": "url"
+    },
+    {
+      "name": "description",
+      "path": "description",
+      "type": "string"
+    },
+    {
+      "name": "pub_date",
+      "path": "pubDate",
+      "type": "date_iso"
+    },
+    {
+      "name": "category",
+      "path": "category",
+      "type": "string"
+    },
+    {
+      "name": "thumbnail_url",
+      "path": "media:thumbnail/@url",
+      "type": "url"
+    },
+    {
+      "name": "creator",
+      "path": "dc:creator",
+      "type": "string"
+    },
+    {
+      "name": "guid",
+      "path": "guid",
+      "type": "string"
+    }
+  ],
+  "panel": {
+    "title": "France 24 News",
+    "display": "feed",
+    "columns": [
+      "title",
+      "pub_date",
+      "category"
+    ]
+  },
+  "url": "https://www.france24.com/en/rss",
+  "content_type_hint": "application/rss+xml",
+  "created_at": "2026-03-25T07:53:20.643291+00:00"
+}

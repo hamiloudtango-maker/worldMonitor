@@ -1,0 +1,73 @@
+{
+  "source_id": "coingecko_top10_crypto",
+  "source_type": "json_api",
+  "category": "crypto",
+  "refresh_seconds": 60,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "id",
+      "path": "$.id",
+      "type": "string"
+    },
+    {
+      "name": "name",
+      "path": "$.name",
+      "type": "string"
+    },
+    {
+      "name": "symbol",
+      "path": "$.symbol",
+      "type": "string"
+    },
+    {
+      "name": "current_price",
+      "path": "$.current_price",
+      "type": "number"
+    },
+    {
+      "name": "market_cap",
+      "path": "$.market_cap",
+      "type": "number"
+    },
+    {
+      "name": "market_cap_rank",
+      "path": "$.market_cap_rank",
+      "type": "number"
+    },
+    {
+      "name": "price_change_percentage_24h",
+      "path": "$.price_change_percentage_24h",
+      "type": "number"
+    },
+    {
+      "name": "total_volume",
+      "path": "$.total_volume",
+      "type": "number"
+    },
+    {
+      "name": "image",
+      "path": "$.image",
+      "type": "url"
+    },
+    {
+      "name": "last_updated",
+      "path": "$.last_updated",
+      "type": "date_iso"
+    }
+  ],
+  "panel": {
+    "title": "Top 10 Cryptocurrencies (USD)",
+    "display": "table",
+    "columns": [
+      "name",
+      "symbol",
+      "current_price",
+      "market_cap",
+      "price_change_percentage_24h"
+    ]
+  },
+  "url": "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1",
+  "content_type_hint": "application/json",
+  "created_at": "2026-03-24T23:37:49.032807+00:00"
+}

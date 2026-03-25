@@ -1,0 +1,64 @@
+{
+  "source_id": "guardian_world_news",
+  "source_type": "rss",
+  "category": "news",
+  "refresh_seconds": 300,
+  "namespaces": {
+    "media": "http://search.yahoo.com/mrss/",
+    "dc": "http://purl.org/dc/elements/1.1/"
+  },
+  "fields": [
+    {
+      "name": "title",
+      "path": "title",
+      "type": "string"
+    },
+    {
+      "name": "link",
+      "path": "link",
+      "type": "url"
+    },
+    {
+      "name": "description",
+      "path": "description",
+      "type": "string"
+    },
+    {
+      "name": "pubDate",
+      "path": "dc:date",
+      "type": "date_iso"
+    },
+    {
+      "name": "category",
+      "path": "category",
+      "type": "string"
+    },
+    {
+      "name": "guid",
+      "path": "guid",
+      "type": "string"
+    },
+    {
+      "name": "imageUrl",
+      "path": "media:content[1]/@url",
+      "type": "url"
+    },
+    {
+      "name": "author",
+      "path": "dc:creator",
+      "type": "string"
+    }
+  ],
+  "panel": {
+    "title": "Guardian World News",
+    "display": "feed",
+    "columns": [
+      "title",
+      "pubDate",
+      "author"
+    ]
+  },
+  "url": "https://www.theguardian.com/world/rss",
+  "content_type_hint": "text/xml",
+  "created_at": "2026-03-25T07:53:05.526595+00:00"
+}

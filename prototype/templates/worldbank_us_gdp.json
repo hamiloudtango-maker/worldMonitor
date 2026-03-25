@@ -1,0 +1,42 @@
+{
+  "source_id": "worldbank_us_gdp",
+  "source_type": "json_api",
+  "category": "economic",
+  "refresh_seconds": 3600,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "year",
+      "path": "$[1][*].date",
+      "type": "string"
+    },
+    {
+      "name": "gdp_value",
+      "path": "$[1][*].value",
+      "type": "number"
+    },
+    {
+      "name": "country",
+      "path": "$[1][*].country.value",
+      "type": "string"
+    },
+    {
+      "name": "indicator",
+      "path": "$[1][*].indicator.value",
+      "type": "string"
+    }
+  ],
+  "panel": {
+    "title": "US GDP (Current US$)",
+    "display": "table",
+    "columns": [
+      "year",
+      "gdp_value",
+      "country",
+      "indicator"
+    ]
+  },
+  "url": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json&per_page=5",
+  "content_type_hint": "application/json",
+  "created_at": "2026-03-25T07:54:41.217198+00:00"
+}

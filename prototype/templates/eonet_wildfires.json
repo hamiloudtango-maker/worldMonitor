@@ -1,0 +1,72 @@
+{
+  "source_id": "eonet_wildfires",
+  "source_type": "json_api",
+  "category": "natural_disaster",
+  "refresh_seconds": 300,
+  "namespaces": {},
+  "fields": [
+    {
+      "name": "id",
+      "path": "$.events[*].id",
+      "type": "string"
+    },
+    {
+      "name": "title",
+      "path": "$.events[*].title",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "path": "$.events[*].description",
+      "type": "string"
+    },
+    {
+      "name": "link",
+      "path": "$.events[*].link",
+      "type": "url"
+    },
+    {
+      "name": "category",
+      "path": "$.events[*].categories[*].title",
+      "type": "string"
+    },
+    {
+      "name": "magnitude_value",
+      "path": "$.events[*].geometry[*].magnitudeValue",
+      "type": "number"
+    },
+    {
+      "name": "magnitude_unit",
+      "path": "$.events[*].geometry[*].magnitudeUnit",
+      "type": "string"
+    },
+    {
+      "name": "event_date",
+      "path": "$.events[*].geometry[*].date",
+      "type": "date_iso"
+    },
+    {
+      "name": "latitude",
+      "path": "$.events[*].geometry[*].coordinates[1]",
+      "type": "geo_lat"
+    },
+    {
+      "name": "longitude",
+      "path": "$.events[*].geometry[*].coordinates[0]",
+      "type": "geo_lon"
+    }
+  ],
+  "panel": {
+    "title": "EONET Wildfires",
+    "display": "map_markers",
+    "columns": [
+      "title",
+      "event_date",
+      "magnitude_value",
+      "magnitude_unit"
+    ]
+  },
+  "url": "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=10",
+  "content_type_hint": "application/rss+xml",
+  "created_at": "2026-03-25T07:54:19.565947+00:00"
+}
