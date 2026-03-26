@@ -19,8 +19,8 @@ export function useCases() {
 
   useEffect(() => { reload(); }, [reload]);
 
-  const add = useCallback(async (name: string, type: string) => {
-    const c = await createCase(name, type);
+  const add = useCallback(async (name: string, type: string, description?: string) => {
+    const c = await createCase(name, type, description);
     setCases(prev => [c, ...prev]);
     return c;
   }, []);

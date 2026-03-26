@@ -9,7 +9,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell
 } from 'recharts';
-import { api } from '@/v2/lib/api';
+import { api, fetchAllArticles } from '@/v2/lib/api';
 import type { CaseData } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo } from '@/v2/lib/constants';
@@ -19,6 +19,9 @@ import CasesView from './CasesView';
 import WorldView from './WorldView';
 import CaseBoard from './CaseBoard';
 import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './WidgetGrid';
+import { FULL_CATALOG, renderSharedWidget } from './shared/WidgetCatalog';
+import NotificationPanel from './shared/NotificationPanel';
+import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -56,7 +59,7 @@ export default function Dashboard({ user, onLogout }: Props) {
   const [entities, setEntities]     = useState<[string, number][]>([]);
   const [countries, setCountries]   = useState<[string, number][]>([]);
   const [loading, setLoading]       = useState(true);
-  // KPI config now inside WidgetGrid
+  const [filters, setFilters]       = useState<ActiveFilters>(EMPTY_FILTERS);
   const [boardCase, setBoardCase]   = useState<CaseData | null>(null);
   const [_selectedCase, setSelectedCase] = useState<CaseData | null>(null);
 
@@ -66,13 +69,13 @@ export default function Dashboard({ user, onLogout }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, a, e, c] = await Promise.all([
+      const [s, allArticles, e, c] = await Promise.all([
         api<Stats>('/articles/v1/stats'),
-        api<{ articles: Article[]; total: number }>('/articles/v1/search?limit=100'),
+        fetchAllArticles(),
         api<{ entities: [string, number][] }>('/articles/v1/entities?limit=30'),
         api<{ countries: [string, number][] }>('/articles/v1/countries'),
       ]);
-      setStats(s); setArticles(a.articles); setEntities(e.entities); setCountries(c.countries);
+      setStats(s); setArticles(allArticles); setEntities(e.entities); setCountries(c.countries);
     } catch { /* silent */ }
     setLoading(false);
   }, []);
@@ -80,9 +83,38 @@ export default function Dashboard({ user, onLogout }: Props) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { const id = setInterval(load, 60_000); return () => clearInterval(id); }, [load]);
 
-  /* ── Derived ── */
-  const alertArticles = articles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high');
-  // visibleKpis moved to WidgetGrid
+  /* ── Filtered articles ── */
+  const caseKw = filters.cases.length > 0
+    ? cases.filter(c => filters.cases.includes(c.name))
+        .flatMap(c => (c.search_keywords || c.name).split('|').map(k => k.trim().toLowerCase()).filter(k => k.length >= 3))
+    : [];
+  const filteredArticles = articles.filter(a => {
+    if (filters.q && !a.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
+    if (filters.countries.length && !a.country_codes.some(c => filters.countries.includes(c))) return false;
+    if (filters.themes.length && !filters.themes.includes(a.theme)) return false;
+    if (filters.threats.length && !filters.threats.includes(a.threat_level)) return false;
+    if (caseKw.length && !caseKw.some(kw =>
+      a.title.toLowerCase().includes(kw) ||
+      a.entities.some(e => e.toLowerCase().includes(kw)) ||
+      a.source_id.toLowerCase().includes(kw)
+    )) return false;
+    return true;
+  });
+  const alertArticles = filteredArticles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high');
+
+  // Recompute stats from filtered articles so all widgets react to filters
+  const hasFilters = filters.q || filters.countries.length || filters.themes.length || filters.threats.length || filters.cases.length;
+  const filteredStats = hasFilters ? (() => {
+    const by_theme: Record<string, number> = {};
+    const by_threat: Record<string, number> = {};
+    const by_source: Record<string, number> = {};
+    for (const a of filteredArticles) {
+      by_theme[a.theme] = (by_theme[a.theme] || 0) + 1;
+      by_threat[a.threat_level] = (by_threat[a.threat_level] || 0) + 1;
+      by_source[a.source_id] = (by_source[a.source_id] || 0) + 1;
+    }
+    return { total: filteredArticles.length, by_theme, by_threat, by_source, by_lang: {} };
+  })() : stats;
 
   const sentimentData = (() => {
     const neg = (stats?.by_threat['critical'] || 0) + (stats?.by_threat['high'] || 0);
@@ -192,22 +224,20 @@ export default function Dashboard({ user, onLogout }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input placeholder="Rechercher..." className="w-56 pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] outline-none focus:border-[#42d3a5] focus:ring-1 focus:ring-[#42d3a5]/20 transition-all" />
-            </div>
             <button onClick={load} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors" title="Actualiser">
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </button>
-            <button className="relative p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 border border-slate-200">
-              <Bell size={15} />
-              {alertArticles.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-white" />}
-            </button>
+            <NotificationPanel articles={articles} cases={cases} />
             <button className="flex items-center gap-1.5 px-3 py-1.5 text-white text-[12px] font-semibold rounded-lg shadow-sm transition-colors" style={{ background: ACCENT }}>
               <FileBarChart size={14} /> Rapport
             </button>
           </div>
         </header>
+        {nav === 'dashboard' && (
+          <div className="px-5 pt-3">
+            <FilterBar filters={filters} onChange={setFilters} stats={stats} articles={articles} cases={cases} />
+          </div>
+        )}
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -215,12 +245,18 @@ export default function Dashboard({ user, onLogout }: Props) {
           {/* ════════════════════ DASHBOARD VIEW ════════════════════ */}
           {nav === 'dashboard' && (
             <WidgetGrid
-              catalog={DASH_WIDGETS}
-              storageKey="wm-dash-widgets"
+              catalog={FULL_CATALOG}
+              storageKey="wm-dash-v3"
               defaultWidgets={DASH_DEFAULTS}
               onRefresh={load}
               loading={loading}
-              renderContent={id => <DashContent id={id} stats={stats} articles={articles} cases={cases} alertArticles={alertArticles} sentimentData={sentimentData} thematicData={thematicData} />}
+              renderContent={id => {
+                // Try shared renderer first (covers all 45+ widgets)
+                const shared = renderSharedWidget(id, filteredArticles, filteredStats, 'dash');
+                if (shared) return shared;
+                // Fallback: original dashboard-specific widgets
+                return <DashContent id={id} stats={stats} articles={articles} cases={cases} alertArticles={alertArticles} sentimentData={sentimentData} thematicData={thematicData} />;
+              }}
             />
           )}
 

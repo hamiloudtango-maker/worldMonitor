@@ -16,8 +16,9 @@ Generate a JSON identity card for the following entity.
 
 Entity name: {name}
 Entity type: {entity_type}
+User description: {description}
 
-Respond ONLY with valid JSON (no markdown, no ```). Use this exact structure:
+Use the user description to enrich and guide your research. Respond ONLY with valid JSON (no markdown, no ```). Use this exact structure:
 {{
   "description": "Two-sentence description of the entity.",
   "headquarters": "City, Country",
@@ -30,7 +31,9 @@ Respond ONLY with valid JSON (no markdown, no ```). Use this exact structure:
     {{"name": "Full Name", "role": "Title"}},
     {{"name": "Full Name", "role": "Title"}}
   ],
-  "revenue": "Estimated annual revenue or N/A"
+  "revenue": "Estimated annual revenue or N/A",
+  "aliases": ["Acronym", "Subsidiary Name", "Former Name"],
+  "search_terms": ["key phrase 1", "key phrase 2", "related topic"]
 }}
 
 Rules:
@@ -38,6 +41,8 @@ Rules:
 - key_people: maximum 3 entries
 - If information is unknown, use null for that field
 - founded must be a year number or null
+- aliases: alternative names, acronyms, subsidiaries (e.g. ["Areva", "COGEMA"])
+- search_terms: SHORT keywords (1-3 words each) to find news articles. Include competitors, related topics, locations. Do NOT prefix with entity name. Example for Orano: ["uranium", "nuclear fuel", "enrichment", "Cameco", "La Hague", "Niger uranium"]. Provide 5-15 terms.
 """
 
 
@@ -52,13 +57,15 @@ def _fallback_identity(name: str, entity_type: str) -> dict:
         "website": None,
         "key_people": [],
         "revenue": None,
+        "aliases": [],
+        "search_terms": [],
     }
 
 
-async def generate_identity_card(name: str, entity_type: str) -> dict:
+async def generate_identity_card(name: str, entity_type: str, description: str = "") -> dict:
     """Call Gemini Flash to produce a structured identity card for a case entity."""
     try:
-        prompt = _IDENTITY_PROMPT.format(name=name, entity_type=entity_type)
+        prompt = _IDENTITY_PROMPT.format(name=name, entity_type=entity_type, description=description or "N/A")
         raw = await _call_gemini(prompt)
 
         # Clean markdown fences if present

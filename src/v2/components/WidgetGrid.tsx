@@ -74,8 +74,17 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
   const [showCatalog, setShowCatalog] = useState(false);
 
   const onLayoutChange = useCallback((newLayout: LayoutItem[]) => {
-    setLayout(newLayout);
-    saveLayout(storageKey, newLayout);
+    // Merge positions from react-grid-layout with our state to preserve
+    // widget selection and minW/minH constraints
+    setLayout(prev => {
+      const posMap = new Map(newLayout.map(l => [l.i, l]));
+      const merged = prev.map(item => {
+        const pos = posMap.get(item.i);
+        return pos ? { ...item, x: pos.x, y: pos.y, w: pos.w, h: pos.h } : item;
+      });
+      saveLayout(storageKey, merged);
+      return merged;
+    });
   }, [storageKey]);
 
   function addWidget(id: string) {
@@ -114,7 +123,6 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
           <button onClick={() => setShowCatalog(!showCatalog)} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-[#42d3a5] hover:border-[#42d3a5]/30 transition-all">
             <Plus size={14} /> Widget
           </button>
-          <button onClick={resetLayout} className="px-3 py-1.5 text-[12px] font-medium rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-600 transition-colors">Reset</button>
           {onRefresh && (
             <button onClick={onRefresh} className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-[#42d3a5] transition-colors">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />

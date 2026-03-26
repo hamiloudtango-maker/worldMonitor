@@ -9,11 +9,13 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
-import { api } from '@/v2/lib/api';
+import { api, fetchAllArticles, listCases } from '@/v2/lib/api';
+import type { CaseData } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo, FLAGS } from '@/v2/lib/constants';
 import LiveMap from './LiveMap';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
+import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 
 const COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#eab308'];
 
@@ -70,21 +72,56 @@ export default function WorldView() {
   const [loading, setLoading] = useState(true);
   const [rssSources, setRssSources] = useState<RssSource[]>([]);
   const [fullCatalog, setFullCatalog] = useState<WidgetDef[]>(CATALOG);
+  const [filters, setFilters] = useState<ActiveFilters>(EMPTY_FILTERS);
+  const [cases, setCases] = useState<CaseData[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, a] = await Promise.all([
+      const [s, allArticles] = await Promise.all([
         api<Stats>('/articles/v1/stats'),
-        api<{ articles: Article[] }>('/articles/v1/search?limit=200'),
+        fetchAllArticles(),
       ]);
-      setStats(s); setArticles(a.articles);
+      setStats(s); setArticles(allArticles);
     } catch {/**/}
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
   // Auto-refresh every 30s to pick up newly ingested articles
   useEffect(() => { const id = setInterval(load, 30_000); return () => clearInterval(id); }, [load]);
+
+  // Load cases for filter dropdown
+  useEffect(() => { listCases().then(setCases).catch(() => {}); }, []);
+
+  // Filtered articles + recomputed stats
+  const caseKw = filters.cases.length > 0
+    ? cases.filter(c => filters.cases.includes(c.name))
+        .flatMap(c => (c.search_keywords || c.name).split('|').map(k => k.trim().toLowerCase()).filter(k => k.length >= 3))
+    : [];
+  const filteredArticles = articles.filter(a => {
+    if (filters.q && !a.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
+    if (filters.countries.length && !a.country_codes.some(c => filters.countries.includes(c))) return false;
+    if (filters.themes.length && !filters.themes.includes(a.theme)) return false;
+    if (filters.threats.length && !filters.threats.includes(a.threat_level)) return false;
+    if (caseKw.length && !caseKw.some(kw =>
+      a.title.toLowerCase().includes(kw) ||
+      a.entities.some(e => e.toLowerCase().includes(kw)) ||
+      a.source_id.toLowerCase().includes(kw)
+    )) return false;
+    return true;
+  });
+  const hasFilters = filters.q || filters.countries.length || filters.themes.length || filters.threats.length || filters.cases.length;
+  const filteredStats = hasFilters ? (() => {
+    const by_theme: Record<string, number> = {};
+    const by_threat: Record<string, number> = {};
+    const by_source: Record<string, number> = {};
+    for (const a of filteredArticles) {
+      by_theme[a.theme] = (by_theme[a.theme] || 0) + 1;
+      by_threat[a.threat_level] = (by_threat[a.threat_level] || 0) + 1;
+      by_source[a.source_id] = (by_source[a.source_id] || 0) + 1;
+    }
+    return { total: filteredArticles.length, by_theme, by_threat, by_source, by_lang: {} };
+  })() : stats;
 
   // Load RSS catalog from backend
   useEffect(() => {
@@ -104,14 +141,17 @@ export default function WorldView() {
   }, []);
 
   return (
-    <WidgetGrid
-      catalog={fullCatalog}
-      storageKey="wm-world-v7"
-      defaultWidgets={DEFAULTS}
-      onRefresh={load}
-      loading={loading}
-      renderContent={id => <WContent id={id} stats={stats} articles={articles} rssSources={rssSources} onRefresh={load} />}
-    />
+    <div className="space-y-3">
+      <FilterBar filters={filters} onChange={setFilters} stats={stats} articles={articles} cases={cases} />
+      <WidgetGrid
+        catalog={fullCatalog}
+        storageKey="wm-world-v7"
+        defaultWidgets={DEFAULTS}
+        onRefresh={load}
+        loading={loading}
+        renderContent={id => <WContent id={id} stats={filteredStats} articles={filteredArticles} rssSources={rssSources} onRefresh={load} />}
+      />
+    </div>
   );
 }
 

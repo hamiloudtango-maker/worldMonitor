@@ -49,7 +49,7 @@ async def fetch_google_news(
         parts.append(country)
 
     q = " ".join(parts) if parts else "world news"
-    q += " when:3d"  # Last 3 days
+    q += " when:7d"  # Last 7 days
 
     # Map lang to Google News hl param
     hl_map = {"en": "en-US", "fr": "fr-FR", "de": "de-DE", "es": "es-ES", "ar": "ar-SA", "ja": "ja-JP"}

@@ -100,6 +100,28 @@ export async function getMe(): Promise<{ email: string; org_name: string }> {
   return api('/auth/me');
 }
 
+// ── Fetch all articles (paginated) ───────────────────────────
+export async function fetchAllArticles(params: string = ''): Promise<import('@/v2/lib/constants').Article[]> {
+  const PAGE = 500;
+  const first = await api<{ articles: import('@/v2/lib/constants').Article[]; total: number }>(
+    `/articles/v1/search?limit=${PAGE}&offset=0${params ? `&${params}` : ''}`
+  );
+  const all = [...first.articles];
+  const total = first.total;
+  // Fetch remaining pages in parallel
+  if (total > PAGE) {
+    const pages = Math.ceil(total / PAGE) - 1;
+    const fetches = Array.from({ length: pages }, (_, i) =>
+      api<{ articles: import('@/v2/lib/constants').Article[] }>(
+        `/articles/v1/search?limit=${PAGE}&offset=${(i + 1) * PAGE}${params ? `&${params}` : ''}`
+      )
+    );
+    const results = await Promise.all(fetches);
+    for (const r of results) all.push(...r.articles);
+  }
+  return all;
+}
+
 // ── Case types ───────────────────────────────────────────────
 export interface IdentityCard {
   name: string;
@@ -129,6 +151,7 @@ export interface CaseStats {
   total: number;
   by_threat: Record<string, number>;
   by_theme: Record<string, number>;
+  by_source?: Record<string, number>;
 }
 
 export interface BoardLayout {
@@ -142,10 +165,10 @@ export async function listCases(): Promise<CaseData[]> {
   return Array.isArray(res) ? res : res.cases ?? [];
 }
 
-export function createCase(name: string, type: string): Promise<CaseData> {
+export function createCase(name: string, type: string, description?: string): Promise<CaseData> {
   return api<CaseData>('/cases', {
     method: 'POST',
-    body: JSON.stringify({ name, type }),
+    body: JSON.stringify({ name, type, description: description || '' }),
   });
 }
 

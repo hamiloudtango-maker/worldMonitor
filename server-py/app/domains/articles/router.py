@@ -29,12 +29,15 @@ async def search_articles(
     threat: str = Query("", description="Threat level filter (critical, high, medium, low)"),
     source_id: str = Query("", description="Source ID filter"),
     lang: str = Query("", description="Language filter (en, fr, de, es, ar, etc.)"),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    days: int = Query(7, ge=1, le=90, description="Retention window in days (default 7)"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Search and filter articles with multiple criteria."""
-    stmt = select(Article).order_by(desc(Article.pub_date))
+    """Search and filter articles with retention window (default 7 days)."""
+    from datetime import datetime, timezone, timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    stmt = select(Article).where(Article.pub_date >= cutoff).order_by(desc(Article.pub_date))
 
     if q:
         # SQLite LIKE search (upgrade to FTS5 for PG tsvector in prod)

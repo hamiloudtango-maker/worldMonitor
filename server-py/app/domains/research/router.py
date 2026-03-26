@@ -16,10 +16,6 @@ async def list_arxiv_papers(
     category: str = Query("cs.AI"),
     page_size: int = Query(10, ge=1, le=50),
 ):
-    content = await fetch_xml(
-        "http://export.arxiv.org/api/query",
-    )
-    # arxiv doesn't support params via fetch_xml, re-fetch with params
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(
             "http://export.arxiv.org/api/query",

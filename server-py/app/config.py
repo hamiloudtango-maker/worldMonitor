@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     secrets_key: str = "change-me-in-production"
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:3000", "http://localhost:3001"]
 
 
 settings = Settings()

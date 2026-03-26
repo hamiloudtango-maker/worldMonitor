@@ -6,7 +6,7 @@ import CreateCaseModal from './CreateCaseModal';
 interface Props {
   cases: CaseData[];
   loading: boolean;
-  onAdd: (name: string, type: string) => Promise<CaseData>;
+  onAdd: (name: string, type: string, description?: string) => Promise<CaseData>;
   onRemove: (id: string) => Promise<void>;
   onSelect: (c: CaseData) => void;
   onOpenBoard: (c: CaseData) => void;
@@ -123,10 +123,8 @@ export default function CasesView({ cases, loading, onAdd, onRemove, onSelect, o
             return (
               <div
                 key={c.id}
-                onClick={() => onSelect(c)}
-                onDoubleClick={() => onOpenBoard(c)}
+                onClick={() => onOpenBoard(c)}
                 className="bg-white p-4 rounded-xl border border-slate-200/60 hover:border-[#42d3a5]/30 hover:shadow-md cursor-pointer transition-all group relative"
-                title="Double-clic pour ouvrir le Board"
               >
                 {/* Delete button — visible on hover */}
                 <button
@@ -184,7 +182,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove, onSelect, o
       <CreateCaseModal
         open={showModal}
         onClose={() => setShowModal(false)}
-        onCreate={async (name, type) => { await onAdd(name, type); }}
+        onCreate={async (name, type, description) => { await onAdd(name, type, description); }}
       />
     </div>
   );

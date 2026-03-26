@@ -96,89 +96,26 @@ async def ingest_rss(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Ingest articles from any RSS feed URL into the articles database."""
+    """Ingest articles from any RSS feed URL through the full pipeline
+    (classify + NER + translate + store). Same pipeline as catalog & cases."""
     import hashlib
-    import uuid
-    from app.models.article import Article
+    from app.source_engine.rss_fetcher import fetch_rss_feed
+    from app.source_engine.article_pipeline import ingest_articles
+
+    source_id = f"rss_{name.lower().replace(' ', '_')}" if name else f"rss_{hashlib.md5(url.encode()).hexdigest()[:8]}"
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(url, headers={"User-Agent": "WorldMonitor/2.0"})
-            resp.raise_for_status()
-
-        root = etree.fromstring(resp.content)
-        items = root.xpath("//item") or root.xpath("//{http://www.w3.org/2005/Atom}entry")
-
-        source_id = f"rss_{name.lower().replace(' ', '_')}" if name else f"rss_{hashlib.md5(url.encode()).hexdigest()[:8]}"
+        rows = await fetch_rss_feed(url, max_items=50, timeout=15)
         inserted = 0
-
-        for item in items[:50]:
-            title = item.findtext("title", "") or item.findtext("{http://www.w3.org/2005/Atom}title", "")
-            link = item.findtext("link", "") or ""
-            if not link:
-                link_el = item.find("{http://www.w3.org/2005/Atom}link")
-                if link_el is not None:
-                    link = link_el.get("href", "")
-            desc = item.findtext("description", "") or item.findtext("{http://www.w3.org/2005/Atom}summary", "")
-            pub = item.findtext("pubDate", "") or item.findtext("{http://www.w3.org/2005/Atom}published", "")
-
-            if not title or not link:
-                continue
-
-            h = hashlib.sha256(link.encode()).hexdigest()
-
-            # Check if already exists
-            from sqlalchemy import select
-            exists = (await db.execute(select(Article.id).where(Article.hash == h))).scalar()
-            if exists:
-                continue
-
-            article = Article(
-                id=uuid.uuid4(),
-                hash=h,
-                source_id=source_id,
-                title=title[:500],
-                description=(desc or "")[:1000],
-                link=link,
-                pub_date=_parse_date(pub),
-                lang="en",
-                threat_level="info",
-                theme="general",
-                confidence=0.3,
-            )
-            db.add(article)
-            inserted += 1
-
-        await db.commit()
-
-        # Run enrichment pipeline in background if available
-        try:
-            from app.source_engine.article_pipeline import enrich_recent_articles
-            asyncio.create_task(enrich_recent_articles(source_id))
-        except Exception:
-            pass
+        if rows:
+            inserted = await ingest_articles(db, source_id, rows)
 
         return {
             "source": source_id,
             "url": url,
-            "fetched": len(items),
+            "fetched": len(rows),
             "inserted": inserted,
         }
-
     except Exception as e:
         logger.warning(f"RSS ingest failed for {url}: {e}")
         return {"error": str(e), "url": url, "fetched": 0, "inserted": 0}
-
-
-def _parse_date(s: str) -> datetime | None:
-    if not s:
-        return None
-    from email.utils import parsedate_to_datetime
-    try:
-        return parsedate_to_datetime(s)
-    except Exception:
-        pass
-    try:
-        return datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except Exception:
-        return None
