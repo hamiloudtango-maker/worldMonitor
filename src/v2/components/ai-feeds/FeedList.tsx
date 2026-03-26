@@ -1,19 +1,19 @@
 // src/v2/components/ai-feeds/FeedList.tsx
 import { useState } from 'react';
-import { Plus, Search, Rss, Trash2, Loader2 } from 'lucide-react';
+import { Search, Rss, Trash2, Loader2, Sparkles } from 'lucide-react';
 import type { AIFeedData } from '@/v2/lib/ai-feeds-api';
 
 interface Props {
   feeds: AIFeedData[];
   selectedId: string | null;
+  bootstrapping: boolean;
   onSelect: (feed: AIFeedData) => void;
   onCreate: (name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
-export default function FeedList({ feeds, selectedId, onSelect, onCreate, onDelete }: Props) {
+export default function FeedList({ feeds, selectedId, bootstrapping, onSelect, onCreate, onDelete }: Props) {
   const [search, setSearch] = useState('');
-  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -22,13 +22,11 @@ export default function FeedList({ feeds, selectedId, onSelect, onCreate, onDele
   );
 
   async function handleCreate() {
-    if (!newName.trim()) return;
-    setCreating(true);
+    if (!newName.trim() || bootstrapping) return;
     try {
       await onCreate(newName.trim());
       setNewName('');
     } catch { /* silent */ }
-    setCreating(false);
   }
 
   async function handleDelete(e: React.MouseEvent, id: string) {
@@ -52,23 +50,31 @@ export default function FeedList({ feeds, selectedId, onSelect, onCreate, onDele
             className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5] bg-slate-50"
           />
         </div>
-        {/* Quick create */}
+        {/* Create with AI */}
         <div className="flex gap-1.5">
           <input
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleCreate()}
-            placeholder="Nouveau feed..."
+            placeholder="Ex: M&A Énergie, Cyber Asie..."
             className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5] bg-slate-50"
           />
           <button
             onClick={handleCreate}
-            disabled={creating || !newName.trim()}
-            className="p-1.5 rounded-lg bg-[#42d3a5] text-white hover:bg-[#38b891] disabled:opacity-50 transition-colors"
+            disabled={bootstrapping || !newName.trim()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#42d3a5] text-white text-[10px] font-semibold hover:bg-[#38b891] disabled:opacity-50 transition-colors"
+            title="L'IA configure automatiquement les filtres et sources"
           >
-            {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            {bootstrapping ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            <span>{bootstrapping ? 'IA...' : 'Créer'}</span>
           </button>
         </div>
+        {bootstrapping && (
+          <div className="mt-2 flex items-center gap-2 px-2.5 py-1.5 bg-violet-50 border border-violet-100 rounded-lg">
+            <Sparkles size={10} className="text-violet-500 animate-pulse" />
+            <span className="text-[10px] text-violet-600 font-medium">L'IA analyse et pré-configure votre feed...</span>
+          </div>
+        )}
       </div>
 
       {/* Feed list */}
@@ -107,7 +113,7 @@ export default function FeedList({ feeds, selectedId, onSelect, onCreate, onDele
         ))}
         {filtered.length === 0 && (
           <div className="text-center py-8 text-xs text-slate-400">
-            {search ? 'Aucun résultat' : 'Créez votre premier AI Feed'}
+            {search ? 'Aucun résultat' : 'Décrivez votre thématique et l\'IA configure le feed'}
           </div>
         )}
       </div>

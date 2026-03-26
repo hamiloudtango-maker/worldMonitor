@@ -159,6 +159,22 @@ export function listCatalog(filters?: {
   return api(`/ai-feeds/catalog/sources${qs ? `?${qs}` : ''}`);
 }
 
+// ── AI Bootstrap ─────────────────────────────────────────────
+export interface BootstrapResult {
+  query: FeedQuery;
+  suggested_sources: string[];
+  resolved_sources: CatalogSource[];
+  description: string;
+  error?: string;
+}
+
+export function bootstrapFeed(name: string, description?: string): Promise<BootstrapResult> {
+  return api('/ai-feeds/ai/bootstrap', {
+    method: 'POST',
+    body: JSON.stringify({ name, description }),
+  });
+}
+
 export function validateUrl(url: string): Promise<{
   valid: boolean; feeds_found: { url: string; title: string }[]; error?: string;
 }> {

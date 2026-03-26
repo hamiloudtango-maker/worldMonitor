@@ -138,6 +138,97 @@ async def validate_url(body: ValidateUrlRequest):
         return ValidateUrlResponse(valid=False, error=str(e))
 
 
+# ── AI Bootstrap — auto-generate query + suggest sources ─────
+@router.post("/ai/bootstrap")
+async def ai_bootstrap(
+    body: dict,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Given a feed name/description, use Gemini to generate query layers and suggest sources."""
+    import re
+    from app.source_engine.detector import _call_gemini
+
+    name = body.get("name", "")
+    description = body.get("description", "")
+
+    catalog = get_catalog()
+    catalog_summary = "\n".join(
+        f"- {s['name']} ({s['country']}, {s['continent']}, {s['thematic']}, {s['lang']}, tier {s['tier']})"
+        for s in catalog
+    )
+
+    prompt = f"""You are an OSINT intelligence analyst configuring an RSS monitoring feed.
+
+The user wants to create a feed called: "{name}"
+Description: "{description or 'N/A'}"
+
+Your job:
+1. Generate a structured query with filter layers (topics, entities, keywords) using AND/OR/NOT operators
+2. Select the most relevant RSS sources from the catalog below
+
+Respond ONLY with valid JSON (no markdown, no ```). Use this exact structure:
+{{
+  "query": {{
+    "layers": [
+      {{
+        "operator": "AND",
+        "parts": [
+          {{"type": "topic", "value": "Topic Name", "scope": "title_and_content"}},
+          {{"type": "entity", "value": "Entity Name", "aliases": ["Alias1", "Alias2"], "scope": "title_and_content"}}
+        ]
+      }},
+      {{
+        "operator": "NOT",
+        "parts": [
+          {{"type": "keyword", "value": "exclusion term", "scope": "title"}}
+        ]
+      }}
+    ]
+  }},
+  "suggested_sources": ["Source Name 1", "Source Name 2", "Source Name 3"],
+  "description": "A clear one-sentence description of what this feed monitors."
+}}
+
+Rules:
+- part.type must be "topic", "entity", or "keyword"
+- part.scope must be "title_and_content" or "title"
+- operator must be "AND", "OR", or "NOT"
+- suggested_sources must be exact names from the catalog (case-sensitive match)
+- Suggest 5-15 relevant sources. Prefer tier 1-2 sources. Match by country/continent/thematic relevance.
+- Generate 2-4 meaningful layers. First layer should capture the core topic. Add NOT layers to exclude noise.
+- For entities, always include common aliases (abbreviations, stock tickers, former names)
+
+Available RSS sources catalog:
+{catalog_summary}
+"""
+
+    try:
+        raw = await _call_gemini(prompt)
+        cleaned = raw.strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        result = json.loads(cleaned.strip())
+
+        # Resolve source names to full catalog entries
+        catalog_by_name = {s["name"]: s for s in catalog}
+        resolved_sources = []
+        for sname in result.get("suggested_sources", []):
+            if sname in catalog_by_name:
+                resolved_sources.append(catalog_by_name[sname])
+        result["resolved_sources"] = resolved_sources
+
+        return result
+    except Exception as e:
+        logger.warning("AI bootstrap failed: %s", e, exc_info=True)
+        return {
+            "query": {"layers": []},
+            "suggested_sources": [],
+            "resolved_sources": [],
+            "description": "",
+            "error": str(e),
+        }
+
+
 # ── CRUD: AI Feeds ───────────────────────────────────────────
 @router.post("")
 async def create_feed(
