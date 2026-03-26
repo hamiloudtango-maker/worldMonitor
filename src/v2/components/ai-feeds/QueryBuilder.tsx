@@ -1,6 +1,6 @@
 // src/v2/components/ai-feeds/QueryBuilder.tsx
 import { useState } from 'react';
-import { Plus, X, ChevronDown } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import type { QueryLayer, QueryPart, FeedQuery } from '@/v2/lib/ai-feeds-api';
 
 interface Props {
@@ -39,22 +39,22 @@ export default function QueryBuilder({ query, onChange }: Props) {
   }
 
   function addPart(layerIdx: number) {
-    const layer = query.layers[layerIdx];
+    const layer = query.layers[layerIdx]!;
     updateLayer(layerIdx, {
       ...layer,
-      parts: [...layer.parts, { type: 'topic', value: '', scope: 'title_and_content' }],
+      parts: [...layer.parts, { type: 'topic' as const, value: '', scope: 'title_and_content' as const }],
     });
   }
 
   function updatePart(layerIdx: number, partIdx: number, part: QueryPart) {
-    const layer = query.layers[layerIdx];
+    const layer = query.layers[layerIdx]!;
     const parts = [...layer.parts];
     parts[partIdx] = part;
     updateLayer(layerIdx, { ...layer, parts });
   }
 
   function removePart(layerIdx: number, partIdx: number) {
-    const layer = query.layers[layerIdx];
+    const layer = query.layers[layerIdx]!;
     updateLayer(layerIdx, {
       ...layer,
       parts: layer.parts.filter((_, i) => i !== partIdx),

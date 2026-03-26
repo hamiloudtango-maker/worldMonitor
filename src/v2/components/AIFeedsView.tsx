@@ -1,15 +1,14 @@
 // src/v2/components/AIFeedsView.tsx
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useAIFeeds } from '@/v2/hooks/useAIFeeds';
-import type { AIFeedData, FeedQuery, AIConfig } from '@/v2/lib/ai-feeds-api';
-import { updateFeed as apiFeedUpdate } from '@/v2/lib/ai-feeds-api';
+import type { AIFeedData, FeedQuery } from '@/v2/lib/ai-feeds-api';
 import FeedList from './ai-feeds/FeedList';
 import QueryBuilder from './ai-feeds/QueryBuilder';
 import SourceSelector from './ai-feeds/SourceSelector';
 import FeedPreview from './ai-feeds/FeedPreview';
 
 export default function AIFeedsView() {
-  const { feeds, loading, add, remove, update } = useAIFeeds();
+  const { feeds, add, remove, update } = useAIFeeds();
   const [selected, setSelected] = useState<AIFeedData | null>(null);
   const [localQuery, setLocalQuery] = useState<FeedQuery>({ layers: [] });
   const [dirty, setDirty] = useState(false);

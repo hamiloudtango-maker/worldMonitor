@@ -71,9 +71,9 @@ export default function SourceSelector({ feedId }: Props) {
     try {
       const result = await validateUrl(customUrl.trim());
       if (result.valid && result.feeds_found.length > 0) {
-        const feed = result.feeds_found[0];
+        const found = result.feeds_found[0]!;
         const added = await addFeedSource(feedId, {
-          url: feed.url, name: feed.title || customUrl.trim(), origin: 'custom',
+          url: found.url, name: found.title || customUrl.trim(), origin: 'custom',
         });
         setFeedSources(prev => [...prev, added]);
         setCustomUrl('');

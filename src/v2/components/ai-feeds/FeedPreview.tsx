@@ -1,6 +1,6 @@
 // src/v2/components/ai-feeds/FeedPreview.tsx
 import { useState, useEffect } from 'react';
-import { ExternalLink, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { listFeedArticles } from '@/v2/lib/ai-feeds-api';
 import type { AIFeedArticle } from '@/v2/lib/ai-feeds-api';
 import { timeAgo } from '@/v2/lib/constants';
