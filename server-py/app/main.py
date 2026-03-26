@@ -38,6 +38,8 @@ ROUTERS = [
     "app.domains.market.router",
     # Case intelligence
     "app.domains.cases.router",
+    # AI Feeds
+    "app.domains.ai_feeds.router",
 ]
 
 
