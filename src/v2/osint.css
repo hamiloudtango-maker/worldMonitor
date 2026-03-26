@@ -1,0 +1,102 @@
+/* WorldMonitor — Intelligence Platform
+   IMPORTANT: All rules must be inside @layer to not override Tailwind v4 utilities.
+   Tailwind v4 uses CSS layers — unlayered CSS beats layered CSS regardless of specificity. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* Base layer — lower priority than Tailwind utilities */
+@layer base {
+  html, body, #app {
+    height: 100%;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  /* Line clamp utilities */
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+}
+
+/* Components layer — for MapLibre overrides and animations */
+@layer components {
+  /* MapLibre popup & controls */
+  .maplibregl-popup-content {
+    background: #1e2a3a !important;
+    border: 1px solid #2d4a5e !important;
+    border-radius: 12px !important;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4) !important;
+    padding: 12px 14px !important;
+    color: #e2e8f0 !important;
+  }
+  .maplibregl-popup-tip {
+    border-top-color: #1e2a3a !important;
+  }
+  .maplibregl-ctrl-group {
+    background: #1e2a3a !important;
+    border: 1px solid #2d4a5e !important;
+    border-radius: 10px !important;
+  }
+  .maplibregl-ctrl-group button {
+    border-color: #2d4a5e !important;
+  }
+  .maplibregl-ctrl-group button + button {
+    border-top-color: #2d4a5e !important;
+  }
+  .maplibregl-ctrl-group button span {
+    filter: invert(1) brightness(0.6);
+  }
+
+  /* react-grid-layout overrides */
+  .react-grid-layout {
+    position: relative;
+  }
+  .react-grid-item {
+    transition: all 200ms ease !important;
+    transition-property: left, top, width, height !important;
+  }
+  .react-grid-item.cssTransforms {
+    transition-property: transform, width, height !important;
+  }
+  .react-grid-item.react-draggable-dragging {
+    transition: none !important;
+    z-index: 50;
+    opacity: 0.9;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+  }
+  .react-grid-placeholder {
+    background: rgba(66, 211, 165, 0.1) !important;
+    border: 2px dashed #42d3a5 !important;
+    border-radius: 12px !important;
+  }
+  .react-resizable-handle {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  .react-resizable-handle::after {
+    width: 8px !important;
+    height: 8px !important;
+    border-right: 2px solid #cbd5e1 !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    right: 4px !important;
+    bottom: 4px !important;
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .auth-card-enter {
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}

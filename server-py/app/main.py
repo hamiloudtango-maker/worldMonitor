@@ -34,6 +34,8 @@ ROUTERS = [
     "app.domains.infrastructure.router",
     "app.domains.economic.router",
     "app.domains.market.router",
+    # Case intelligence
+    "app.domains.cases.router",
 ]
 
 
