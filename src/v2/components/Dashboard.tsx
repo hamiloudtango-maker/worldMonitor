@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FolderOpen, FileBarChart, Settings, Bell, Search,
   AlertTriangle, Globe, TrendingUp, Building,
   Newspaper, Activity, BarChart2,
-  RefreshCw, LogOut, ExternalLink
+  RefreshCw, LogOut, ExternalLink, Rss
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -17,6 +17,7 @@ import { useCases } from '@/v2/hooks/useCases';
 import LiveMap from './LiveMap';
 import CasesView from './CasesView';
 import WorldView from './WorldView';
+import AIFeedsView from './AIFeedsView';
 import CaseBoard from './CaseBoard';
 import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './WidgetGrid';
 import { FULL_CATALOG, renderSharedWidget } from './shared/WidgetCatalog';
@@ -30,7 +31,7 @@ interface Props {
   user: { email: string; org_name: string };
   onLogout: () => void;
 }
-type NavKey = 'dashboard' | 'cases' | 'world' | 'reports' | 'settings';
+type NavKey = 'dashboard' | 'cases' | 'ai-feeds' | 'world' | 'reports' | 'settings';
 
 /* ═══════════════════════════════════════════════════════════════
    CONSTANTS
@@ -44,6 +45,7 @@ const CHART_COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#0
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep?: boolean }[] = [
   { key: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { key: 'cases',     label: 'Cases',           icon: FolderOpen },
+  { key: 'ai-feeds',  label: 'AI Feeds',        icon: Rss },
   { key: 'world',     label: '360 Mondial',     icon: Globe },
   { key: 'reports',   label: 'Rapports',        icon: FileBarChart },
   { key: 'settings',  label: 'Configuration',   icon: Settings, sep: true },
@@ -271,6 +273,9 @@ export default function Dashboard({ user, onLogout }: Props) {
               onOpenBoard={setBoardCase}
             />
           )}
+
+          {/* ════════════════════ AI FEEDS VIEW ════════════════════ */}
+          {nav === 'ai-feeds' && <AIFeedsView />}
 
           {/* ════════════════════ WORLD VIEW ════════════════════ */}
           {nav === 'world' && <WorldView />}
