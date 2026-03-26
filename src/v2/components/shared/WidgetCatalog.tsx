@@ -8,7 +8,7 @@ import {
   Shield, DollarSign, Swords, Radio, Activity, Scale,
   Anchor, Zap, Cloud, FlaskConical, Plane,
   Bitcoin, LineChart, Users, BookOpen, Target, Map, Crosshair,
-  Flame, Package, Landmark, GraduationCap, Cpu, Coins, BarChart3, CircleDollarSign
+  Flame, Package, Landmark, GraduationCap, Cpu, Coins, BarChart3, CircleDollarSign, Rss
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -85,6 +85,8 @@ export const FULL_CATALOG: WidgetDef[] = [
   { id: 'hackernews',  title: 'Hacker News',             icon: BookOpen,       category: 'Veille',        defaultW: 4,  defaultH: 6,  minH: 3, minW: 3 },
   { id: 'arxiv',       title: 'ArXiv Papers',            icon: GraduationCap,  category: 'Veille',        defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
   { id: 'conflicthum', title: 'Humanitaire (Conflit)',    icon: Users,          category: 'Veille',        defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  // AI Feeds (dynamic — placeholder, real feeds are loaded from API)
+  { id: 'ai-feed-placeholder', title: 'AI Feed', icon: Rss, category: 'AI Feeds', defaultW: 4, defaultH: 6, minH: 3, minW: 3 },
 ];
 
 // ── Generic list renderer for API data ──────────────────────────
@@ -131,6 +133,12 @@ export function renderSharedWidget(
   _extra?: { cases?: any[]; onRefresh?: () => void },
 ): React.ReactNode {
   const alerts = articles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high');
+
+  // AI Feed widgets
+  if (id.startsWith('ai-feed-') && id !== 'ai-feed-placeholder') {
+    const feedId = id.replace('ai-feed-', '');
+    return <AIFeedWidget feedId={feedId} />;
+  }
 
   switch (id) {
 
@@ -667,4 +675,36 @@ export function renderSharedWidget(
     default:
       return null; // let caller handle (e.g. RSS widgets)
   }
+}
+
+function AIFeedWidget({ feedId }: { feedId: string }) {
+  const [articles, setArticles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    import('@/v2/lib/ai-feeds-api').then(({ listFeedArticles }) => {
+      listFeedArticles(feedId, { limit: 15 })
+        .then(d => { setArticles(d.articles); setLoading(false); })
+        .catch(() => setLoading(false));
+    });
+  }, [feedId]);
+
+  if (loading) return <div className="flex items-center justify-center h-full text-xs text-slate-400">Chargement...</div>;
+
+  return (
+    <div className="overflow-y-auto h-full p-2 space-y-1.5">
+      {articles.map((a: any, i: number) => (
+        <a key={i} href={a.article_url} target="_blank" rel="noopener noreferrer"
+           className="block pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors">
+          <p className="text-[10px] text-slate-600 line-clamp-1 font-medium">{a.title}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.source_name}</span>
+            {a.relevance_score > 0 && <span className="text-[8px] text-blue-500 font-bold">{Math.round(a.relevance_score)}%</span>}
+            <span className="text-[8px] text-slate-400">{a.published_at ? timeAgo(a.published_at) : ''}</span>
+          </div>
+        </a>
+      ))}
+      {articles.length === 0 && <div className="text-center text-xs text-slate-400 py-6">Pas d'articles</div>}
+    </div>
+  );
 }
