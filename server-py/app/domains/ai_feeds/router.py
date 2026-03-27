@@ -1,4 +1,4 @@
-"""AI Feeds API — CRUD for thematic feeds with query builder and source management."""
+"""AI Feeds API — CRUD for feeds with query builder and source management."""
 
 import json
 import logging
@@ -19,8 +19,6 @@ from app.domains.ai_feeds.schemas import (
     ValidateUrlRequest, ValidateUrlResponse,
     CatalogEntry,
 )
-from app.domains.ai_feeds.seed import get_catalog
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai-feeds", tags=["ai-feeds"])
@@ -79,39 +77,40 @@ def _serialize_result(r: AIFeedResult) -> dict:
 async def list_catalog(
     country: str | None = None,
     continent: str | None = None,
-    thematic: str | None = None,
+    tag: str | None = None,
     lang: str | None = None,
     q: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    # Merge builtin seed + persisted custom sources from DB
-    catalog = get_catalog()
-    try:
-        from app.models.ai_feed import RssCatalogEntry
-        result = await db.execute(select(RssCatalogEntry))
-        db_sources = result.scalars().all()
-        existing_urls = {s["url"] for s in catalog}
-        for s in db_sources:
-            if s.url not in existing_urls:
-                catalog.append({
-                    "name": s.name, "url": s.url, "lang": s.lang, "tier": s.tier,
-                    "source_type": s.source_type, "country": s.country,
-                    "continent": s.continent, "thematic": s.thematic,
-                })
-    except Exception:
-        pass  # Table might not exist yet
+    from app.models.ai_feed import RssCatalogEntry
+    query = select(RssCatalogEntry).where(RssCatalogEntry.active == True)
 
     if country:
-        catalog = [s for s in catalog if s.get("country", "").lower() == country.lower()]
+        query = query.where(RssCatalogEntry.country.ilike(country))
     if continent:
-        catalog = [s for s in catalog if s.get("continent", "").lower() == continent.lower()]
-    if thematic:
-        catalog = [s for s in catalog if s.get("thematic", "").lower() == thematic.lower()]
+        query = query.where(RssCatalogEntry.continent.ilike(continent))
     if lang:
-        catalog = [s for s in catalog if s.get("lang", "") == lang]
-    if q:
-        q_lower = q.lower()
-        catalog = [s for s in catalog if q_lower in s["name"].lower() or q_lower in s.get("country", "").lower()]
+        query = query.where(RssCatalogEntry.lang == lang)
+
+    result = await db.execute(query)
+    sources = result.scalars().all()
+
+    # Filter by tag (JSON array) and text search in Python
+    catalog = []
+    for s in sources:
+        if tag and tag.lower() not in [t.lower() for t in (s.tags or [])]:
+            continue
+        if q:
+            q_lower = q.lower()
+            if q_lower not in s.name.lower() and q_lower not in (s.country or "").lower():
+                continue
+        catalog.append({
+            "name": s.name, "url": s.url, "lang": s.lang, "tier": s.tier,
+            "source_type": s.source_type, "country": s.country,
+            "continent": s.continent, "tags": s.tags or [],
+            "active": s.active, "description": s.description,
+        })
+
     return {"sources": catalog, "total": len(catalog)}
 
 
@@ -209,12 +208,12 @@ Feed URL: {url}
 Language: {lang}
 
 JSON only (no markdown):
-{{"country": "Country name", "continent": "Continent", "thematic": "Category", "source_type": "wire|mainstream|tech|finance|intel|cyber|specialty", "tier": 3}}
+{{"country": "Country name", "continent": "Continent", "tags": ["Category1", "Category2"], "source_type": "wire|mainstream|tech|finance|intel|cyber|specialty", "tier": 3}}
 
 Rules:
 - country: publisher's country (e.g. "France", "US")
 - continent: Europe, Asie, Afrique, Amerique du Nord, Amerique du Sud, Oceanie, Moyen-Orient
-- thematic: Actualites, Tech, Finance, Defense, Cyber, Energie, Science, Sante, Sport
+- tags: list of categories, e.g. ["Actualites"], ["Tech", "Cyber"], ["Finance", "Energie"]
 - tier: 1=wire agency, 2=major outlet, 3=specialty/niche, 4=blog/aggregator
 - source_type: wire, mainstream, tech, finance, intel, cyber, specialty"""
 
@@ -224,7 +223,7 @@ Rules:
                 cleaned = re.sub(r"\s*```$", "", cleaned)
                 cat = json.loads(cleaned.strip())
             except Exception:
-                cat = {"country": None, "continent": None, "thematic": None, "source_type": "specialty", "tier": 3}
+                cat = {"country": None, "continent": None, "tags": [], "source_type": "specialty", "tier": 3}
 
             entry = RssCatalogEntry(
                 url=url,
@@ -234,7 +233,7 @@ Rules:
                 source_type=cat.get("source_type"),
                 country=cat.get("country"),
                 continent=cat.get("continent"),
-                thematic=cat.get("thematic"),
+                tags=cat.get("tags") or ([cat["thematic"]] if cat.get("thematic") else []),
                 origin="custom",
             )
             db.add(entry)
@@ -387,17 +386,26 @@ Règles: keywords EN anglais, strong=AND obligatoire (2-4), weak=OR optionnel (2
 async def ai_bootstrap(
     body: dict,
     user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Given a feed name/description, use Gemini to generate query layers and suggest sources."""
     import re
     from app.source_engine.detector import _call_gemini
+    from app.models.ai_feed import RssCatalogEntry
 
     name = body.get("name", "")
     description = body.get("description", "")
 
-    catalog = get_catalog()
+    result = await db.execute(select(RssCatalogEntry).where(RssCatalogEntry.active == True))
+    db_sources = result.scalars().all()
+    catalog = [
+        {"name": s.name, "url": s.url, "lang": s.lang, "tier": s.tier,
+         "source_type": s.source_type, "country": s.country,
+         "continent": s.continent, "tags": s.tags or []}
+        for s in db_sources
+    ]
     catalog_summary = "\n".join(
-        f"- {s['name']} ({s['country']}, {s['continent']}, {s['thematic']}, {s['lang']}, tier {s['tier']})"
+        f"- {s['name']} ({s['country']}, {s['continent']}, {', '.join(s['tags'])}, {s['lang']}, tier {s['tier']})"
         for s in catalog
     )
 
@@ -438,7 +446,7 @@ Rules:
 - part.scope must be "title_and_content" or "title"
 - operator must be "AND", "OR", or "NOT"
 - suggested_sources must be exact names from the catalog (case-sensitive match)
-- Suggest 5-15 relevant sources. Prefer tier 1-2 sources. Match by country/continent/thematic relevance.
+- Suggest 5-15 relevant sources. Prefer tier 1-2 sources. Match by country/continent/tags relevance.
 - Generate 2-4 meaningful layers. First layer should capture the core topic. Add NOT layers to exclude noise.
 - For entities, always include common aliases (abbreviations, stock tickers, former names)
 
