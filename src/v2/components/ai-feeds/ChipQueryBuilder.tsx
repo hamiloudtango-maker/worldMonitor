@@ -19,7 +19,6 @@ type DrillLevel =
 
 export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoading = false }: Props) {
   const [addingOrTo, setAddingOrTo] = useState<number | null>(null);
-  const [orValue, setOrValue] = useState('');
   const [editingAliases, setEditingAliases] = useState<string | null>(null);
   const [showAddBar, setShowAddBar] = useState(false);
   const [addIsNot, setAddIsNot] = useState(false);
@@ -60,14 +59,27 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
     else updateLayer(layerIdx, { ...layer, parts });
   }
 
-  function addOrPart(layerIdx: number, value: string) {
-    if (!value.trim()) return;
+  function addOrPartFromModel(layerIdx: number, m: { name: string; aliases: string[] }) {
     const layer = query.layers[layerIdx]!;
-    const newPartIdx = layer.parts.length;
-    updateLayer(layerIdx, { ...layer, parts: [...layer.parts, { type: 'keyword', value: value.trim(), scope: 'title_and_content' }] });
-    setOrValue('');
+    updateLayer(layerIdx, { ...layer, parts: [...layer.parts, { type: 'entity', value: m.name, aliases: m.aliases, scope: 'title_and_content' }] });
     setAddingOrTo(null);
-    _autoGenerateAliases(layerIdx, newPartIdx, value.trim(), 'keyword');
+    resetAddBar();
+  }
+
+  async function addOrPartFromText(layerIdx: number, value: string) {
+    if (!value.trim()) return;
+    try {
+      const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
+      const { model } = await resolveIntelModel(value.trim());
+      addOrPartFromModel(layerIdx, { name: model.name, aliases: model.aliases });
+    } catch {
+      const layer = query.layers[layerIdx]!;
+      const newPartIdx = layer.parts.length;
+      updateLayer(layerIdx, { ...layer, parts: [...layer.parts, { type: 'keyword', value: value.trim(), scope: 'title_and_content' }] });
+      setAddingOrTo(null);
+      resetAddBar();
+      _autoGenerateAliases(layerIdx, newPartIdx, value.trim(), 'keyword');
+    }
   }
 
   function updateAliases(layerIdx: number, partIdx: number, aliasText: string) {
@@ -126,7 +138,9 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
     setShowAddDropdown(false);
     setAddSearch('');
     setAddIsNot(false);
+    setAddingOrTo(null);
     setDrill({ depth: 0 });
+    setIntelLevel({ depth: 0 });
   }
 
   // ── Tree dropdown ──
@@ -256,20 +270,11 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
                 </div>
               ))}
 
-              {/* + OR button */}
-              {addingOrTo === li ? (
-                <input autoFocus value={orValue}
-                  onChange={e => setOrValue(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') addOrPart(li, orValue); if (e.key === 'Escape') { setAddingOrTo(null); setOrValue(''); } }}
-                  onBlur={() => { if (orValue.trim()) addOrPart(li, orValue); else { setAddingOrTo(null); setOrValue(''); } }}
-                  placeholder="Terme..."
-                  className="px-3 py-1.5 text-[11px] border border-dashed border-slate-400 rounded-lg focus:outline-none focus:border-[#42d3a5] w-36 bg-transparent" />
-              ) : (
-                <button onClick={() => setAddingOrTo(li)}
-                  className="text-[11px] font-medium text-[#42d3a5] hover:text-[#38b891] flex items-center gap-1">
-                  <Plus size={12} /> OR
-                </button>
-              )}
+              {/* + OR button — opens the same panel as AND/NOT but adds to this layer */}
+              <button onClick={() => { setAddingOrTo(li); setAddIsNot(false); setShowAddBar(true); setIntelLevel({ depth: 0 }); }}
+                className="text-[11px] font-medium text-[#42d3a5] hover:text-[#38b891] flex items-center gap-1">
+                <Plus size={12} /> OR
+              </button>
             </div>
 
             {/* Scope + delete */}
@@ -292,7 +297,9 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
       {showAddBar ? (
         <div className="mt-3" ref={addBarRef}>
           <div className="flex items-center gap-3 mb-2">
-            <span className={`text-[11px] font-bold ${addIsNot ? 'text-red-500' : 'text-slate-400'}`}>{addIsNot ? 'NOT' : query.layers.length === 0 ? '' : 'AND'}</span>
+            <span className={`text-[11px] font-bold ${addIsNot ? 'text-red-500' : addingOrTo !== null ? 'text-[#42d3a5]' : 'text-slate-400'}`}>
+              {addIsNot ? 'NOT' : addingOrTo !== null ? 'OR' : query.layers.length === 0 ? '' : 'AND'}
+            </span>
             <div className="flex-1 h-px bg-slate-200" />
           </div>
           {/* Search bar */}
@@ -301,7 +308,10 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
             <input autoFocus value={addSearch}
               onChange={e => setAddSearch(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter') addNewLayer(addSearch, addIsNot);
+                if (e.key === 'Enter') {
+                  if (addingOrTo !== null) addOrPartFromText(addingOrTo, addSearch);
+                  else addNewLayer(addSearch, addIsNot);
+                }
                 if (e.key === 'Escape') resetAddBar();
               }}
               placeholder="Tapez un terme et Entree, ou choisissez ci-dessous..."
@@ -321,11 +331,17 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
               }
             }}
             onSelect={m => {
-              const op = addIsNot ? 'NOT' : (query.layers.length === 0 ? 'OR' : 'AND');
-              onChange({
-                layers: [...query.layers, { operator: op, parts: [{ type: 'entity', value: m.name, aliases: m.aliases, scope: 'title_and_content' }] }],
-              });
-              resetAddBar();
+              if (addingOrTo !== null) {
+                // OR mode: add to existing layer
+                addOrPartFromModel(addingOrTo, m);
+              } else {
+                // AND/NOT mode: new layer
+                const op = addIsNot ? 'NOT' : (query.layers.length === 0 ? 'OR' : 'AND');
+                onChange({
+                  layers: [...query.layers, { operator: op, parts: [{ type: 'entity', value: m.name, aliases: m.aliases, scope: 'title_and_content' }] }],
+                });
+                resetAddBar();
+              }
             }}
             selectedValues={new Set(query.layers.flatMap(l => l.parts.map(p => p.value)))}
             filter={addSearch}
