@@ -115,7 +115,21 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     setState({ step: 'build' });
   }
 
-  function handleRefineSkip() {
+  async function handleRefineSkip() {
+    // If query is empty but we have context (template/category), auto-bootstrap via LLM
+    if (query.layers.length === 0 && state.step === 'refine' && 'template' in state) {
+      const { bootstrapFeed } = await import('@/v2/lib/ai-feeds-api');
+      const name = feedName || state.template.name;
+      try {
+        setTreeLoading(true);
+        const result = await bootstrapFeed(name, state.template.description || name);
+        if (result.query && result.query.layers.length > 0) {
+          setQuery(result.query);
+        }
+        if (!feedName && result.name) setFeedName(result.name);
+      } catch { /* silent */ }
+      setTreeLoading(false);
+    }
     setState({ step: 'build' });
   }
 
