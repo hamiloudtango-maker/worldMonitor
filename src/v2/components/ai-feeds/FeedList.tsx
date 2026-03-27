@@ -60,10 +60,10 @@ export default function FeedList({ feeds, selectedId, bootstrapping, onSelect, o
       {/* Feed list */}
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {filtered.map(feed => (
-          <button
+          <div
             key={feed.id}
             onClick={() => onSelect(feed)}
-            className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg text-left transition-all group ${
+            className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg text-left transition-all group cursor-pointer ${
               selectedId === feed.id
                 ? 'bg-[#42d3a5]/10 border border-[#42d3a5]/20'
                 : 'hover:bg-slate-50 border border-transparent'
@@ -89,7 +89,7 @@ export default function FeedList({ feeds, selectedId, bootstrapping, onSelect, o
             >
               {deleting === feed.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
             </button>
-          </button>
+          </div>
         ))}
         {filtered.length === 0 && (
           <div className="text-center py-8 text-xs text-slate-400">

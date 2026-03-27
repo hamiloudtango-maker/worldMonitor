@@ -6,6 +6,31 @@ Aliases are enriched weekly by LLM from article metadata.
 
 INTEL_MODELS = [
     # ══════════════════════════════════════════════════════════════
+    # FEED TEMPLATE CHIP1 — core topics for template-based feed creation
+    # ══════════════════════════════════════════════════════════════
+    {"name": "Conflits armes", "family": "risk", "section": "Political Risk", "aliases": ["armed conflict", "war", "military conflict", "guerre", "conflit armé", "Krieg", "bewaffneter Konflikt", "война", "вооружённый конфликт", "conflicto armado", "guerra"]},
+    {"name": "Diplomatie", "family": "risk", "section": "Political Risk", "aliases": ["diplomacy", "diplomatic", "foreign affairs", "international relations", "affaires étrangères", "relations internationales", "Diplomatie", "дипломатия", "diplomacia"]},
+    {"name": "Energie", "family": "market", "section": "Industries", "aliases": ["energy", "power", "electricity", "énergie", "électricité", "Energie", "Strom", "энергия", "energía"]},
+    {"name": "Economie", "family": "market", "section": "Market Insights", "aliases": ["economy", "economic", "GDP", "growth", "recession", "économie", "croissance", "récession", "Wirtschaft", "экономика", "economía"]},
+    {"name": "Nucleaire", "family": "market", "section": "Sustainability", "aliases": ["nuclear", "atomic", "nuclear energy", "nuclear weapon", "nucléaire", "atomique", "Kernenergie", "Atomwaffe", "ядерный", "nuclear"]},
+    {"name": "Migrations", "family": "risk", "section": "Physical Risk", "aliases": ["migration", "refugee", "asylum", "displacement", "immigration", "réfugié", "demandeur d'asile", "déplacé", "Migration", "Flüchtling", "миграция", "беженец"]},
+    {"name": "Terrorisme", "family": "risk", "section": "Physical Risk", "aliases": ["terrorism", "terrorist", "extremism", "radicalization", "terrorisme", "extrémisme", "radicalisation", "Terrorismus", "терроризм", "terrorismo"]},
+    {"name": "Elections & Vote", "family": "risk", "section": "Political Risk", "aliases": ["election", "vote", "ballot", "polling", "scrutin", "élection", "Wahl", "выборы", "elección", "elections"]},
+    {"name": "Ransomware Attack", "family": "threat", "section": "Malware Families", "aliases": ["ransomware", "ransom", "encryption attack", "rançongiciel", "Erpressungstrojaner", "вымогатель", "ransomware attack"]},
+    {"name": "Threat Actor", "family": "threat", "section": "Threat Actors", "aliases": ["APT", "threat actor", "state-sponsored", "hacker group", "acteur de menace", "groupe de hackers", "Bedrohungsakteur", "группа угроз"]},
+    {"name": "Vulnerabilite", "family": "threat", "section": "Vulnerabilities", "aliases": ["vulnerability", "CVE", "zero-day", "security flaw", "vulnérabilité", "faille", "Schwachstelle", "уязвимость", "vulnerabilidad"]},
+    {"name": "Data Breach", "family": "threat", "section": "Threat Landscape", "aliases": ["data breach", "data leak", "breach", "leak", "fuite de données", "violation de données", "Datenleck", "утечка данных"]},
+    {"name": "Armement", "family": "foundation", "section": "Industries", "aliases": ["armament", "weapons", "arms", "defense procurement", "armement", "armes", "Rüstung", "Waffen", "вооружение", "armamento"]},
+    {"name": "Maritime", "family": "foundation", "section": "Industries", "aliases": ["maritime", "naval", "shipping", "sea", "navy", "marine", "Seefahrt", "морской", "marítimo"]},
+    {"name": "Climat", "family": "market", "section": "Sustainability", "aliases": ["climate", "climate change", "global warming", "climat", "changement climatique", "réchauffement", "Klimawandel", "климат", "clima"]},
+    {"name": "Catastrophes", "family": "risk", "section": "Physical Risk", "aliases": ["disaster", "natural disaster", "catastrophe", "earthquake", "flood", "séisme", "inondation", "Naturkatastrophe", "катастрофа", "desastre"]},
+    {"name": "IA", "family": "market", "section": "Technologies", "aliases": ["AI", "artificial intelligence", "machine learning", "deep learning", "LLM", "intelligence artificielle", "künstliche Intelligenz", "искусственный интеллект", "inteligencia artificial"]},
+    {"name": "Semi-conducteurs", "family": "foundation", "section": "Industries", "aliases": ["semiconductor", "chip", "microchip", "foundry", "wafer", "semi-conducteur", "puce", "Halbleiter", "полупроводник", "semiconductor"]},
+    {"name": "Commodities", "family": "market", "section": "Market Insights", "aliases": ["commodity", "raw material", "matière première", "Rohstoff", "сырьё", "materia prima", "oil", "gold", "copper", "pétrole", "or", "cuivre"]},
+    {"name": "Crypto & Blockchain", "family": "market", "section": "Technologies", "aliases": ["cryptocurrency", "Bitcoin", "Ethereum", "blockchain", "cryptomonnaie", "Kryptowährung", "криптовалюта", "criptomoneda", "crypto"]},
+    {"name": "Politique monetaire", "family": "market", "section": "Market Insights", "aliases": ["monetary policy", "interest rate", "central bank", "Fed", "ECB", "politique monétaire", "taux d'intérêt", "banque centrale", "Geldpolitik", "Zinssatz"]},
+
+    # ══════════════════════════════════════════════════════════════
     # MARKET INTELLIGENCE
     # ══════════════════════════════════════════════════════════════
 

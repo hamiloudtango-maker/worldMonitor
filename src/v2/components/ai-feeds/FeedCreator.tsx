@@ -81,13 +81,25 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   }, []);
 
   function handleTemplateSelect(template: FeedTemplate) {
-    setQuery({
-      layers: [
-        { operator: 'OR', parts: [{ type: template.chip1.type, value: template.chip1.label, scope: 'title_and_content' }] },
-      ],
-    });
     setFeedName(template.name);
     setState({ step: 'refine', template });
+    // Resolve chip1 via intel models to get aliases
+    import('@/v2/lib/ai-feeds-api').then(({ resolveIntelModel }) =>
+      resolveIntelModel(template.chip1.label).then(({ model }) => {
+        setQuery({
+          layers: [
+            { operator: 'OR', parts: [{ type: template.chip1.type, value: model.name, aliases: model.aliases, scope: 'title_and_content' }] },
+          ],
+        });
+      })
+    ).catch(() => {
+      // Fallback: add without aliases
+      setQuery({
+        layers: [
+          { operator: 'OR', parts: [{ type: template.chip1.type, value: template.chip1.label, scope: 'title_and_content' }] },
+        ],
+      });
+    });
   }
 
   function handleSearchSubmit() {
