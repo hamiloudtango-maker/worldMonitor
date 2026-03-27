@@ -707,6 +707,7 @@ async def resolve_intel_model(
     term_lower = term.lower()
 
     # 1. Search existing models by name or aliases
+    # 1. Exact match only — by name or alias
     result = await db.execute(select(IntelModel))
     all_models = result.scalars().all()
 
@@ -722,32 +723,8 @@ async def resolve_intel_model(
         if match:
             break
 
-    # Fuzzy: partial match if no exact match
-    # Only match if the search term contains the model name (not the reverse, to avoid short alias pollution)
-    if not match:
-        best_score = 0
-        for m in all_models:
-            name_lower = m.name.lower()
-            # Term contains model name, or model name contains term (both >= 3 chars)
-            if len(name_lower) >= 3 and name_lower in term_lower:
-                score = len(name_lower)
-                if score > best_score:
-                    best_score = score
-                    match = m
-            if len(term_lower) >= 3 and term_lower in name_lower:
-                score = len(term_lower)
-                if score > best_score:
-                    best_score = score
-                    match = m
-            for a in (m.aliases or []):
-                a_lower = a.lower()
-                if len(a_lower) >= 3 and a_lower in term_lower:
-                    score = len(a_lower)
-                    if score > best_score:
-                        best_score = score
-                        match = m
-
     # 2. Found — update last_used_at and return
+    # No fuzzy matching — if not found, LLM creates a new model
     if match:
         match.last_used_at = datetime.now(timezone.utc)
         await db.commit()
