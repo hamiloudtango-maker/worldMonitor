@@ -319,7 +319,7 @@ async def _enrich_intel_models(db: AsyncSession, result: dict) -> int:
         try:
             prompt = f"""You are building an OSINT intelligence model catalog. Below are trending entities/topics detected in news articles this week that are NOT yet in our catalog.
 
-For each, propose: name, family (foundation/market/threat/risk), section, description (1 sentence), and aliases (synonyms, translations EN/FR + local language relevant to the entity — e.g. Russian for Russia-related, Arabic for Middle East, Ukrainian for Ukraine, German for Germany, Japanese for Japan, Chinese for China). Every alias must be at least 3 characters. No 2-letter abbreviations.
+For each, propose: name, family (foundation/market/threat/risk), section, description (1 sentence), and aliases (synonyms, translations in English, French, and the relevant language for the subject). Every alias must be at least 3 characters.
 
 Only propose entities that are clearly identifiable (companies, organizations, people, technologies, geopolitical concepts). Skip generic words.
 
