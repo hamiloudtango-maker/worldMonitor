@@ -85,6 +85,10 @@ export function getFeed(id: string): Promise<AIFeedData> {
   return api(`/ai-feeds/${id}`);
 }
 
+export function refreshFeed(id: string): Promise<{ inserted: number; total_results: number }> {
+  return api(`/ai-feeds/${id}/refresh`, { method: 'POST' });
+}
+
 export function createFeed(data: {
   name: string;
   description?: string;

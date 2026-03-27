@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAIFeeds } from '@/v2/hooks/useAIFeeds';
 import type { AIFeedData, FeedQuery } from '@/v2/lib/ai-feeds-api';
-import { bootstrapFeed, addFeedSource } from '@/v2/lib/ai-feeds-api';
+import { bootstrapFeed, addFeedSource, refreshFeed } from '@/v2/lib/ai-feeds-api';
 import FeedList from './ai-feeds/FeedList';
 import QueryBuilder from './ai-feeds/QueryBuilder';
 import SourceSelector from './ai-feeds/SourceSelector';
@@ -153,15 +153,28 @@ export default function AIFeedsView() {
                   {selected.description && <span className="ml-1">— {selected.description}</span>}
                 </p>
               </div>
-              {dirty && (
+              <div className="flex gap-2">
                 <button
-                  onClick={handleSave}
-                  className="px-4 py-1.5 text-[11px] font-semibold text-white rounded-lg shadow-sm transition-colors"
-                  style={{ background: '#42d3a5' }}
+                  onClick={async () => {
+                    if (!selected) return;
+                    await refreshFeed(selected.id);
+                    const updated = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(selected.id));
+                    setSelected(updated);
+                  }}
+                  className="px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
                 >
-                  Sauvegarder
+                  Rafraichir
                 </button>
-              )}
+                {dirty && (
+                  <button
+                    onClick={handleSave}
+                    className="px-4 py-1.5 text-[11px] font-semibold text-white rounded-lg shadow-sm transition-colors"
+                    style={{ background: '#42d3a5' }}
+                  >
+                    Sauvegarder
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <QueryBuilder query={localQuery} onChange={handleQueryChange} />

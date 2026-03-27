@@ -56,6 +56,109 @@ def _serialize_source(s: AIFeedSource) -> dict:
     }
 
 
+def _build_feed_where(query_data: dict) -> str | None:
+    """Build SQL WHERE clause from a feed query dict. Returns None if no valid clause."""
+    layers = query_data.get("layers", [])
+    if not layers:
+        return None
+
+    field = "LOWER(title || ' ' || COALESCE(description, ''))"
+    clauses = []
+
+    for layer in layers:
+        op = layer.get("operator", "AND")
+        parts = layer.get("parts", [])
+        if not parts:
+            continue
+
+        or_likes = []
+        for part in parts:
+            value = part.get("value", "").strip()
+            aliases = part.get("aliases", [])
+            for t in [value] + [a for a in aliases if a]:
+                safe = t.lower().replace("'", "")
+                if safe:
+                    or_likes.append(f"{field} LIKE '%{safe}%'")
+
+        if not or_likes:
+            continue
+        clause = "(" + " OR ".join(or_likes) + ")"
+        clauses.append((op, clause))
+
+    if not clauses:
+        return None
+
+    where = clauses[0][1]
+    for op, clause in clauses[1:]:
+        if op == "NOT":
+            where = f"({where}) AND NOT {clause}"
+        elif op == "OR":
+            where = f"({where}) OR {clause}"
+        else:
+            where = f"({where}) AND {clause}"
+    return where
+
+
+async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
+    """Run feed query against articles table and populate ai_feed_results. Returns count inserted."""
+    from sqlalchemy import text
+    from datetime import datetime, timezone
+
+    where = _build_feed_where(query_data)
+    if not where:
+        return 0
+
+    # Get matching articles
+    raw_sql = f"""
+        SELECT title, link, source_id, pub_date, description, threat_level, theme
+        FROM articles WHERE {where}
+        ORDER BY pub_date DESC LIMIT 500
+    """
+    result = await db.execute(text(raw_sql))
+    rows = result.fetchall()
+    if not rows:
+        return 0
+
+    # Get existing URLs to avoid duplicates
+    existing = await db.execute(
+        select(AIFeedResult.article_url).where(AIFeedResult.ai_feed_id == feed_id)
+    )
+    existing_urls = {r[0] for r in existing.all()}
+
+    inserted = 0
+    now = datetime.now(timezone.utc)
+    for r in rows:
+        url = r[1] or ""
+        if not url or url in existing_urls:
+            continue
+        # Parse published_at — may be string from SQLite
+        pub = r[3]
+        if isinstance(pub, str):
+            try:
+                pub = datetime.fromisoformat(pub.replace(" ", "T"))
+            except (ValueError, TypeError):
+                pub = None
+        result_entry = AIFeedResult(
+            ai_feed_id=feed_id,
+            article_url=url,
+            title=r[0] or "",
+            source_name=r[2] or "",
+            published_at=pub,
+            summary=(r[4] or "")[:500],
+            threat_level=r[5],
+            category=r[6],
+            relevance_score=0.5,
+            fetched_at=now,
+        )
+        db.add(result_entry)
+        existing_urls.add(url)
+        inserted += 1
+
+    if inserted:
+        await db.commit()
+    return inserted
+
+
 def _serialize_result(r: AIFeedResult) -> dict:
     return {
         "id": str(r.id),
@@ -669,6 +772,24 @@ async def preview_query(
     return {"articles": articles, "total": total}
 
 
+# ── Refresh feed results ─────────────────────────────────────
+@router.post("/{feed_id}/refresh")
+async def refresh_feed(
+    feed_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the feed query against ingested articles and populate results."""
+    feed = await db.get(AIFeed, feed_id)
+    if not feed or feed.org_id != user.org_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Feed not found")
+
+    query_data = json.loads(feed.query) if isinstance(feed.query, str) else (feed.query or {})
+    inserted = await _refresh_feed_results(db, feed.id, query_data)
+    rc = await db.scalar(select(func.count()).where(AIFeedResult.ai_feed_id == feed.id))
+    return {"inserted": inserted, "total_results": rc or 0}
+
+
 # ── CRUD: AI Feeds ───────────────────────────────────────────
 @router.post("")
 async def create_feed(
@@ -687,7 +808,14 @@ async def create_feed(
     db.add(feed)
     await db.commit()
     await db.refresh(feed)
-    return _serialize_feed(feed)
+
+    # Auto-populate results from existing articles
+    query_data = body.query.model_dump()
+    await _refresh_feed_results(db, feed.id, query_data)
+
+    sc = await db.scalar(select(func.count()).where(AIFeedSource.ai_feed_id == feed.id))
+    rc = await db.scalar(select(func.count()).where(AIFeedResult.ai_feed_id == feed.id))
+    return _serialize_feed(feed, sc or 0, rc or 0)
 
 
 @router.get("")
