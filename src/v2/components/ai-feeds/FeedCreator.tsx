@@ -324,105 +324,87 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     );
   }
 
-  // ── STEP: Refine — Feedly-style suggestion groups ──
+  // ── STEP: Refine — 3-level Intel Models drill-down ──
   if (state.step === 'refine') {
     const template = state.template;
-    const groups = template.suggestions || [];
-    const activeGroup = groups.find(g => g.name === selectedGroup);
 
-    function addSuggestion(f: { label: string; aliases: string[]; type: QueryPart['type'] }) {
-      // Add to first OR layer or create one
+    function addModel(m: { name: string; aliases: string[] }) {
       const firstLayer = query.layers[0];
+      const newPart = { type: 'entity' as const, value: m.name, aliases: m.aliases, scope: 'title_and_content' as const };
       if (firstLayer) {
-        const parts = [...firstLayer.parts, { type: f.type, value: f.label, aliases: f.aliases, scope: 'title_and_content' as const }];
         const updated = [...query.layers];
-        updated[0] = { ...firstLayer, parts };
-        onChange({ layers: updated });
+        updated[0] = { ...firstLayer, parts: [...firstLayer.parts, newPart] };
+        setQuery({ layers: updated });
       } else {
-        onChange({ layers: [{ operator: 'OR', parts: [{ type: f.type, value: f.label, aliases: f.aliases, scope: 'title_and_content' }] }] });
+        setQuery({ layers: [{ operator: 'OR', parts: [newPart] }] });
       }
+    }
+
+    function removeChip(li: number, pi: number) {
+      const parts = query.layers[li].parts.filter((_, i) => i !== pi);
+      if (parts.length === 0) setQuery({ layers: query.layers.filter((_, i) => i !== li) });
+      else { const updated = [...query.layers]; updated[li] = { ...query.layers[li], parts }; setQuery({ layers: updated }); }
     }
 
     const selectedValues = new Set(query.layers.flatMap(l => l.parts.map(p => p.value)));
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-slate-100">
-          <h1 className="text-base font-bold text-slate-900">AI Feed</h1>
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <h1 className="text-base font-bold text-slate-900">AI Feed — {template.name}</h1>
+          <button onClick={onCancel} className="text-[12px] font-medium text-slate-400 hover:text-slate-600">Annuler</button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 max-w-3xl mx-auto w-full">
-          <h1 className="text-lg font-semibold text-slate-700 italic mb-4">Collecter articles et rapports</h1>
-          {tabsBar}
-
-          <h2 className="text-sm font-semibold text-slate-600 mb-3">Filtres</h2>
 
           {/* Current chips */}
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            {query.layers.flatMap((l, li) => l.parts.map((p, pi) => (
-              <div key={`${li}-${pi}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg">
-                <Filter size={11} className="text-[#42d3a5]" />
-                <span className="text-[12px] font-medium text-white">{p.value}</span>
-                {(p.aliases?.length || 0) > 0 && (
-                  <span className="text-[9px] font-bold text-blue-400 bg-blue-900/30 px-1 py-0.5 rounded">+{p.aliases!.length}</span>
-                )}
-                <button onClick={() => {
-                  const parts = query.layers[li].parts.filter((_, i) => i !== pi);
-                  if (parts.length === 0) onChange({ layers: query.layers.filter((_, i) => i !== li) });
-                  else { const updated = [...query.layers]; updated[li] = { ...query.layers[li], parts }; onChange({ layers: updated }); }
-                }} className="p-0.5 text-slate-400 hover:text-white"><X size={12} /></button>
+          {query.layers.some(l => l.parts.length > 0) && (
+            <div className="mb-4">
+              <h2 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Filtres selectionnes</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                {query.layers.flatMap((l, li) => l.parts.map((p, pi) => (
+                  <div key={`${li}-${pi}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg">
+                    <Filter size={11} className="text-[#42d3a5]" />
+                    <span className="text-[12px] font-medium text-white">{p.value}</span>
+                    {(p.aliases?.length || 0) > 0 && (
+                      <span className="text-[9px] font-bold text-blue-400 bg-blue-900/30 px-1 py-0.5 rounded">+{p.aliases!.length}</span>
+                    )}
+                    <button onClick={() => removeChip(li, pi)} className="p-0.5 text-slate-400 hover:text-white"><X size={12} /></button>
+                  </div>
+                )))}
               </div>
-            )))}
-            {query.layers.length > 0 && (
-              <span className="text-[11px] font-medium text-[#42d3a5]">+ OR</span>
-            )}
+            </div>
+          )}
+
+          {/* Search bar + resolve */}
+          <div className="mb-4">
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input
+                value={searchValue}
+                onChange={e => setSearchValue(e.target.value)}
+                onKeyDown={async e => {
+                  if (e.key === 'Enter' && searchValue.trim()) {
+                    const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
+                    const { model } = await resolveIntelModel(searchValue.trim());
+                    addModel({ name: model.name, aliases: model.aliases });
+                    setSearchValue('');
+                  }
+                }}
+                placeholder="Tapez un terme et Entree (ex: OPEC, ransomware, Tesla...)"
+                className="w-full pl-9 pr-4 py-2.5 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] bg-white"
+              />
+            </div>
           </div>
 
-          {/* Suggestion groups — Feedly style */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            {!activeGroup ? (
-              // Level 1: Group list
-              <>
-                {groups.map((g, i) => (
-                  <button key={i} onClick={() => setSelectedGroup(g.name)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0 transition-colors">
-                    <Filter size={14} className="text-[#42d3a5]" />
-                    <span className="text-[13px] font-medium text-slate-700 flex-1">{g.name}</span>
-                    <ChevronRight size={14} className="text-slate-300" />
-                  </button>
-                ))}
-              </>
-            ) : (
-              // Level 2: Filters in selected group
-              <>
-                <button onClick={() => setSelectedGroup(null)}
-                  className="w-full flex items-center gap-2 px-4 py-3 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50">
-                  <ChevronLeft size={14} className="text-slate-400" />
-                  <span className="text-[13px] font-semibold text-slate-600">{activeGroup.name}</span>
-                </button>
-                {activeGroup.filters.map((f, i) => {
-                  const isSelected = selectedValues.has(f.label);
-                  return (
-                    <button key={i} onClick={() => { if (!isSelected) addSuggestion(f); }}
-                      disabled={isSelected}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-slate-100 last:border-b-0 transition-colors ${
-                        isSelected ? 'bg-emerald-50 opacity-60' : 'hover:bg-slate-50'
-                      }`}>
-                      <Filter size={14} className={isSelected ? 'text-emerald-500' : 'text-slate-400'} />
-                      <div className="flex-1">
-                        <div className="text-[13px] font-medium text-slate-700">{f.label}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{f.aliases.slice(0, 4).join(', ')}</div>
-                      </div>
-                      {isSelected && <span className="text-[10px] font-bold text-emerald-600">Ajoute</span>}
-                    </button>
-                  );
-                })}
-              </>
-            )}
-          </div>
+          {/* 3-level drill-down from Intel Models */}
+          <IntelModelBrowser onSelect={addModel} selectedValues={selectedValues} />
 
           {/* Actions */}
           <div className="flex items-center gap-3 mt-4">
-            <button onClick={() => setState({ step: 'build' })} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">
+            <button
+              onClick={() => setState({ step: 'build' })}
+              className="px-4 py-2 text-[12px] font-semibold text-white rounded-lg bg-[#42d3a5] hover:bg-[#38b891] transition-colors"
+            >
               {query.layers.length > 0 ? 'Continuer' : 'Passer'}
             </button>
             <button onClick={handleClear} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">Effacer</button>
@@ -463,6 +445,115 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
           <SourceSelector feedId={null} />
         </div>
       </div>
+    </div>
+  );
+}
+
+
+/* ═══ Intel Model Browser — 3-level drill-down ═══ */
+function IntelModelBrowser({ onSelect, selectedValues }: {
+  onSelect: (m: { name: string; aliases: string[] }) => void;
+  selectedValues: Set<string>;
+}) {
+  const [families, setFamilies] = useState<import('@/v2/lib/ai-feeds-api').IntelFamily[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [level, setLevel] = useState<
+    | { depth: 0 }
+    | { depth: 1; familyIdx: number }
+    | { depth: 2; familyIdx: number; sectionIdx: number }
+  >({ depth: 0 });
+
+  useEffect(() => {
+    import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
+      fetchIntelTree().then(d => { setFamilies(d.families); setLoading(false); })
+    ).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-8">
+        <Loader2 size={14} className="animate-spin text-[#42d3a5]" />
+        <span className="text-[11px] text-slate-400">Chargement des modeles...</span>
+      </div>
+    );
+  }
+
+  // Level 0: families
+  if (level.depth === 0) {
+    return (
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        {families.map((fam, fi) => (
+          <button key={fi} onClick={() => setLevel({ depth: 1, familyIdx: fi })}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0 transition-colors">
+            <Filter size={14} className="text-[#42d3a5]" />
+            <div className="flex-1">
+              <div className="text-[13px] font-semibold text-slate-700">{fam.label}</div>
+              <div className="text-[10px] text-slate-400">{fam.sections.length} categories</div>
+            </div>
+            <ChevronRight size={14} className="text-slate-300" />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const family = families[level.familyIdx];
+  if (!family) return null;
+
+  // Level 1: sections
+  if (level.depth === 1) {
+    return (
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <button onClick={() => setLevel({ depth: 0 })}
+          className="w-full flex items-center gap-2 px-4 py-3 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50">
+          <ChevronLeft size={14} className="text-slate-400" />
+          <span className="text-[13px] font-semibold text-slate-600">{family.label}</span>
+        </button>
+        {family.sections.map((sec, si) => (
+          <button key={si} onClick={() => setLevel({ depth: 2, familyIdx: level.familyIdx, sectionIdx: si })}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0 transition-colors">
+            <Filter size={14} className="text-slate-400" />
+            <div className="flex-1">
+              <div className="text-[13px] font-medium text-slate-700">{sec.name}</div>
+              <div className="text-[10px] text-slate-400">{sec.models.length} modeles</div>
+            </div>
+            <ChevronRight size={14} className="text-slate-300" />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // Level 2: models
+  const section = family.sections[level.sectionIdx];
+  if (!section) return null;
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <button onClick={() => setLevel({ depth: 1, familyIdx: level.familyIdx })}
+        className="w-full flex items-center gap-2 px-4 py-3 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50">
+        <ChevronLeft size={14} className="text-slate-400" />
+        <span className="text-[13px] font-semibold text-slate-600">{family.label} &gt; {section.name}</span>
+      </button>
+      {section.models.map((m, mi) => {
+        const isSelected = selectedValues.has(m.name);
+        return (
+          <button key={mi} onClick={() => { if (!isSelected) onSelect({ name: m.name, aliases: m.aliases }); }}
+            disabled={isSelected}
+            className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-slate-100 last:border-b-0 transition-colors ${
+              isSelected ? 'bg-emerald-50 opacity-60' : 'hover:bg-slate-50'
+            }`}>
+            <Sparkles size={14} className={isSelected ? 'text-emerald-500' : 'text-[#42d3a5]'} />
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-medium text-slate-700">{m.name}</div>
+              {m.description && <div className="text-[10px] text-slate-400 truncate">{m.description}</div>}
+              <div className="text-[9px] text-slate-300 truncate mt-0.5">{m.aliases.slice(0, 5).join(', ')}{m.aliases.length > 5 ? ` +${m.aliases.length - 5}` : ''}</div>
+            </div>
+            {m.article_count > 0 && <span className="text-[9px] text-slate-400">{m.article_count} articles</span>}
+            {isSelected && <span className="text-[10px] font-bold text-emerald-600">Ajoute</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -254,6 +254,37 @@ export function generateAliases(term: string, type: string = 'keyword'): Promise
   });
 }
 
+// ── Intel Models ─────────────────────────────────────────────
+export interface IntelModelData {
+  id: string;
+  name: string;
+  aliases: string[];
+  description: string | null;
+  article_count: number;
+}
+
+export interface IntelSection {
+  name: string;
+  models: IntelModelData[];
+}
+
+export interface IntelFamily {
+  key: string;
+  label: string;
+  sections: IntelSection[];
+}
+
+export function fetchIntelTree(): Promise<{ families: IntelFamily[] }> {
+  return api('/ai-feeds/intel-models/tree');
+}
+
+export function resolveIntelModel(term: string): Promise<{ model: IntelModelData & { family: string; section: string }; created: boolean }> {
+  return api('/ai-feeds/intel-models/resolve', {
+    method: 'POST',
+    body: JSON.stringify({ term }),
+  });
+}
+
 export function validateUrl(url: string): Promise<{
   valid: boolean; feeds_found: { url: string; title: string }[]; error?: string;
 }> {

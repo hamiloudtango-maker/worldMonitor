@@ -649,6 +649,46 @@ async def list_intel_models(
     return {"sections": sections, "total": len(models)}
 
 
+@router.get("/intel-models/tree")
+async def intel_models_tree(db: AsyncSession = Depends(get_db)):
+    """Return 3-level tree: family → section → models."""
+    from app.models.intel_model import IntelModel
+    result = await db.execute(
+        select(IntelModel).order_by(IntelModel.family, IntelModel.section, desc(IntelModel.article_count))
+    )
+    models = result.scalars().all()
+
+    tree: dict[str, dict[str, list]] = {}
+    for m in models:
+        tree.setdefault(m.family, {}).setdefault(m.section, []).append({
+            "id": str(m.id), "name": m.name, "aliases": m.aliases or [],
+            "description": m.description, "article_count": m.article_count,
+        })
+
+    # Convert to ordered list
+    FAMILY_LABELS = {
+        "market": "Market Intelligence",
+        "threat": "Threat Intelligence",
+        "risk": "Risk Intelligence",
+        "foundation": "Foundation",
+        "biopharma": "Biopharma Research",
+        "mute": "Mute Filters",
+    }
+    families = []
+    for fam_key in ["market", "threat", "risk", "foundation", "biopharma", "mute"]:
+        if fam_key not in tree:
+            continue
+        sections = []
+        for sec_name, sec_models in tree[fam_key].items():
+            sections.append({"name": sec_name, "models": sec_models})
+        families.append({
+            "key": fam_key,
+            "label": FAMILY_LABELS.get(fam_key, fam_key),
+            "sections": sections,
+        })
+    return {"families": families}
+
+
 @router.post("/intel-models/resolve")
 async def resolve_intel_model(
     body: dict,
