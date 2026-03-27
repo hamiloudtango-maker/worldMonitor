@@ -612,9 +612,10 @@ async def ai_bootstrap(
          "continent": s.continent, "tags": s.tags or []}
         for s in db_sources
     ]
+    # Keep catalog compact to avoid token overflow and JSON truncation
     catalog_summary = "\n".join(
-        f"- {s['name']} ({s['country']}, {s['continent']}, {', '.join(s['tags'])}, {s['lang']}, tier {s['tier']})"
-        for s in catalog
+        f"- {s['name']} ({s['country']}, {', '.join(s['tags'])})"
+        for s in catalog[:80]  # Top 80 sources only (tier 1-2 first)
     )
 
     prompt = f"""You are an OSINT intelligence analyst configuring an RSS monitoring feed.
@@ -672,7 +673,22 @@ Available RSS sources catalog:
         cleaned = raw.strip()
         cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
         cleaned = re.sub(r"\s*```$", "", cleaned)
-        result = json.loads(cleaned.strip())
+        cleaned = cleaned.strip()
+        # Fix truncated JSON — try to close open brackets/braces
+        try:
+            result = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Try fixing common truncation issues
+            fixed = cleaned
+            open_braces = fixed.count('{') - fixed.count('}')
+            open_brackets = fixed.count('[') - fixed.count(']')
+            if open_brackets > 0:
+                fixed += ']' * open_brackets
+            if open_braces > 0:
+                fixed += '}' * open_braces
+            # Remove trailing comma before closing
+            fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+            result = json.loads(fixed)
 
         # Resolve source names to full catalog entries
         catalog_by_name = {s["name"]: s for s in catalog}
