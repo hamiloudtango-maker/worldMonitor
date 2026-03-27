@@ -73,7 +73,7 @@ export interface CatalogSource {
   source_type: string | null;
   country: string | null;
   continent: string | null;
-  thematic: string | null;
+  tags: string[];
 }
 
 // ── Feed CRUD ────────────────────────────────────────────────
@@ -147,12 +147,12 @@ export function listFeedArticles(feedId: string, params?: {
 
 // ── Catalog ──────────────────────────────────────────────────
 export function listCatalog(filters?: {
-  country?: string; continent?: string; thematic?: string; lang?: string; q?: string;
+  country?: string; continent?: string; tag?: string; lang?: string; q?: string;
 }): Promise<{ sources: CatalogSource[]; total: number }> {
   const q = new URLSearchParams();
   if (filters?.country) q.set('country', filters.country);
   if (filters?.continent) q.set('continent', filters.continent);
-  if (filters?.thematic) q.set('thematic', filters.thematic);
+  if (filters?.tag) q.set('tag', filters.tag);
   if (filters?.lang) q.set('lang', filters.lang);
   if (filters?.q) q.set('q', filters.q);
   const qs = q.toString();
@@ -225,7 +225,7 @@ export function fetchLeaves(params: {
 
 // ── Catalog bulk-add ────────────────────────────────────────
 export function bulkAddSources(urls: string[]): Promise<{
-  added: { url: string; name: string; country?: string; thematic?: string }[];
+  added: { url: string; name: string; country?: string; tags?: string[] }[];
   errors: { url: string; error: string }[];
   total_added: number;
 }> {
