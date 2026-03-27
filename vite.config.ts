@@ -785,9 +785,7 @@ export default defineConfig(({ mode }) => {
           warn(warning);
         },
         input: {
-          main: resolve(__dirname, 'index.html'),
-          settings: resolve(__dirname, 'settings.html'),
-          liveChannels: resolve(__dirname, 'live-channels.html'),
+          main: resolve(__dirname, 'v2.html'),
         },
         output: {
           manualChunks(id) {
@@ -840,7 +838,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 3000,
-      open: !isE2E,
+      open: !isE2E ? '/v2.html' : false,
       hmr: isE2E ? false : undefined,
       watch: {
         ignored: [
