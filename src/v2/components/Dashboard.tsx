@@ -243,11 +243,7 @@ export default function Dashboard({ user, onLogout }: Props) {
             </button>
           </div>
         </header>
-        {nav === 'dashboard' && (
-          <div className="px-5 pt-3">
-            <FilterBar filters={filters} onChange={setFilters} stats={stats} articles={articles} cases={cases} />
-          </div>
-        )}
+        {/* FilterBar removed — filtering via widgets */}
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
