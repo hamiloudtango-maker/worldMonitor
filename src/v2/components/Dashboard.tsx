@@ -56,8 +56,24 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════ */
+function getNavFromHash(): NavKey {
+  const hash = window.location.hash.replace('#', '');
+  const valid: NavKey[] = ['dashboard', 'cases', 'ai-feeds', 'world', 'reports', 'settings'];
+  return valid.includes(hash as NavKey) ? (hash as NavKey) : 'dashboard';
+}
+
 export default function Dashboard({ user, onLogout }: Props) {
-  const [nav, setNav]               = useState<NavKey>('dashboard');
+  const [nav, _setNav]              = useState<NavKey>(getNavFromHash);
+  const setNav = useCallback((key: NavKey) => {
+    if (window.location.hash !== `#${key}`) window.history.pushState(null, '', `#${key}`);
+    _setNav(key);
+  }, []);
+
+  useEffect(() => {
+    const onHash = () => _setNav(getNavFromHash());
+    window.addEventListener('popstate', onHash);
+    return () => window.removeEventListener('popstate', onHash);
+  }, []);
   const [stats, setStats]           = useState<Stats | null>(null);
   const [articles, setArticles]     = useState<Article[]>([]);
   const [entities, setEntities]     = useState<[string, number][]>([]);
