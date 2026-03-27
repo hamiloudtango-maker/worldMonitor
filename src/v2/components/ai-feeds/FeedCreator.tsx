@@ -86,7 +86,17 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
       ],
     });
     setFeedName(template.name);
-    setState({ step: 'refine', template });
+    // Skip refine step — go directly to build with ChipQueryBuilder
+    // Auto-bootstrap will enrich with aliases if query is thin
+    setState({ step: 'build' });
+    // Trigger LLM bootstrap for rich keywords
+    import('@/v2/lib/ai-feeds-api').then(({ bootstrapFeed }) => {
+      bootstrapFeed(template.name, template.description || template.name).then(result => {
+        if (result.query && result.query.layers.length > 0) {
+          setQuery(result.query);
+        }
+      }).catch(() => {});
+    });
   }
 
   function handleSearchSubmit() {
