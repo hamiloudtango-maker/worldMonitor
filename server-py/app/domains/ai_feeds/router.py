@@ -655,7 +655,11 @@ Rules:
 - operator must be "AND", "OR", or "NOT"
 - suggested_sources must be exact names from the catalog (case-sensitive match)
 - Suggest 5-15 relevant sources. Prefer tier 1-2 sources. Match by country/continent/tags relevance.
-- Generate 2-4 meaningful layers. First layer should capture the core topic. Add NOT layers to exclude noise.
+- CRITICAL: Generate rich, comprehensive keywords. The first OR layer MUST contain 10-20 keywords/terms covering all aspects of the topic.
+  Example for "Énergie & Ressources": oil, gas, petroleum, nuclear energy, renewable, solar, wind power, OPEC, pipeline, mining, coal, uranium, lithium, hydrogen, electricity grid, energy security, fossil fuel, natural gas, LNG, crude oil
+  Example for "Cybersécurité": cyberattack, ransomware, data breach, malware, phishing, hacking, vulnerability, zero-day, DDoS, cyber espionage, CISA, APT, threat actor, CVE, incident response
+- Use BOTH English AND French keywords to match bilingual articles
+- Generate 2-4 meaningful layers. First OR layer = comprehensive topic keywords. Optional AND/NOT layers for precision.
 - For entities, always include common aliases (abbreviations, stock tickers, former names)
 
 Available RSS sources catalog:
