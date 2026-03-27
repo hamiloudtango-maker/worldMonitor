@@ -162,7 +162,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
       {/* Grid */}
       {layout.length > 0 ? (
         <ReactGridLayout
-          layout={layout}
+          layout={layout.filter(item => catalogMap[item.i])}
           cols={12}
           rowHeight={50}
           onLayoutChange={onLayoutChange}
@@ -174,9 +174,8 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
           containerPadding={[0, 0]}
           useCSSTransforms
         >
-          {layout.map(item => {
+          {layout.filter(item => catalogMap[item.i]).map(item => {
             const def = catalogMap[item.i];
-            if (!def) return <div key={item.i} style={{ display: 'none' }} />;
             const Icon = def.icon;
             return (
               <div key={item.i} className="bg-white rounded-xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden">
