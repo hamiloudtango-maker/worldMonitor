@@ -655,11 +655,12 @@ Rules:
 - operator must be "AND", "OR", or "NOT"
 - suggested_sources must be exact names from the catalog (case-sensitive match)
 - Suggest 5-15 relevant sources. Prefer tier 1-2 sources. Match by country/continent/tags relevance.
-- CRITICAL: Generate rich, comprehensive keywords. The first OR layer MUST contain 10-20 keywords/terms covering all aspects of the topic.
-  Example for "Énergie & Ressources": oil, gas, petroleum, nuclear energy, renewable, solar, wind power, OPEC, pipeline, mining, coal, uranium, lithium, hydrogen, electricity grid, energy security, fossil fuel, natural gas, LNG, crude oil
-  Example for "Cybersécurité": cyberattack, ransomware, data breach, malware, phishing, hacking, vulnerability, zero-day, DDoS, cyber espionage, CISA, APT, threat actor, CVE, incident response
-- Use BOTH English AND French keywords to match bilingual articles
-- Generate 2-4 meaningful layers. First OR layer = comprehensive topic keywords. Optional AND/NOT layers for precision.
+- CRITICAL: Generate rich, comprehensive keywords. The first OR layer MUST contain 15-25 keywords/terms covering all aspects of the topic.
+  Example for "Énergie & Ressources": oil, gas, petroleum, nuclear energy, renewable, solar, wind power, OPEC, pipeline, mining, coal, uranium, lithium, hydrogen, electricity grid, energy security, fossil fuel, natural gas, LNG, crude oil, pétrole, gaz naturel, énergie nucléaire, énergie renouvelable, transition énergétique
+  Example for "Guerre Ukraine": Ukraine war, Russian invasion, Zelensky, Putin, Donbas, Crimea, NATO, Bakhmut, drone strike, frontline, ceasefire, guerre Ukraine, invasion russe, cessez-le-feu, війна, Україна, вторгнення
+  Example for "Cybersécurité": cyberattack, ransomware, data breach, malware, phishing, hacking, vulnerability, zero-day, DDoS, cyber espionage, CISA, APT, threat actor, CVE, incident response, cyberattaque, piratage, faille de sécurité, rançongiciel
+- MANDATORY: Include keywords in 3 languages: English + French + local language relevant to the topic (e.g. Ukrainian for Ukraine, Arabic for Middle East, Japanese for Japan, Russian for Russia, German for Germany, etc.)
+- Generate 2-4 meaningful layers. First OR layer = comprehensive topic keywords in all relevant languages. Optional AND/NOT layers for precision.
 - For entities, always include common aliases (abbreviations, stock tickers, former names)
 
 Available RSS sources catalog:
