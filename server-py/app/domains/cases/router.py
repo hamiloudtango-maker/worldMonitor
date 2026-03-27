@@ -180,11 +180,10 @@ def _get_case_search_terms(case: Case) -> tuple[list[str], list[str]]:
             ticker = card.get("stock_ticker", "")
             if ticker and len(ticker) >= 2:
                 strong.append(ticker)
-            # Country code — keep for country_codes_json matching only (handled in filter)
+            # Country code — NOT added to strong terms (too short, causes false matches)
+            # Used directly in the filter for country_codes_json matching only
             cc = (card.get("country_code") or "").upper()
-            if cc and len(cc) == 2:
-                strong.append(cc)
-            # For country-type cases, add both FR and EN country names as strong terms
+            # For country-type cases, add both FR and EN full country names as strong terms
             if case.type == "country":
                 _add_country_names(case.name, cc, strong)
             # Sector is weak (generic)
@@ -233,16 +232,14 @@ def _case_article_filter(case: Case):
 
     conditions = []
 
-    # 1. Strong terms — match alone (high signal: "Mongolia", "Gobi Desert minerals")
+    # 1. Strong terms — match alone (full country names, entity names, etc.)
+    #    Terms < 3 chars are ignored (too noisy)
     for term in strong_terms:
-        if len(term) == 2 and term.isupper():
-            # Country code — only match in country_codes_json, not in free text
-            conditions.append(Article.country_codes_json.ilike(f'%"{term}"%'))
-        elif len(term) >= 3:
+        if len(term) >= 3:
             conditions.append(Article.title.ilike(f"%{term}%"))
             conditions.append(Article.entities_json.ilike(f"%{term}%"))
 
-    # 3. Country code match if available (e.g. "MN" for Mongolia)
+    # 2. Country code match via structured field only (e.g. "MN" for Mongolia)
     if case.identity_card:
         try:
             card = json.loads(case.identity_card) if isinstance(case.identity_card, str) else case.identity_card
@@ -252,13 +249,13 @@ def _case_article_filter(case: Case):
         except Exception:
             pass
 
-    # 4. Weak terms — only match if article also has a strong term (AND logic)
+    # 3. Weak terms — only match if article also has a strong term (AND logic)
     #    This prevents "Mining" alone from matching all mining articles worldwide
-    if weak_terms and strong_terms:
+    strong_3plus = [s for s in strong_terms if len(s) >= 3]
+    if weak_terms and strong_3plus:
         strong_anchor = or_(
-            *[Article.title.ilike(f"%{s}%") for s in strong_terms if len(s) >= 3],
-            *[Article.entities_json.ilike(f"%{s}%") for s in strong_terms if len(s) >= 3],
-            *[Article.country_codes_json.ilike(f'%"{s}"%') for s in strong_terms if len(s) == 2],
+            *[Article.title.ilike(f"%{s}%") for s in strong_3plus],
+            *[Article.entities_json.ilike(f"%{s}%") for s in strong_3plus],
         )
         for term in weak_terms:
             term = term.strip()
