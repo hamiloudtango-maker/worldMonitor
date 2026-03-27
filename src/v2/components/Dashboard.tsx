@@ -106,8 +106,8 @@ export default function Dashboard({ user, onLogout }: Props) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { const id = setInterval(load, 60_000); return () => clearInterval(id); }, [load]);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const id = setInterval(load, 5 * 60_000); return () => clearInterval(id); }, [load]);
 
   /* ── Filtered articles ── */
   const caseKw = filters.cases.length > 0
