@@ -15,6 +15,7 @@ import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo, FLAGS } from '@/v2/lib/constants';
 import LiveMap from './LiveMap';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
+import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 
 const COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#eab308'];
@@ -123,20 +124,24 @@ export default function WorldView() {
     return { total: filteredArticles.length, by_theme, by_threat, by_source, by_lang: {} };
   })() : stats;
 
-  // Load RSS catalog from backend
+  // Load RSS catalog + AI Feed widgets
   useEffect(() => {
+    // RSS sources
     api<{ sources: RssSource[] }>('/news/v1/rss-catalog').then(res => {
       const sources = res.sources || [];
       setRssSources(sources);
-      // Generate a widget def per RSS source
       const rssDefs: WidgetDef[] = sources.map(s => ({
         id: `rss_${s.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
         title: s.name,
         icon: Newspaper,
-        category: `RSS — ${capitalize(s.category)}`,
+        category: `RSS — ${capitalize(s.tags?.[0] || 'news')}`,
         defaultW: 4, defaultH: 6, minH: 3, minW: 3,
       }));
-      setFullCatalog([...CATALOG, ...rssDefs]);
+      // AI Feed widgets
+      buildCatalogWithFeeds().then(feedCatalog => {
+        const feedOnly = feedCatalog.filter(w => w.id.startsWith('ai-feed-'));
+        setFullCatalog([...CATALOG, ...rssDefs, ...feedOnly]);
+      }).catch(() => setFullCatalog([...CATALOG, ...rssDefs]));
     }).catch(() => {});
   }, []);
 

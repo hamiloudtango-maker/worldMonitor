@@ -11,8 +11,8 @@ import type { CaseData, CaseStats } from '@/v2/lib/api';
 import { getCaseArticles, getCaseStats, forceIngestCase, updateCase } from '@/v2/lib/api';
 import type { Article } from '@/v2/lib/constants';
 import IdentityCard from './IdentityCard';
-import WidgetGrid, { type WidgetState } from './WidgetGrid';
-import { FULL_CATALOG, renderSharedWidget } from './shared/WidgetCatalog';
+import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
+import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 
 interface Props {
   caseData: CaseData;
@@ -45,6 +45,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const [descDraft, setDescDraft] = useState('');
   const [regenerating, setRegenerating] = useState(false);
   const [currentCase, setCurrentCase] = useState(caseData);
+  const [catalog, setCatalog] = useState<WidgetDef[]>(FULL_CATALOG);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +61,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   }, [caseData.id]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { buildCatalogWithFeeds().then(setCatalog); }, []);
 
   async function handleIngest() {
     setIngesting(true);
@@ -150,7 +152,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
 
         {/* Widget grid — all widgets, fully customizable */}
         <WidgetGrid
-          catalog={FULL_CATALOG}
+          catalog={catalog}
           storageKey={`wm-case-${currentCase.id}-v3`}
           defaultWidgets={CASE_DEFAULTS}
           onRefresh={load}
