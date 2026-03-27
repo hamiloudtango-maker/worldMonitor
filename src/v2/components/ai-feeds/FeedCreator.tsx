@@ -82,7 +82,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   function handleTemplateSelect(template: FeedTemplate) {
     setQuery({
       layers: [
-        { operator: 'AND', parts: [{ type: template.chip1.type, value: template.chip1.label, scope: 'title_and_content' }] },
+        { operator: 'OR', parts: [{ type: template.chip1.type, value: template.chip1.label, scope: 'title_and_content' }] },
       ],
     });
     setFeedName(template.name);
@@ -117,8 +117,12 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   }
 
   async function handleRefineSkip() {
-    // If query is empty but we have context (template/category), auto-bootstrap via LLM
-    if (query.layers.length === 0 && state.step === 'refine' && 'template' in state) {
+    // If query is empty or too thin (single keyword, no aliases), auto-bootstrap via LLM
+    const isThin = query.layers.length === 0 ||
+      (query.layers.length === 1 && query.layers[0].parts.length <= 2 &&
+       query.layers[0].parts.every(p => !p.aliases || p.aliases.length === 0));
+
+    if (isThin && state.step === 'refine' && 'template' in state) {
       const { bootstrapFeed } = await import('@/v2/lib/ai-feeds-api');
       const name = feedName || state.template.name;
       setBootstrapping(true);
