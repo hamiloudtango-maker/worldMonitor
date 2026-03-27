@@ -745,7 +745,7 @@ async def preview_query(
             where = f"({where}) AND {clause}"
 
     raw_sql = f"""
-        SELECT title, link, source_id, pub_date, description, threat_level, theme
+        SELECT id, title, link, source_id, pub_date, description, threat_level, theme
         FROM articles WHERE {where}
         ORDER BY pub_date DESC LIMIT 20
     """
@@ -754,13 +754,14 @@ async def preview_query(
 
     articles = [
         {
-            "title": r[0] or "",
-            "article_url": r[1] or "",
-            "source_name": r[2] or "",
-            "published_at": r[3],
-            "summary": (r[4] or "")[:200],
-            "threat_level": r[5],
-            "category": r[6],
+            "id": str(r[0]),
+            "title": r[1] or "",
+            "article_url": r[2] or "",
+            "source_name": r[3] or "",
+            "published_at": r[4],
+            "summary": (r[5] or "")[:200],
+            "threat_level": r[6],
+            "category": r[7],
         }
         for r in rows
     ]

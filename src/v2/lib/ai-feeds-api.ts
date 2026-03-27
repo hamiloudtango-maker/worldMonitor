@@ -204,6 +204,7 @@ export function fetchCategoryTree(tab: string): Promise<{ categories: CategoryL1
 
 // ── Live Preview (before saving) ────────────────────────────
 export interface PreviewArticle {
+  id: string;
   title: string;
   article_url: string;
   source_name: string;

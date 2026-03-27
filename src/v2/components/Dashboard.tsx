@@ -25,6 +25,8 @@ import NotificationPanel from './shared/NotificationPanel';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 import SourceManager from './SourceManager';
 import ApiServices from './ApiServices';
+import ArticleReader from './ArticleReader';
+import { ArticleReaderContext } from '@/v2/hooks/useArticleReader';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -83,6 +85,7 @@ export default function Dashboard({ user, onLogout }: Props) {
   const [boardCase, setBoardCase]   = useState<CaseData | null>(null);
   const [_selectedCase, setSelectedCase] = useState<CaseData | null>(null);
   const [catalog, setCatalog]       = useState(FULL_CATALOG);
+  const [readingArticleId, setReadingArticleId] = useState<string | null>(null);
 
   const { cases, loading: casesLoading, add: addCase, remove: removeCase } = useCases();
 
@@ -168,6 +171,7 @@ export default function Dashboard({ user, onLogout }: Props) {
   }
 
   return (
+    <ArticleReaderContext.Provider value={setReadingArticleId}>
     <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* ───────── SIDEBAR ───────── */}
@@ -320,7 +324,9 @@ export default function Dashboard({ user, onLogout }: Props) {
 
         </div>
       </main>
+      <ArticleReader articleId={readingArticleId} onClose={() => setReadingArticleId(null)} />
     </div>
+    </ArticleReaderContext.Provider>
   );
 }
 

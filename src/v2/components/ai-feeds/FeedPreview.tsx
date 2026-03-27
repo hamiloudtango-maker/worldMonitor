@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { listFeedArticles, previewQuery } from '@/v2/lib/ai-feeds-api';
 import type { AIFeedArticle, FeedQuery, PreviewArticle } from '@/v2/lib/ai-feeds-api';
 import { timeAgo } from '@/v2/lib/constants';
+import { useArticleReader } from '@/v2/hooks/useArticleReader';
 
 interface Props {
   feedId: string | null;
@@ -19,6 +20,7 @@ const THREAT_COLORS: Record<string, string> = {
 };
 
 export default function FeedPreview({ feedId, query, onCountChange }: Props) {
+  const openArticle = useArticleReader();
   const [articles, setArticles] = useState<(AIFeedArticle | PreviewArticle)[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -69,12 +71,10 @@ export default function FeedPreview({ feedId, query, onCountChange }: Props) {
       </div>
       <div className="space-y-1.5">
         {articles.map((a, i) => (
-          <a
+          <button
             key={i}
-            href={a.article_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block p-2.5 rounded-lg border border-slate-100 hover:border-[#42d3a5]/30 transition-colors"
+            onClick={() => { const id = 'id' in a ? a.id : ''; if (id) openArticle(id); }}
+            className="block w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-[#42d3a5]/30 transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-1.5 mb-1">
               {'threat_level' in a && a.threat_level && (
@@ -97,7 +97,7 @@ export default function FeedPreview({ feedId, query, onCountChange }: Props) {
                 ))}
               </div>
             )}
-          </a>
+          </button>
         ))}
         {articles.length === 0 && !loading && (
           <div className="text-center py-6 text-xs text-slate-400">

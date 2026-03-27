@@ -270,3 +270,57 @@ async def list_entities(limit: int = Query(50, ge=1, le=200), db: AsyncSession =
 
     top = sorted(entity_counts.items(), key=lambda x: -x[1])[:limit]
     return {"entities": top}
+
+
+@router.get("/{article_id}/content")
+async def get_article_content(
+    article_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Scrape full article content as markdown. Cached on disk after first scrape."""
+    import uuid as _uuid
+    from app.source_engine.scraper import scrape_and_save, read_scraped
+
+    article = await db.get(Article, _uuid.UUID(article_id))
+    if not article:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Article not found")
+
+    pub_str = str(article.pub_date) if article.pub_date else None
+
+    # Check cache
+    cached = read_scraped(article.source_id, pub_str, article.hash)
+    if cached:
+        return {
+            "content_md": cached,
+            "url": article.link,
+            "title": article.title,
+            "source_id": article.source_id,
+            "cached": True,
+        }
+
+    # Scrape
+    content = await scrape_and_save(
+        url=article.link,
+        source_id=article.source_id,
+        pub_date=pub_str,
+        article_hash=article.hash,
+        title=article.title,
+    )
+
+    if not content:
+        return {
+            "content_md": None,
+            "url": article.link,
+            "title": article.title,
+            "error": "Scraping failed — content could not be extracted",
+            "cached": False,
+        }
+
+    return {
+        "content_md": content,
+        "url": article.link,
+        "title": article.title,
+        "source_id": article.source_id,
+        "cached": False,
+    }
