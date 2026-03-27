@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -92,7 +92,7 @@ class AIFeedResult(Base):
 
 
 class RssCatalogEntry(Base):
-    """Global RSS source catalog — persisted, auto-categorized by AI."""
+    """Global RSS source catalog — single source of truth for all feeds."""
     __tablename__ = "rss_catalog"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -103,8 +103,12 @@ class RssCatalogEntry(Base):
     source_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     continent: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    thematic: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    origin: Mapped[str] = mapped_column(String(20), nullable=False, default="custom")  # "builtin" or "custom"
+    tags: Mapped[list | None] = mapped_column(JSON, default=list)
+    origin: Mapped[str] = mapped_column(String(20), nullable=False, default="builtin")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    fetch_error_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
