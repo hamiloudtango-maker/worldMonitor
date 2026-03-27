@@ -487,10 +487,12 @@ async def preview_query(
     if not layers:
         return {"articles": [], "total": 0}
 
-    # Strategy: AND between layers, OR within parts+aliases, NOT excludes
+    # Strategy: respect each layer's operator (AND/OR/NOT)
+    # - Layer 1: always included
+    # - Layer N operator: how it combines with all previous layers
+    # - Within a layer: OR between parts + aliases
     field = "LOWER(title || ' ' || COALESCE(description, ''))"
-    and_clauses = []
-    not_clauses = []
+    clauses = []  # list of (operator, sql_clause)
 
     for layer in layers:
         op = layer.get("operator", "AND")
@@ -498,7 +500,6 @@ async def preview_query(
         if not parts:
             continue
 
-        # OR between parts (and their aliases) within this layer
         or_likes = []
         for part in parts:
             value = part.get("value", "").strip()
@@ -512,17 +513,20 @@ async def preview_query(
             continue
 
         clause = "(" + " OR ".join(or_likes) + ")"
-        if op == "NOT":
-            not_clauses.append(clause)
-        else:
-            and_clauses.append(clause)
+        clauses.append((op, clause))
 
-    if not and_clauses:
+    if not clauses:
         return {"articles": [], "total": 0}
 
-    where = " AND ".join(and_clauses)
-    if not_clauses:
-        where += " AND NOT (" + " OR ".join(not_clauses) + ")"
+    # Build WHERE: first clause standalone, then combine with operators
+    where = clauses[0][1]
+    for op, clause in clauses[1:]:
+        if op == "NOT":
+            where = f"({where}) AND NOT {clause}"
+        elif op == "OR":
+            where = f"({where}) OR {clause}"
+        else:  # AND
+            where = f"({where}) AND {clause}"
 
     raw_sql = f"""
         SELECT title, link, source_id, pub_date, description, threat_level, theme
