@@ -364,10 +364,24 @@ If none are worth adding, return []."""
         except Exception as e:
             logger.warning(f"Intel model enrichment LLM failed: {e}")
 
-    if updated_counts or new_models:
+    # 4. Cleanup: delete ai_enriched models not used in 30 days
+    deleted = 0
+    cutoff_30d = datetime.now(timezone.utc) - timedelta(days=30)
+    stale = await db.execute(
+        select(IntelModel).where(
+            IntelModel.origin == "ai_enriched",
+            (IntelModel.last_used_at == None) | (IntelModel.last_used_at < cutoff_30d),
+            IntelModel.created_at < cutoff_30d,
+        )
+    )
+    for m in stale.scalars().all():
+        await db.delete(m)
+        deleted += 1
+
+    if updated_counts or new_models or deleted:
         await db.commit()
 
-    logger.info(f"Intel models enriched: {updated_counts} counts updated, {new_models} new models added")
+    logger.info(f"Intel models: {updated_counts} counts updated, {new_models} new, {deleted} stale deleted")
     return new_models
 
 

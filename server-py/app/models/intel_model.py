@@ -23,6 +23,7 @@ class IntelModel(Base):
     aliases: Mapped[list | None] = mapped_column(JSON, default=list)
     origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seed")  # seed, ai_enriched, manual
     article_count: Mapped[int] = mapped_column(Integer, default=0)  # updated weekly
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

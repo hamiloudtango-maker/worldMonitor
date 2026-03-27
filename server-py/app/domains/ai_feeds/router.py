@@ -649,6 +649,132 @@ async def list_intel_models(
     return {"sections": sections, "total": len(models)}
 
 
+@router.post("/intel-models/resolve")
+async def resolve_intel_model(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Resolve a term to an existing intel model, or create one via LLM.
+    Returns the model with its aliases. Updates last_used_at."""
+    import re
+    from datetime import datetime, timezone
+    from app.models.intel_model import IntelModel
+
+    term = body.get("term", "").strip()
+    if not term or len(term) < 2:
+        raise HTTPException(400, "term required (min 2 chars)")
+
+    term_lower = term.lower()
+
+    # 1. Search existing models by name or aliases
+    result = await db.execute(select(IntelModel))
+    all_models = result.scalars().all()
+
+    match = None
+    for m in all_models:
+        if m.name.lower() == term_lower:
+            match = m
+            break
+        for a in (m.aliases or []):
+            if a.lower() == term_lower:
+                match = m
+                break
+        if match:
+            break
+
+    # Fuzzy: partial match if no exact match
+    if not match:
+        for m in all_models:
+            if term_lower in m.name.lower() or m.name.lower() in term_lower:
+                match = m
+                break
+            for a in (m.aliases or []):
+                if term_lower in a.lower() or a.lower() in term_lower:
+                    match = m
+                    break
+            if match:
+                break
+
+    # 2. Found — update last_used_at and return
+    if match:
+        match.last_used_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(match)
+        return {
+            "model": {
+                "id": str(match.id), "name": match.name, "family": match.family,
+                "section": match.section, "aliases": match.aliases or [],
+                "description": match.description, "article_count": match.article_count,
+            },
+            "created": False,
+        }
+
+    # 3. Not found — ask LLM to create a new model
+    try:
+        from app.source_engine.detector import _call_gemini
+
+        prompt = f"""Create an intelligence model for the OSINT term: "{term}"
+
+Return ONLY valid JSON (no markdown):
+{{
+  "name": "Proper name for this concept",
+  "family": "foundation|market|threat|risk",
+  "section": "Best fitting section (Companies, Industries, Technologies, Strategic Moves, Threat Actors, Political Risk, etc.)",
+  "description": "One sentence description",
+  "aliases": ["8-15 aliases: synonyms, translations EN/FR/local language, abbreviations, tickers"]
+}}"""
+
+        raw = await _call_gemini(prompt)
+        cleaned = raw.strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        data = json.loads(cleaned.strip())
+
+        model = IntelModel(
+            name=data.get("name", term),
+            family=data.get("family", "market"),
+            section=data.get("section", "Trends"),
+            description=data.get("description"),
+            aliases=data.get("aliases", [term]),
+            origin="ai_enriched",
+            last_used_at=datetime.now(timezone.utc),
+        )
+        db.add(model)
+        await db.commit()
+        await db.refresh(model)
+
+        return {
+            "model": {
+                "id": str(model.id), "name": model.name, "family": model.family,
+                "section": model.section, "aliases": model.aliases or [],
+                "description": model.description, "article_count": 0,
+            },
+            "created": True,
+        }
+    except Exception as e:
+        logger.warning(f"Intel model creation failed for '{term}': {e}")
+        # Fallback: create minimal model without LLM
+        model = IntelModel(
+            name=term,
+            family="market",
+            section="Trends",
+            aliases=[term],
+            origin="ai_enriched",
+            last_used_at=datetime.now(timezone.utc),
+        )
+        db.add(model)
+        await db.commit()
+        await db.refresh(model)
+        return {
+            "model": {
+                "id": str(model.id), "name": model.name, "family": model.family,
+                "section": model.section, "aliases": [term],
+                "description": None, "article_count": 0,
+            },
+            "created": True,
+        }
+
+
 @router.get("/suggestions")
 async def get_suggestions(
     q: str = "",

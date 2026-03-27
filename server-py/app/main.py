@@ -147,6 +147,7 @@ async def _auto_analyze_categories():
 async def lifespan(app: FastAPI):
     if settings.database_url.startswith("sqlite"):
         from app.db import create_all_tables
+        import app.models.intel_model  # noqa: F401 — register model before create_all
 
         await create_all_tables()
 
