@@ -28,7 +28,7 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
 
   // Add filter bar state
   const [showAddBar, setShowAddBar] = useState(false);
-  const [addOperator, setAddOperator] = useState<'AND' | 'NOT'>('AND');
+  const [addOperator, setAddOperator] = useState<'OR' | 'NOT'>('OR');
   const [addSearch, setAddSearch] = useState('');
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [drill, setDrill] = useState<DrillLevel>({ depth: 0 });
@@ -294,9 +294,9 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
         </div>
       ) : (
         <div className="flex items-center gap-2 mt-3">
-          <button onClick={() => { setAddOperator('AND'); setShowAddBar(true); }}
+          <button onClick={() => { setAddOperator('OR'); setShowAddBar(true); }}
             className="text-[11px] font-semibold text-[#42d3a5] hover:text-[#38b891] flex items-center gap-0.5">
-            <Plus size={11} /> AND
+            <Plus size={11} /> OR
           </button>
           <span className="text-slate-300">/</span>
           <button onClick={() => { setAddOperator('NOT'); setShowAddBar(true); }}

@@ -93,7 +93,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     if (!searchValue.trim()) return;
     setQuery({
       layers: [
-        { operator: 'AND', parts: [{ type: 'keyword', value: searchValue.trim(), scope: 'title_and_content' }] },
+        { operator: 'OR', parts: [{ type: 'keyword', value: searchValue.trim(), scope: 'title_and_content' }] },
       ],
     });
     setFeedName(searchValue.trim());
@@ -106,7 +106,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     setQuery(prev => ({
       layers: [
         ...prev.layers,
-        { operator: 'AND', parts: [{ type: 'entity', value: leaf.label, aliases: allKeywords, scope: 'title_and_content' }] },
+        { operator: 'OR', parts: [{ type: 'entity', value: leaf.label, aliases: allKeywords, scope: 'title_and_content' }] },
       ],
     }));
     // Auto-name feed from last filter selected
@@ -348,7 +348,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
             <span className="text-[11px] font-semibold text-[#42d3a5] cursor-default">+ OR</span>
           </div>
 
-          <div className="text-[11px] font-bold text-slate-400 py-1.5">AND</div>
+          <div className="text-[11px] font-bold text-slate-400 py-1.5">OR</div>
 
           <div className="relative mb-4" ref={dropdownRef}>
             <div className="relative">
