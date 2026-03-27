@@ -35,6 +35,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   const [query, setQuery] = useState<FeedQuery>({ layers: [] });
   const [feedName, setFeedName] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(false);
 
   // Batch category tree
   const [tree, setTree] = useState<CategoryL1[]>([]);
@@ -120,15 +121,15 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     if (query.layers.length === 0 && state.step === 'refine' && 'template' in state) {
       const { bootstrapFeed } = await import('@/v2/lib/ai-feeds-api');
       const name = feedName || state.template.name;
+      setBootstrapping(true);
       try {
-        setTreeLoading(true);
         const result = await bootstrapFeed(name, state.template.description || name);
         if (result.query && result.query.layers.length > 0) {
           setQuery(result.query);
         }
         if (!feedName && result.name) setFeedName(result.name);
       } catch { /* silent */ }
-      setTreeLoading(false);
+      setBootstrapping(false);
     }
     setState({ step: 'build' });
   }
@@ -365,8 +366,11 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={handleRefineSkip} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">Passer</button>
-            <button onClick={handleClear} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">Effacer</button>
+            <button onClick={handleRefineSkip} disabled={bootstrapping} className="flex items-center gap-1.5 text-[12px] font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50">
+              {bootstrapping && <Loader2 size={12} className="animate-spin" />}
+              {bootstrapping ? "L'IA configure..." : 'Passer'}
+            </button>
+            <button onClick={handleClear} disabled={bootstrapping} className="text-[12px] font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50">Effacer</button>
           </div>
         </div>
       </div>
