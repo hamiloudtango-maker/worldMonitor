@@ -77,13 +77,13 @@ def _build_feed_where(query_data: dict) -> str | None:
             aliases = part.get("aliases", [])
             for t in [value] + [a for a in aliases if a]:
                 safe = t.lower().replace("'", "")
-                if not safe:
+                if len(safe) < 3:
                     continue
-                words = [w for w in safe.split() if len(w) >= 2]
+                words = [w for w in safe.split() if len(w) >= 3]
                 if len(words) > 2:
                     word_likes = " AND ".join(f"{field} LIKE '%{w}%'" for w in words)
                     or_likes.append(f"({word_likes})")
-                else:
+                elif words:
                     or_likes.append(f"{field} LIKE '%{safe}%'")
 
         if not or_likes:
@@ -1049,14 +1049,13 @@ async def preview_query(
             aliases = part.get("aliases", [])
             for t in [value] + [a for a in aliases if a]:
                 safe = t.lower().replace("'", "")
-                if not safe:
+                if len(safe) < 3:
                     continue
-                # Multi-word terms: each word must be present (but not as exact phrase)
-                words = [w for w in safe.split() if len(w) >= 2]
+                words = [w for w in safe.split() if len(w) >= 3]
                 if len(words) > 2:
                     word_likes = " AND ".join(f"{field} LIKE '%{w}%'" for w in words)
                     or_likes.append(f"({word_likes})")
-                else:
+                elif words:
                     or_likes.append(f"{field} LIKE '%{safe}%'")
 
         if not or_likes:
