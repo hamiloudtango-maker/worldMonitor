@@ -355,14 +355,13 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     const template = state.template;
 
     function addModel(m: { name: string; aliases: string[] }) {
-      const firstLayer = query.layers[0];
       const newPart = { type: 'entity' as const, value: m.name, aliases: m.aliases, scope: 'title_and_content' as const };
-      if (firstLayer) {
-        const updated = [...query.layers];
-        updated[0] = { ...firstLayer, parts: [...firstLayer.parts, newPart] };
-        setQuery({ layers: updated });
-      } else {
+      if (query.layers.length === 0) {
+        // First model → create first OR layer
         setQuery({ layers: [{ operator: 'OR', parts: [newPart] }] });
+      } else {
+        // Subsequent models → new AND layer
+        setQuery({ layers: [...query.layers, { operator: 'AND', parts: [newPart] }] });
       }
     }
 
