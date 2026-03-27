@@ -122,6 +122,27 @@ async def _auto_refresh_cases():
         await asyncio.sleep(4 * 3600)  # every 4 hours
 
 
+async def _auto_analyze_categories():
+    """Background task: analyze article categories weekly."""
+    import asyncio
+    import logging
+    from app.db import async_session
+    from app.source_engine.category_analyzer import run_weekly_analysis
+
+    logger = logging.getLogger("category-analyzer")
+    await asyncio.sleep(5 * 60)  # wait 5min for initial ingestion
+
+    while True:
+        try:
+            async with async_session() as db:
+                result = await run_weekly_analysis(db)
+                logger.info(f"Category analysis: {result['total_articles']} articles, {len(result['categories'])} categories")
+        except Exception as e:
+            logger.warning(f"Category analysis failed: {e}")
+
+        await asyncio.sleep(7 * 24 * 3600)  # every 7 days
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.database_url.startswith("sqlite"):
@@ -138,15 +159,23 @@ async def lifespan(app: FastAPI):
             import logging
             logging.getLogger(__name__).info(f"Seeded {count} RSS catalog entries")
 
+    # Run initial category analysis on boot (uses cached data, fast)
+    from app.source_engine.category_analyzer import run_weekly_analysis, get_cached_analysis
+    if not get_cached_analysis():
+        async with async_session() as db:
+            await run_weekly_analysis(db)
+
     # Start background ingestion tasks
     import asyncio
     catalog_task = asyncio.create_task(_auto_ingest_catalog())
     refresh_task = asyncio.create_task(_auto_refresh_cases())
+    category_task = asyncio.create_task(_auto_analyze_categories())
 
     yield
 
     catalog_task.cancel()
     refresh_task.cancel()
+    category_task.cancel()
     from app.source_engine.scheduler import shutdown
     await shutdown()
 

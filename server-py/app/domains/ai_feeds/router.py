@@ -589,6 +589,64 @@ Règles: keywords EN anglais, strong=AND obligatoire (2-4), weak=OR optionnel (2
         return {"children": [], "error": str(e)}
 
 
+# ── Dynamic categories & suggestions ─────────────────────────
+@router.get("/dynamic-categories")
+async def get_dynamic_categories():
+    """Return cached category analysis (generated weekly)."""
+    from app.source_engine.category_analyzer import get_cached_analysis
+    result = get_cached_analysis()
+    if not result:
+        return {"categories": [], "trending_entities": [], "trending_countries": [], "trending_tags": []}
+    return result
+
+
+@router.post("/dynamic-categories/refresh")
+async def refresh_dynamic_categories(
+    db: AsyncSession = Depends(get_db),
+):
+    """Force regenerate category analysis now."""
+    from app.source_engine.category_analyzer import run_weekly_analysis
+    return await run_weekly_analysis(db)
+
+
+@router.get("/suggestions")
+async def get_suggestions(
+    q: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """Autosuggest for feed search bar — based on trending tags, entities, countries."""
+    from app.source_engine.category_analyzer import get_cached_analysis
+    analysis = get_cached_analysis()
+    if not analysis:
+        return {"suggestions": []}
+
+    suggestions = []
+    q_lower = q.lower()
+
+    # Merge trending tags, entities, countries into one ranked list
+    for item in analysis.get("trending_tags", []):
+        suggestions.append({"text": item["name"], "type": "tag", "count": item["count"]})
+    for item in analysis.get("trending_entities", []):
+        suggestions.append({"text": item["name"], "type": "entity", "count": item["count"]})
+    for item in analysis.get("trending_countries", []):
+        suggestions.append({"text": item["name"], "type": "country", "count": item["count"]})
+
+    # Filter by query if provided
+    if q_lower:
+        suggestions = [s for s in suggestions if q_lower in s["text"].lower()]
+
+    # Sort by count, deduplicate
+    seen = set()
+    unique = []
+    for s in sorted(suggestions, key=lambda x: -x["count"]):
+        key = s["text"].lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(s)
+
+    return {"suggestions": unique[:20]}
+
+
 # ── AI Bootstrap — auto-generate query + suggest sources ─────
 @router.post("/ai/bootstrap")
 async def ai_bootstrap(
