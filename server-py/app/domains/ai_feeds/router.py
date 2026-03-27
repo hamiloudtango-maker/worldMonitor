@@ -761,7 +761,7 @@ Return ONLY valid JSON (no markdown):
   "family": "foundation|market|threat|risk",
   "section": "Best fitting section (Companies, Industries, Technologies, Strategic Moves, Threat Actors, Political Risk, etc.)",
   "description": "One sentence description",
-  "aliases": ["8-15 aliases: synonyms, translations EN/FR/local language, abbreviations, tickers"]
+  "aliases": ["8-15 aliases: synonyms, translations EN/FR/local language. EVERY alias must be at least 3 characters. No 2-letter abbreviations."]
 }}"""
 
         raw = await _call_gemini(prompt)
@@ -875,6 +875,8 @@ Example for "Russie": ["Russia", "Russian", "Kremlin", "Moscow", "Россия",
 Example for "cyberattack": ["cyberattaque", "cyber attack", "hacking", "piratage", "intrusion", "breach", "кибератака"]
 Example for "OTAN": ["NATO", "North Atlantic Treaty Organization", "Alliance atlantique", "НАТО"]
 
+IMPORTANT: Every alias must be at least 3 characters long. Do NOT include abbreviations shorter than 3 chars (no "AI", "EU", "UN", "US", "UK", "IA").
+
 Generate 8-15 aliases for "{term}":"""
 
     try:
@@ -967,6 +969,7 @@ Rules:
   Example for "Guerre Ukraine": Ukraine war, Russian invasion, Zelensky, Putin, Donbas, Crimea, NATO, Bakhmut, drone strike, frontline, ceasefire, guerre Ukraine, invasion russe, cessez-le-feu, війна, Україна, вторгнення
   Example for "Cybersécurité": cyberattack, ransomware, data breach, malware, phishing, hacking, vulnerability, zero-day, DDoS, cyber espionage, CISA, APT, threat actor, CVE, incident response, cyberattaque, piratage, faille de sécurité, rançongiciel
 - MANDATORY: Include keywords in 3 languages: English + French + local language relevant to the topic (e.g. Ukrainian for Ukraine, Arabic for Middle East, Japanese for Japan, Russian for Russia, German for Germany, etc.)
+- MANDATORY: Every keyword and alias must be at least 3 characters long. Do NOT use 2-letter abbreviations (no "AI", "EU", "UN", "US", "UK").
 - Generate 2-3 layers max. Layer 1 = OR with all topic keywords in 3 languages. Layer 2 (optional) = AND to narrow by geography/actor (with aliases!). Layer 3 (optional) = NOT to exclude noise.
 - For entities, always include common aliases (abbreviations, stock tickers, former names)
 
