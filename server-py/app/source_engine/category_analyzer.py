@@ -299,36 +299,44 @@ async def _enrich_intel_models(db: AsyncSession, result: dict) -> int:
     trending_tags = result.get("trending_tags", [])
     trending_countries = result.get("trending_countries", [])
 
+    # Filter: min 10 occurrences, min 4 chars name, skip generic/common words
+    _SKIP_WORDS = {
+        "trump", "biden", "putin", "china", "russia", "france", "india", "iran",
+        "united states", "ukraine", "israel", "germany", "japan", "brazil",
+        "the", "news", "report", "update", "new", "world", "global", "today",
+        "said", "says", "government", "president", "minister", "official",
+        "stock", "market", "price", "investment", "growth", "company",
+    }
     unknown_entities = []
-    for item in trending_entities[:30]:
+    for item in (trending_entities[:20] + trending_tags[:15]):
         name = item["name"]
-        if name.lower() not in all_aliases_lower and len(name) >= 3 and item["count"] >= 5:
-            unknown_entities.append({"name": name, "count": item["count"], "type": "entity"})
-    for item in trending_tags[:20]:
-        name = item["name"]
-        if name.lower() not in all_aliases_lower and len(name) >= 3 and item["count"] >= 5:
-            unknown_entities.append({"name": name, "count": item["count"], "type": "tag"})
-    for item in trending_countries[:15]:
-        name = item["name"]
-        if name.lower() not in all_aliases_lower and len(name) >= 3 and item["count"] >= 5:
-            unknown_entities.append({"name": name, "count": item["count"], "type": "country"})
+        if (name.lower() not in all_aliases_lower
+            and len(name) >= 4
+            and item["count"] >= 10
+            and name.lower() not in _SKIP_WORDS
+            and not name.isupper()  # skip pure acronyms like "FBI", "ICE"
+        ):
+            unknown_entities.append({"name": name, "count": item["count"], "type": item.get("type", "entity")})
 
-    # 3. Ask LLM to propose new models for the top unknowns
+    # 3. Ask LLM to propose new models — only significant, durable entities
     new_models = 0
-    if unknown_entities[:15]:
+    if unknown_entities[:10]:
         try:
-            prompt = f"""You are building an OSINT intelligence model catalog. Below are trending entities/topics detected in news articles this week that are NOT yet in our catalog.
+            prompt = f"""You are curating an OSINT intelligence model catalog. Below are trending entities detected this week that are NOT yet in our catalog.
 
-For each, propose: name, family (foundation/market/threat/risk), section, description (1 sentence), and aliases (synonyms, translations in English, French, and the relevant language for the subject). Every alias must be at least 3 characters.
-
-Only propose entities that are clearly identifiable (companies, organizations, people, technologies, geopolitical concepts). Skip generic words.
+STRICT RULES:
+- Only add entities that are DURABLE and SIGNIFICANT (companies, organizations, technologies, geopolitical concepts)
+- Do NOT add: individual people, single events, generic topics, country names, or short-lived trends
+- Do NOT add anything that is too generic (like "diplomacy", "politics", "economy")
+- Each model must have 8-15 aliases in English, French, and the relevant language for the subject
+- Every alias must be at least 3 characters
+- If an entity is not worth tracking long-term, skip it
 
 Trending unknowns:
-{json.dumps(unknown_entities[:15], ensure_ascii=False)}
+{json.dumps(unknown_entities[:10], ensure_ascii=False)}
 
-Return ONLY a JSON array (no markdown):
-[{{"name": "...", "family": "...", "section": "...", "description": "...", "aliases": ["...", "..."]}}]
-If none are worth adding, return []."""
+Return ONLY a JSON array (no markdown). Return [] if none are worth adding.
+[{{"name": "...", "family": "foundation|market|threat|risk", "section": "...", "description": "...", "aliases": ["..."]}}]"""
 
             raw = await _call_gemini(prompt)
             cleaned = raw.strip()
