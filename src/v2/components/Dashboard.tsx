@@ -23,6 +23,7 @@ import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './
 import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import NotificationPanel from './shared/NotificationPanel';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
+import SourceManager from './SourceManager';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -303,27 +304,30 @@ export default function Dashboard({ user, onLogout }: Props) {
 
           {/* ════════════════════ SETTINGS VIEW ════════════════════ */}
           {nav === 'settings' && (
-            <div className="max-w-lg space-y-4">
-              <div className="bg-white rounded-xl border border-slate-200/60 p-5">
-                <h3 className="font-bold text-slate-900 text-sm mb-3">Compte</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="font-medium">{user.email}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Organisation</span><span className="font-medium">{user.org_name}</span></div>
+            <div className="space-y-6">
+              <SourceManager />
+              <div className="max-w-lg space-y-4">
+                <div className="bg-white rounded-xl border border-slate-200/60 p-5">
+                  <h3 className="font-bold text-slate-900 text-sm mb-3">Compte</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="font-medium">{user.email}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Organisation</span><span className="font-medium">{user.org_name}</span></div>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200/60 p-5">
-                <h3 className="font-bold text-slate-900 text-sm mb-3">Backend API</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-500">URL</span><span className="font-mono text-xs">localhost:8000/api</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Documents</span><span className="font-medium">{stats?.total || 0}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Sources</span><span className="font-medium">{Object.keys(stats?.by_source || {}).length}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Thématiques</span><span className="font-medium">{Object.keys(stats?.by_theme || {}).length}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Cases</span><span className="font-medium">{cases.length}</span></div>
+                <div className="bg-white rounded-xl border border-slate-200/60 p-5">
+                  <h3 className="font-bold text-slate-900 text-sm mb-3">Backend API</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-500">URL</span><span className="font-mono text-xs">localhost:8000/api</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Documents</span><span className="font-medium">{stats?.total || 0}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Sources</span><span className="font-medium">{Object.keys(stats?.by_source || {}).length}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Thématiques</span><span className="font-medium">{Object.keys(stats?.by_theme || {}).length}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Cases</span><span className="font-medium">{cases.length}</span></div>
+                  </div>
                 </div>
+                <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+                  <LogOut size={14} /> Se déconnecter
+                </button>
               </div>
-              <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
-                <LogOut size={14} /> Se déconnecter
-              </button>
             </div>
           )}
 
