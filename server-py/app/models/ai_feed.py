@@ -89,3 +89,22 @@ class AIFeedResult(Base):
         Index("ix_ai_feed_results_feed_id", "ai_feed_id"),
         Index("ix_ai_feed_results_published", "ai_feed_id", "published_at"),
     )
+
+
+class RssCatalogEntry(Base):
+    """Global RSS source catalog — persisted, auto-categorized by AI."""
+    __tablename__ = "rss_catalog"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    lang: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    tier: Mapped[int] = mapped_column(Integer, default=3)
+    source_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    continent: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    thematic: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    origin: Mapped[str] = mapped_column(String(20), nullable=False, default="custom")  # "builtin" or "custom"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

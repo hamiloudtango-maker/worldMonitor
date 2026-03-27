@@ -168,6 +168,73 @@ export interface BootstrapResult {
   error?: string;
 }
 
+// ── AI Suggest (batch category tree) ────────────────────────
+export interface CategoryLeaf {
+  label: string;
+  description?: string;
+  keywords_strong: string[];
+  keywords_weak: string[];
+}
+
+export interface CategoryL2 {
+  label: string;
+  description?: string;
+  keywords_strong: string[];
+  keywords_weak: string[];
+  children: CategoryLeaf[];
+}
+
+export interface CategoryL1 {
+  label: string;
+  keywords_strong: string[];
+  keywords_weak: string[];
+  children: CategoryL2[];
+}
+
+export function fetchCategoryTree(tab: string): Promise<{ categories: CategoryL1[]; error?: string }> {
+  return api('/ai-feeds/ai/suggest', {
+    method: 'POST',
+    body: JSON.stringify({ tab }),
+  });
+}
+
+// ── Live Preview (before saving) ────────────────────────────
+export interface PreviewArticle {
+  title: string;
+  article_url: string;
+  source_name: string;
+  published_at: string | null;
+  summary: string;
+}
+
+export function previewQuery(query: FeedQuery): Promise<{ articles: PreviewArticle[]; total: number }> {
+  return api('/ai-feeds/preview', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  });
+}
+
+export function fetchLeaves(params: {
+  tab: string; l1: string; l2: string; l2_keywords_strong: string[];
+}): Promise<{ children: CategoryLeaf[]; error?: string }> {
+  return api('/ai-feeds/ai/suggest-leaves', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+// ── Catalog bulk-add ────────────────────────────────────────
+export function bulkAddSources(urls: string[]): Promise<{
+  added: { url: string; name: string; country?: string; thematic?: string }[];
+  errors: { url: string; error: string }[];
+  total_added: number;
+}> {
+  return api('/ai-feeds/catalog/bulk-add', {
+    method: 'POST',
+    body: JSON.stringify({ urls }),
+  });
+}
+
 export function bootstrapFeed(name: string, description?: string): Promise<BootstrapResult> {
   return api('/ai-feeds/ai/bootstrap', {
     method: 'POST',

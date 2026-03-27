@@ -8,26 +8,17 @@ interface Props {
   selectedId: string | null;
   bootstrapping: boolean;
   onSelect: (feed: AIFeedData) => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: () => void;
   onDelete: (id: string) => Promise<void>;
 }
 
 export default function FeedList({ feeds, selectedId, bootstrapping, onSelect, onCreate, onDelete }: Props) {
   const [search, setSearch] = useState('');
-  const [newName, setNewName] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const filtered = feeds.filter(f =>
     !search || f.name.toLowerCase().includes(search.toLowerCase())
   );
-
-  async function handleCreate() {
-    if (!newName.trim() || bootstrapping) return;
-    try {
-      await onCreate(newName.trim());
-      setNewName('');
-    } catch { /* silent */ }
-  }
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -37,7 +28,7 @@ export default function FeedList({ feeds, selectedId, bootstrapping, onSelect, o
   }
 
   return (
-    <div className="w-72 border-r border-slate-200/60 bg-white flex flex-col shrink-0">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-slate-100">
         <h3 className="text-sm font-bold text-slate-900 mb-3">Mes AI Feeds</h3>
@@ -50,29 +41,18 @@ export default function FeedList({ feeds, selectedId, bootstrapping, onSelect, o
             className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5] bg-slate-50"
           />
         </div>
-        {/* Create with AI */}
-        <div className="flex gap-1.5">
-          <input
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCreate()}
-            placeholder="Ex: M&A Énergie, Cyber Asie..."
-            className="flex-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5] bg-slate-50"
-          />
-          <button
-            onClick={handleCreate}
-            disabled={bootstrapping || !newName.trim()}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#42d3a5] text-white text-[10px] font-semibold hover:bg-[#38b891] disabled:opacity-50 transition-colors"
-            title="L'IA configure automatiquement les filtres et sources"
-          >
-            {bootstrapping ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            <span>{bootstrapping ? 'IA...' : 'Créer'}</span>
-          </button>
-        </div>
+        {/* Create AI Feed button */}
+        <button
+          onClick={() => onCreate()}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-[#42d3a5]/10 text-[#2a9d7e] hover:bg-[#42d3a5]/20 transition-colors"
+        >
+          <Sparkles size={14} />
+          <span className="text-[11px] font-semibold">Créer un AI Feed</span>
+        </button>
         {bootstrapping && (
           <div className="mt-2 flex items-center gap-2 px-2.5 py-1.5 bg-violet-50 border border-violet-100 rounded-lg">
             <Sparkles size={10} className="text-violet-500 animate-pulse" />
-            <span className="text-[10px] text-violet-600 font-medium">L'IA analyse et pré-configure votre feed...</span>
+            <span className="text-[10px] text-violet-600 font-medium">L'IA configure votre feed...</span>
           </div>
         )}
       </div>

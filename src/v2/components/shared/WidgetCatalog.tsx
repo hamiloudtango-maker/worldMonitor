@@ -85,9 +85,29 @@ export const FULL_CATALOG: WidgetDef[] = [
   { id: 'hackernews',  title: 'Hacker News',             icon: BookOpen,       category: 'Veille',        defaultW: 4,  defaultH: 6,  minH: 3, minW: 3 },
   { id: 'arxiv',       title: 'ArXiv Papers',            icon: GraduationCap,  category: 'Veille',        defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
   { id: 'conflicthum', title: 'Humanitaire (Conflit)',    icon: Users,          category: 'Veille',        defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  // AI Feeds (dynamic — placeholder, real feeds are loaded from API)
-  { id: 'ai-feed-placeholder', title: 'AI Feed', icon: Rss, category: 'AI Feeds', defaultW: 4, defaultH: 6, minH: 3, minW: 3 },
+  // AI Feeds — populated dynamically via loadFeedWidgets()
 ];
+
+/** Load saved AI Feeds from API and return full catalog with feed widgets appended */
+export async function buildCatalogWithFeeds(): Promise<WidgetDef[]> {
+  try {
+    const { listFeeds } = await import('@/v2/lib/ai-feeds-api');
+    const { feeds } = await listFeeds();
+    const feedWidgets: WidgetDef[] = feeds.map(f => ({
+      id: `ai-feed-${f.id}`,
+      title: f.name,
+      icon: Rss,
+      category: 'AI Feeds',
+      defaultW: 4,
+      defaultH: 6,
+      minW: 3,
+      minH: 3,
+    }));
+    return [...FULL_CATALOG, ...feedWidgets];
+  } catch {
+    return FULL_CATALOG;
+  }
+}
 
 // ── Generic list renderer for API data ──────────────────────────
 export function ApiList({ endpoint, renderItem, emptyMsg = 'Aucune donnee' }: {
@@ -679,27 +699,48 @@ export function renderSharedWidget(
 
 function AIFeedWidget({ feedId }: { feedId: string }) {
   const [articles, setArticles] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    import('@/v2/lib/ai-feeds-api').then(({ listFeedArticles }) => {
-      listFeedArticles(feedId, { limit: 15 })
-        .then(d => { setArticles(d.articles); setLoading(false); })
-        .catch(() => setLoading(false));
+    import('@/v2/lib/ai-feeds-api').then(async ({ listFeedArticles, getFeed, previewQuery }) => {
+      try {
+        // Try feed-specific articles first
+        const data = await listFeedArticles(feedId, { limit: 15 });
+        if (data.total > 0) {
+          setArticles(data.articles);
+          setTotal(data.total);
+          setLoading(false);
+          return;
+        }
+        // Fallback: preview from main articles table using feed query
+        const feed = await getFeed(feedId);
+        if (feed.query && feed.query.layers?.length) {
+          const preview = await previewQuery(feed.query);
+          setArticles(preview.articles.map((a: any) => ({
+            ...a, article_url: a.article_url, relevance_score: 0,
+          })));
+          setTotal(preview.total);
+        }
+      } catch { /* silent */ }
+      setLoading(false);
     });
   }, [feedId]);
 
   if (loading) return <div className="flex items-center justify-center h-full text-xs text-slate-400">Chargement...</div>;
 
   return (
-    <div className="overflow-y-auto h-full p-2 space-y-1.5">
+    <div className="overflow-y-auto h-full p-2 space-y-1">
+      {total > 0 && (
+        <div className="text-[9px] text-slate-400 font-medium mb-1">{total} articles</div>
+      )}
       {articles.map((a: any, i: number) => (
         <a key={i} href={a.article_url} target="_blank" rel="noopener noreferrer"
            className="block pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors">
           <p className="text-[10px] text-slate-600 line-clamp-1 font-medium">{a.title}</p>
           <div className="flex items-center gap-2">
             <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.source_name}</span>
-            {a.relevance_score > 0 && <span className="text-[8px] text-blue-500 font-bold">{Math.round(a.relevance_score)}%</span>}
+            {a.threat_level && <span className={`text-[8px] font-bold uppercase ${a.threat_level === 'critical' ? 'text-red-500' : a.threat_level === 'high' ? 'text-orange-500' : 'text-slate-400'}`}>{a.threat_level}</span>}
             <span className="text-[8px] text-slate-400">{a.published_at ? timeAgo(a.published_at) : ''}</span>
           </div>
         </a>

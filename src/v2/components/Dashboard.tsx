@@ -20,7 +20,7 @@ import WorldView from './WorldView';
 import AIFeedsView from './AIFeedsView';
 import CaseBoard from './CaseBoard';
 import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './WidgetGrid';
-import { FULL_CATALOG, renderSharedWidget } from './shared/WidgetCatalog';
+import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import NotificationPanel from './shared/NotificationPanel';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 
@@ -64,8 +64,14 @@ export default function Dashboard({ user, onLogout }: Props) {
   const [filters, setFilters]       = useState<ActiveFilters>(EMPTY_FILTERS);
   const [boardCase, setBoardCase]   = useState<CaseData | null>(null);
   const [_selectedCase, setSelectedCase] = useState<CaseData | null>(null);
+  const [catalog, setCatalog]       = useState(FULL_CATALOG);
 
   const { cases, loading: casesLoading, add: addCase, remove: removeCase } = useCases();
+
+  // Load feed widgets into catalog
+  useEffect(() => {
+    buildCatalogWithFeeds().then(setCatalog);
+  }, [nav]); // Refresh when switching tabs (in case feeds were created)
 
   /* ── Data loading ── */
   const load = useCallback(async () => {
@@ -247,7 +253,7 @@ export default function Dashboard({ user, onLogout }: Props) {
           {/* ════════════════════ DASHBOARD VIEW ════════════════════ */}
           {nav === 'dashboard' && (
             <WidgetGrid
-              catalog={FULL_CATALOG}
+              catalog={catalog}
               storageKey="wm-dash-v3"
               defaultWidgets={DASH_DEFAULTS}
               onRefresh={load}

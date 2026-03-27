@@ -83,9 +83,47 @@ export default function SourceSelector({ feedId }: Props) {
   }
 
   if (!feedId) {
+    // Creation mode: show catalog browser only
     return (
-      <div className="flex items-center justify-center h-full text-xs text-slate-400">
-        Sélectionnez un feed pour gérer ses sources
+      <div className="flex flex-col h-full">
+        <div className="p-3 border-b border-slate-100">
+          <h4 className="text-[11px] font-bold text-slate-900 mb-1">Sources disponibles</h4>
+          <p className="text-[9px] text-slate-400">Les sources seront ajoutées automatiquement à la sauvegarde</p>
+        </div>
+        <div className="flex-1 overflow-hidden flex flex-col p-3">
+          <div className="flex gap-1.5 mb-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={10} />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Rechercher..."
+                className="w-full pl-6 pr-2 py-1 text-[10px] border border-slate-200 rounded focus:outline-none focus:border-[#42d3a5] bg-slate-50"
+              />
+            </div>
+            <select
+              value={continent}
+              onChange={e => setContinent(e.target.value)}
+              className="text-[10px] px-2 py-1 border border-slate-200 rounded bg-slate-50 focus:outline-none focus:border-[#42d3a5]"
+            >
+              <option value="">Tous continents</option>
+              {CONTINENTS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="text-[10px] text-slate-500 mb-2">{catalog.length} sources</div>
+          <div className="flex-1 overflow-y-auto space-y-0.5">
+            {catalog.slice(0, 50).map((s, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-slate-50"
+              >
+                <Globe size={10} className="text-slate-400 shrink-0" />
+                <span className="text-[10px] text-slate-700 font-medium flex-1 truncate">{s.name}</span>
+                <span className="text-[8px] text-slate-400">{s.country}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -119,24 +157,69 @@ export default function SourceSelector({ feedId }: Props) {
         </div>
       </div>
 
-      {/* Custom URL */}
+      {/* Custom URLs — single or bulk paste */}
       <div className="p-3 border-b border-slate-100">
-        <div className="flex gap-1.5">
-          <input
-            value={customUrl}
-            onChange={e => setCustomUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCustomUrl()}
-            placeholder="Ajouter une URL RSS..."
-            className="flex-1 px-2.5 py-1.5 text-[10px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5] bg-slate-50"
-          />
+        <div className="flex items-center justify-between mb-1.5">
+          <h4 className="text-[10px] font-bold text-slate-900">Ajouter des sources</h4>
           <button
-            onClick={handleCustomUrl}
-            disabled={validating || !customUrl.trim()}
-            className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-[#42d3a5] hover:text-white disabled:opacity-50 transition-colors"
+            onClick={() => setCustomUrl(prev => prev.includes('\n') ? '' : prev)}
+            className="text-[9px] text-slate-400 hover:text-[#42d3a5]"
           >
-            {validating ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+            {customUrl.includes('\n') ? 'Mode simple' : 'Coller une liste'}
           </button>
         </div>
+        {customUrl.includes('\n') || customUrl.split('\n').length > 1 ? (
+          <>
+            <textarea
+              value={customUrl}
+              onChange={e => setCustomUrl(e.target.value)}
+              placeholder={"Collez une liste d'URLs RSS (une par ligne)\nhttps://example.com/rss\nhttps://other.com/feed"}
+              rows={4}
+              className="w-full px-2.5 py-1.5 text-[10px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5] bg-slate-50 resize-none"
+            />
+            <button
+              onClick={async () => {
+                if (!feedId || validating) return;
+                const urls = customUrl.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+                if (!urls.length) return;
+                setValidating(true);
+                for (const url of urls) {
+                  try {
+                    const result = await validateUrl(url);
+                    if (result.valid && result.feeds_found.length > 0) {
+                      const found = result.feeds_found[0]!;
+                      const added = await addFeedSource(feedId, { url: found.url, name: found.title || url, origin: 'custom' });
+                      setFeedSources(prev => [...prev, added]);
+                    }
+                  } catch { /* skip invalid */ }
+                }
+                setCustomUrl('');
+                setValidating(false);
+              }}
+              disabled={validating || !customUrl.trim()}
+              className="mt-1.5 w-full py-1.5 text-[10px] font-semibold rounded-lg bg-[#42d3a5] text-white hover:bg-[#38b891] disabled:opacity-50 transition-colors"
+            >
+              {validating ? 'Validation...' : `Ajouter ${customUrl.split('\n').filter(u => u.trim().startsWith('http')).length} URLs`}
+            </button>
+          </>
+        ) : (
+          <div className="flex gap-1.5">
+            <input
+              value={customUrl}
+              onChange={e => setCustomUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCustomUrl()}
+              placeholder="Ajouter une URL RSS..."
+              className="flex-1 px-2.5 py-1.5 text-[10px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5] bg-slate-50"
+            />
+            <button
+              onClick={handleCustomUrl}
+              disabled={validating || !customUrl.trim()}
+              className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-[#42d3a5] hover:text-white disabled:opacity-50 transition-colors"
+            >
+              {validating ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Catalog browser */}
