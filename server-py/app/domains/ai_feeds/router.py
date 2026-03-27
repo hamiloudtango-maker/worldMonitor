@@ -723,17 +723,29 @@ async def resolve_intel_model(
             break
 
     # Fuzzy: partial match if no exact match
+    # Only match if the search term contains the model name (not the reverse, to avoid short alias pollution)
     if not match:
+        best_score = 0
         for m in all_models:
-            if term_lower in m.name.lower() or m.name.lower() in term_lower:
-                match = m
-                break
-            for a in (m.aliases or []):
-                if term_lower in a.lower() or a.lower() in term_lower:
+            name_lower = m.name.lower()
+            # Term contains model name, or model name contains term (both >= 3 chars)
+            if len(name_lower) >= 3 and name_lower in term_lower:
+                score = len(name_lower)
+                if score > best_score:
+                    best_score = score
                     match = m
-                    break
-            if match:
-                break
+            if len(term_lower) >= 3 and term_lower in name_lower:
+                score = len(term_lower)
+                if score > best_score:
+                    best_score = score
+                    match = m
+            for a in (m.aliases or []):
+                a_lower = a.lower()
+                if len(a_lower) >= 3 and a_lower in term_lower:
+                    score = len(a_lower)
+                    if score > best_score:
+                        best_score = score
+                        match = m
 
     # 2. Found — update last_used_at and return
     if match:

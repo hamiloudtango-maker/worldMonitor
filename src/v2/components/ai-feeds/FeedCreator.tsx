@@ -83,17 +83,31 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   function handleTemplateSelect(template: FeedTemplate) {
     setFeedName(template.name);
     setState({ step: 'refine', template });
-    // Resolve chip1 via intel models to get aliases
-    import('@/v2/lib/ai-feeds-api').then(({ resolveIntelModel }) =>
-      resolveIntelModel(template.chip1.label).then(({ model }) => {
+    // Fetch intel model by exact name to get aliases
+    import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
+      fetchIntelTree().then(({ families }) => {
+        // Find model matching chip1 label exactly
+        for (const fam of families) {
+          for (const sec of fam.sections) {
+            const model = sec.models.find(m => m.name === template.chip1.label);
+            if (model) {
+              setQuery({
+                layers: [
+                  { operator: 'OR', parts: [{ type: template.chip1.type, value: model.name, aliases: model.aliases, scope: 'title_and_content' }] },
+                ],
+              });
+              return;
+            }
+          }
+        }
+        // Not found in DB — add without aliases
         setQuery({
           layers: [
-            { operator: 'OR', parts: [{ type: template.chip1.type, value: model.name, aliases: model.aliases, scope: 'title_and_content' }] },
+            { operator: 'OR', parts: [{ type: template.chip1.type, value: template.chip1.label, scope: 'title_and_content' }] },
           ],
         });
       })
     ).catch(() => {
-      // Fallback: add without aliases
       setQuery({
         layers: [
           { operator: 'OR', parts: [{ type: template.chip1.type, value: template.chip1.label, scope: 'title_and_content' }] },
