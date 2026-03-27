@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import {
   LayoutDashboard, FolderOpen, FileBarChart, Settings, Bell, Search,
   AlertTriangle, Globe, TrendingUp, Building,
@@ -355,6 +355,7 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
   id: string; stats: Stats | null; articles: Article[]; cases: CaseData[];
   alertArticles: Article[]; sentimentData: any[]; thematicData: any[];
 }) {
+  const setReadingArticleId = useContext(ArticleReaderContext);
   switch (id) {
     case 'kpis':
       return (
@@ -398,13 +399,13 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
       return (
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
           {alertArticles.slice(0, 10).map((a, i) => (
-            <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-2 rounded-lg border border-slate-100 hover:border-red-200 transition-colors">
+            <button key={i} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left p-2 rounded-lg border border-slate-100 hover:border-red-200 transition-colors cursor-pointer">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${a.threat_level === 'critical' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{a.threat_level}</span>
                 <span className="text-[9px] text-slate-400 ml-auto">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
               </div>
               <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{a.title}</p>
-            </a>
+            </button>
           ))}
           {alertArticles.length === 0 && <div className="text-center text-xs text-slate-400 py-6">Aucune alerte</div>}
         </div>
@@ -413,11 +414,11 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
       return (
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
           {articles.slice(0, 15).map((a, i) => (
-            <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="block pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors">
+            <button key={i} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors cursor-pointer">
               <p className="text-[10px] text-slate-600 line-clamp-1 font-medium">{a.title}</p>
               <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.theme}</span>
               <span className="text-[8px] text-slate-400 ml-2">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
-            </a>
+            </button>
           ))}
         </div>
       );
