@@ -615,6 +615,40 @@ async def refresh_dynamic_categories(
     return await run_weekly_analysis(db)
 
 
+# ── Intel Models catalog ──────────────────────────────────────
+@router.get("/intel-models")
+async def list_intel_models(
+    family: str | None = None,
+    section: str | None = None,
+    q: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all intelligence models, optionally filtered by family/section/search."""
+    from app.models.intel_model import IntelModel
+    query = select(IntelModel)
+    if family:
+        query = query.where(IntelModel.family == family)
+    if section:
+        query = query.where(IntelModel.section == section)
+    result = await db.execute(query.order_by(IntelModel.section, IntelModel.name))
+    models = result.scalars().all()
+
+    if q:
+        q_lower = q.lower()
+        models = [m for m in models if q_lower in m.name.lower() or any(q_lower in a.lower() for a in (m.aliases or []))]
+
+    # Group by section
+    sections: dict[str, list] = {}
+    for m in models:
+        sections.setdefault(m.section, []).append({
+            "id": str(m.id), "name": m.name, "family": m.family,
+            "section": m.section, "aliases": m.aliases or [],
+            "article_count": m.article_count, "origin": m.origin,
+        })
+
+    return {"sections": sections, "total": len(models)}
+
+
 @router.get("/suggestions")
 async def get_suggestions(
     q: str = "",

@@ -36,6 +36,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   const [feedName, setFeedName] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
   // Batch category tree
   const [tree, setTree] = useState<CategoryL1[]>([]);
@@ -86,17 +87,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
       ],
     });
     setFeedName(template.name);
-    // Skip refine step — go directly to build with ChipQueryBuilder
-    // Auto-bootstrap will enrich with aliases if query is thin
-    setState({ step: 'build' });
-    // Trigger LLM bootstrap for rich keywords
-    import('@/v2/lib/ai-feeds-api').then(({ bootstrapFeed }) => {
-      bootstrapFeed(template.name, template.description || template.name).then(result => {
-        if (result.query && result.query.layers.length > 0) {
-          setQuery(result.query);
-        }
-      }).catch(() => {});
-    });
+    setState({ step: 'refine', template });
   }
 
   function handleSearchSubmit() {
@@ -333,9 +324,27 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     );
   }
 
-  // ── STEP: Refine ──
+  // ── STEP: Refine — Feedly-style suggestion groups ──
   if (state.step === 'refine') {
     const template = state.template;
+    const groups = template.suggestions || [];
+    const activeGroup = groups.find(g => g.name === selectedGroup);
+
+    function addSuggestion(f: { label: string; aliases: string[]; type: QueryPart['type'] }) {
+      // Add to first OR layer or create one
+      const firstLayer = query.layers[0];
+      if (firstLayer) {
+        const parts = [...firstLayer.parts, { type: f.type, value: f.label, aliases: f.aliases, scope: 'title_and_content' as const }];
+        const updated = [...query.layers];
+        updated[0] = { ...firstLayer, parts };
+        onChange({ layers: updated });
+      } else {
+        onChange({ layers: [{ operator: 'OR', parts: [{ type: f.type, value: f.label, aliases: f.aliases, scope: 'title_and_content' }] }] });
+      }
+    }
+
+    const selectedValues = new Set(query.layers.flatMap(l => l.parts.map(p => p.value)));
+
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-6 border-b border-slate-100">
@@ -347,44 +356,76 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
 
           <h2 className="text-sm font-semibold text-slate-600 mb-3">Filtres</h2>
 
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <div className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
-              <Sparkles size={11} className="text-[#42d3a5]" />
-              <span className="text-[11px] font-medium text-slate-700">{template.chip1.label}</span>
-              <button onClick={handleClear} className="p-0.5 text-slate-400 hover:text-red-500">
-                <X size={11} />
-              </button>
-            </div>
-            <span className="text-[11px] font-semibold text-[#42d3a5] cursor-default">+ OR</span>
+          {/* Current chips */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            {query.layers.flatMap((l, li) => l.parts.map((p, pi) => (
+              <div key={`${li}-${pi}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg">
+                <Filter size={11} className="text-[#42d3a5]" />
+                <span className="text-[12px] font-medium text-white">{p.value}</span>
+                {(p.aliases?.length || 0) > 0 && (
+                  <span className="text-[9px] font-bold text-blue-400 bg-blue-900/30 px-1 py-0.5 rounded">+{p.aliases!.length}</span>
+                )}
+                <button onClick={() => {
+                  const parts = query.layers[li].parts.filter((_, i) => i !== pi);
+                  if (parts.length === 0) onChange({ layers: query.layers.filter((_, i) => i !== li) });
+                  else { const updated = [...query.layers]; updated[li] = { ...query.layers[li], parts }; onChange({ layers: updated }); }
+                }} className="p-0.5 text-slate-400 hover:text-white"><X size={12} /></button>
+              </div>
+            )))}
+            {query.layers.length > 0 && (
+              <span className="text-[11px] font-medium text-[#42d3a5]">+ OR</span>
+            )}
           </div>
 
-          <div className="text-[11px] font-bold text-slate-400 py-1.5">OR</div>
-
-          <div className="relative mb-4" ref={dropdownRef}>
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              <input
-                value={searchValue}
-                onChange={e => { setSearchValue(e.target.value); setShowDropdown(true); }}
-                onFocus={() => setShowDropdown(true)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && searchValue.trim()) {
-                    handleSelectLeaf({ label: searchValue.trim(), keywords_strong: [searchValue.trim()], keywords_weak: [] });
-                  }
-                }}
-                placeholder={template.chip2.placeholder}
-                className="w-full pl-9 pr-4 py-2.5 text-[13px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] bg-white"
-              />
-            </div>
-            {showDropdown && categoryDropdown}
+          {/* Suggestion groups — Feedly style */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            {!activeGroup ? (
+              // Level 1: Group list
+              <>
+                {groups.map((g, i) => (
+                  <button key={i} onClick={() => setSelectedGroup(g.name)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0 transition-colors">
+                    <Filter size={14} className="text-[#42d3a5]" />
+                    <span className="text-[13px] font-medium text-slate-700 flex-1">{g.name}</span>
+                    <ChevronRight size={14} className="text-slate-300" />
+                  </button>
+                ))}
+              </>
+            ) : (
+              // Level 2: Filters in selected group
+              <>
+                <button onClick={() => setSelectedGroup(null)}
+                  className="w-full flex items-center gap-2 px-4 py-3 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50">
+                  <ChevronLeft size={14} className="text-slate-400" />
+                  <span className="text-[13px] font-semibold text-slate-600">{activeGroup.name}</span>
+                </button>
+                {activeGroup.filters.map((f, i) => {
+                  const isSelected = selectedValues.has(f.label);
+                  return (
+                    <button key={i} onClick={() => { if (!isSelected) addSuggestion(f); }}
+                      disabled={isSelected}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-slate-100 last:border-b-0 transition-colors ${
+                        isSelected ? 'bg-emerald-50 opacity-60' : 'hover:bg-slate-50'
+                      }`}>
+                      <Filter size={14} className={isSelected ? 'text-emerald-500' : 'text-slate-400'} />
+                      <div className="flex-1">
+                        <div className="text-[13px] font-medium text-slate-700">{f.label}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{f.aliases.slice(0, 4).join(', ')}</div>
+                      </div>
+                      {isSelected && <span className="text-[10px] font-bold text-emerald-600">Ajoute</span>}
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <button onClick={handleRefineSkip} disabled={bootstrapping} className="flex items-center gap-1.5 text-[12px] font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50">
-              {bootstrapping && <Loader2 size={12} className="animate-spin" />}
-              {bootstrapping ? "L'IA configure..." : 'Passer'}
+          {/* Actions */}
+          <div className="flex items-center gap-3 mt-4">
+            <button onClick={() => setState({ step: 'build' })} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">
+              {query.layers.length > 0 ? 'Continuer' : 'Passer'}
             </button>
-            <button onClick={handleClear} disabled={bootstrapping} className="text-[12px] font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50">Effacer</button>
+            <button onClick={handleClear} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">Effacer</button>
           </div>
         </div>
       </div>

@@ -150,14 +150,19 @@ async def lifespan(app: FastAPI):
 
         await create_all_tables()
 
-    # Seed RSS catalog on boot (inserts only missing sources)
+    # Seed RSS catalog + Intel Models on boot
     from app.db import async_session
     from app.domains.ai_feeds.seed import seed_catalog
+    from app.domains.ai_feeds.intel_models_seed import seed_intel_models
+    import logging
+    _log = logging.getLogger(__name__)
     async with async_session() as db:
         count = await seed_catalog(db)
         if count:
-            import logging
-            logging.getLogger(__name__).info(f"Seeded {count} RSS catalog entries")
+            _log.info(f"Seeded {count} RSS catalog entries")
+        im_count = await seed_intel_models(db)
+        if im_count:
+            _log.info(f"Seeded {im_count} intel models")
 
     # Run initial category analysis on boot (uses cached data, fast)
     from app.source_engine.category_analyzer import run_weekly_analysis, get_cached_analysis
