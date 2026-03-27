@@ -26,6 +26,9 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
   const [addSearch, setAddSearch] = useState('');
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [drill, setDrill] = useState<DrillLevel>({ depth: 0 });
+  const [intelFamilies, setIntelFamilies] = useState<any[]>([]);
+  const [intelLevel, setIntelLevel] = useState<{ depth: 0 } | { depth: 1; fi: number } | { depth: 2; fi: number; si: number }>({ depth: 0 });
+  const [intelLoaded, setIntelLoaded] = useState(false);
   const addBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,15 +83,25 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
     updateLayer(layerIdx, { ...layer, parts: layer.parts.map(p => ({ ...p, scope })) });
   }
 
-  function addNewLayer(value: string, isNot: boolean) {
+  async function addNewLayer(value: string, isNot: boolean) {
     if (!value.trim()) return;
-    const newIdx = query.layers.length;
     const op = isNot ? 'NOT' : (query.layers.length === 0 ? 'OR' : 'AND');
-    onChange({
-      layers: [...query.layers, { operator: op, parts: [{ type: 'keyword', value: value.trim(), scope: 'title_and_content' }] }],
-    });
+    // Resolve via intel models — exact match or LLM creates
+    try {
+      const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
+      const { model } = await resolveIntelModel(value.trim());
+      onChange({
+        layers: [...query.layers, { operator: op, parts: [{ type: 'entity', value: model.name, aliases: model.aliases, scope: 'title_and_content' }] }],
+      });
+    } catch {
+      // Fallback: add as keyword with auto-aliases
+      const newIdx = query.layers.length;
+      onChange({
+        layers: [...query.layers, { operator: op, parts: [{ type: 'keyword', value: value.trim(), scope: 'title_and_content' }] }],
+      });
+      _autoGenerateAliases(newIdx, 0, value.trim(), 'keyword');
+    }
     resetAddBar();
-    _autoGenerateAliases(newIdx, 0, value.trim(), 'keyword');
   }
 
   function addLayerFromLeaf(leaf: CategoryLeaf) {
@@ -282,34 +295,144 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
             <span className={`text-[11px] font-bold ${addIsNot ? 'text-red-500' : 'text-slate-400'}`}>{addIsNot ? 'NOT' : query.layers.length === 0 ? '' : 'AND'}</span>
             <div className="flex-1 h-px bg-slate-200" />
           </div>
-          <div className="relative">
+          {/* Search bar */}
+          <div className="relative mb-2">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input autoFocus value={addSearch}
-              onChange={e => { setAddSearch(e.target.value); setShowAddDropdown(true); }}
-              onFocus={() => setShowAddDropdown(true)}
+              onChange={e => setAddSearch(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') addNewLayer(addSearch, addIsNot);
                 if (e.key === 'Escape') resetAddBar();
               }}
-              placeholder="Tapez un terme ou choisissez dans les categories..."
+              placeholder="Tapez un terme et Entree, ou choisissez ci-dessous..."
               className="w-full pl-9 pr-4 py-2.5 text-[12px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] bg-white" />
-            {showAddDropdown && treeDropdown}
           </div>
+          {/* Intel Models drill-down */}
+          <IntelModelPicker
+            families={intelFamilies}
+            loaded={intelLoaded}
+            level={intelLevel}
+            setLevel={setIntelLevel}
+            onLoad={() => {
+              if (!intelLoaded) {
+                import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
+                  fetchIntelTree().then(d => { setIntelFamilies(d.families); setIntelLoaded(true); })
+                ).catch(() => setIntelLoaded(true));
+              }
+            }}
+            onSelect={m => {
+              const op = addIsNot ? 'NOT' : (query.layers.length === 0 ? 'OR' : 'AND');
+              onChange({
+                layers: [...query.layers, { operator: op, parts: [{ type: 'entity', value: m.name, aliases: m.aliases, scope: 'title_and_content' }] }],
+              });
+              resetAddBar();
+            }}
+            selectedValues={new Set(query.layers.flatMap(l => l.parts.map(p => p.value)))}
+            filter={addSearch}
+          />
           <button onClick={resetAddBar} className="mt-2 text-[11px] text-slate-400 hover:text-slate-600">Annuler</button>
         </div>
       ) : (
         <div className="flex items-center gap-3 mt-3">
-          <button onClick={() => { setAddIsNot(false); setShowAddBar(true); }}
+          <button onClick={() => { setAddIsNot(false); setShowAddBar(true); setIntelLevel({ depth: 0 }); }}
             className="text-[12px] font-semibold text-slate-500 hover:text-[#42d3a5] flex items-center gap-1">
             <Plus size={13} /> AND
           </button>
           <span className="text-slate-300">/</span>
-          <button onClick={() => { setAddIsNot(true); setShowAddBar(true); }}
+          <button onClick={() => { setAddIsNot(true); setShowAddBar(true); setIntelLevel({ depth: 0 }); }}
             className="text-[12px] font-semibold text-red-400 hover:text-red-500 flex items-center gap-1">
             <Minus size={13} /> NOT
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* ═══ Intel Model Picker — 3-level drill-down for ChipQueryBuilder ═══ */
+function IntelModelPicker({ families, loaded, level, setLevel, onLoad, onSelect, selectedValues, filter }: {
+  families: any[];
+  loaded: boolean;
+  level: { depth: 0 } | { depth: 1; fi: number } | { depth: 2; fi: number; si: number };
+  setLevel: (l: any) => void;
+  onLoad: () => void;
+  onSelect: (m: { name: string; aliases: string[] }) => void;
+  selectedValues: Set<string>;
+  filter: string;
+}) {
+  // Trigger load on first render
+  if (!loaded && families.length === 0) onLoad();
+
+  if (!loaded) {
+    return <div className="flex items-center gap-2 py-4 justify-center"><Loader2 size={14} className="animate-spin text-[#42d3a5]" /><span className="text-[11px] text-slate-400">Chargement...</span></div>;
+  }
+
+  const filterLower = (filter || '').toLowerCase();
+
+  if (level.depth === 0) {
+    return (
+      <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+        {families.map((fam: any, fi: number) => (
+          <button key={fi} onClick={() => setLevel({ depth: 1, fi })}
+            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0">
+            <Filter size={12} className="text-[#42d3a5]" />
+            <span className="text-[12px] font-medium text-slate-700 flex-1">{fam.label}</span>
+            <span className="text-[9px] text-slate-400">{fam.sections.length}</span>
+            <ChevronRight size={12} className="text-slate-300" />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const family = families[level.fi];
+  if (!family) return null;
+
+  if (level.depth === 1) {
+    return (
+      <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+        <button onClick={() => setLevel({ depth: 0 })} className="w-full flex items-center gap-2 px-3 py-2 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50 sticky top-0">
+          <ChevronLeft size={12} className="text-slate-400" />
+          <span className="text-[12px] font-semibold text-slate-600">{family.label}</span>
+        </button>
+        {family.sections.filter((s: any) => !filterLower || s.name.toLowerCase().includes(filterLower)).map((sec: any, si: number) => (
+          <button key={si} onClick={() => setLevel({ depth: 2, fi: level.fi, si })}
+            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0">
+            <Filter size={12} className="text-slate-400" />
+            <span className="text-[12px] font-medium text-slate-700 flex-1">{sec.name}</span>
+            <span className="text-[9px] text-slate-400">{sec.models.length}</span>
+            <ChevronRight size={12} className="text-slate-300" />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const section = family.sections[level.si];
+  if (!section) return null;
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+      <button onClick={() => setLevel({ depth: 1, fi: level.fi })} className="w-full flex items-center gap-2 px-3 py-2 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50 sticky top-0">
+        <ChevronLeft size={12} className="text-slate-400" />
+        <span className="text-[12px] font-semibold text-slate-600 truncate">{family.label} &gt; {section.name}</span>
+      </button>
+      {section.models.filter((m: any) => !filterLower || m.name.toLowerCase().includes(filterLower) || (m.aliases || []).some((a: string) => a.toLowerCase().includes(filterLower))).map((m: any, mi: number) => {
+        const isSelected = selectedValues.has(m.name);
+        return (
+          <button key={mi} onClick={() => { if (!isSelected) onSelect({ name: m.name, aliases: m.aliases || [] }); }}
+            disabled={isSelected}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-left border-b border-slate-100 last:border-b-0 ${isSelected ? 'bg-emerald-50 opacity-60' : 'hover:bg-slate-50'}`}>
+            <Sparkles size={12} className={isSelected ? 'text-emerald-500' : 'text-[#42d3a5]'} />
+            <div className="flex-1 min-w-0">
+              <div className="text-[12px] font-medium text-slate-700">{m.name}</div>
+              <div className="text-[9px] text-slate-300 truncate">{(m.aliases || []).slice(0, 4).join(', ')}</div>
+            </div>
+            {isSelected && <span className="text-[9px] font-bold text-emerald-600">Ajoute</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
