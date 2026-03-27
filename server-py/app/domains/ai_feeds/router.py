@@ -823,11 +823,12 @@ async def list_feeds(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import distinct
     stmt = (
         select(
             AIFeed,
-            func.count(AIFeedSource.id).label("source_count"),
-            func.count(AIFeedResult.id).label("result_count"),
+            func.count(distinct(AIFeedSource.id)).label("source_count"),
+            func.count(distinct(AIFeedResult.id)).label("result_count"),
         )
         .outerjoin(AIFeedSource, AIFeedSource.ai_feed_id == AIFeed.id)
         .outerjoin(AIFeedResult, AIFeedResult.ai_feed_id == AIFeed.id)
