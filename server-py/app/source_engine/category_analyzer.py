@@ -247,12 +247,140 @@ Example: [{{"raw_name": "nuclear", "label": "Programme nucléaire"}}, {{"raw_nam
     return categories
 
 
+async def _enrich_intel_models(db: AsyncSession, result: dict) -> int:
+    """Enrich intel_models catalog from weekly article analysis.
+
+    1. Update article_count for existing models (how many articles match their aliases)
+    2. Detect new entities/topics from trending data that aren't in the catalog
+    3. Ask LLM to propose new models with aliases for the top unknowns
+    """
+    from sqlalchemy import select, update
+    from app.models.intel_model import IntelModel
+    from app.source_engine.detector import _call_gemini
+    import re
+
+    # Load existing models
+    existing = await db.execute(select(IntelModel))
+    models = existing.scalars().all()
+    model_names_lower = {m.name.lower() for m in models}
+    all_aliases_lower = set()
+    for m in models:
+        all_aliases_lower.add(m.name.lower())
+        for a in (m.aliases or []):
+            all_aliases_lower.add(a.lower())
+
+    # 1. Update article counts — count articles matching each model's aliases
+    from sqlalchemy import text
+    updated_counts = 0
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    for m in models:
+        terms = [m.name] + (m.aliases or [])
+        or_clauses = []
+        for t in terms[:20]:  # limit to avoid huge queries
+            safe = t.lower().replace("'", "")
+            if len(safe) >= 3:
+                or_clauses.append(f"LOWER(title || ' ' || COALESCE(description, '')) LIKE '%{safe}%'")
+        if not or_clauses:
+            continue
+        where = " OR ".join(or_clauses)
+        count_result = await db.execute(
+            text(f"SELECT COUNT(*) FROM articles WHERE created_at > :cutoff AND ({where})"),
+            {"cutoff": cutoff},
+        )
+        count = count_result.scalar() or 0
+        if count != m.article_count:
+            await db.execute(
+                update(IntelModel).where(IntelModel.id == m.id).values(article_count=count)
+            )
+            updated_counts += 1
+
+    # 2. Find trending entities/tags NOT in the catalog
+    trending_entities = result.get("trending_entities", [])
+    trending_tags = result.get("trending_tags", [])
+    trending_countries = result.get("trending_countries", [])
+
+    unknown_entities = []
+    for item in trending_entities[:30]:
+        name = item["name"]
+        if name.lower() not in all_aliases_lower and len(name) >= 3 and item["count"] >= 5:
+            unknown_entities.append({"name": name, "count": item["count"], "type": "entity"})
+    for item in trending_tags[:20]:
+        name = item["name"]
+        if name.lower() not in all_aliases_lower and len(name) >= 3 and item["count"] >= 5:
+            unknown_entities.append({"name": name, "count": item["count"], "type": "tag"})
+    for item in trending_countries[:15]:
+        name = item["name"]
+        if name.lower() not in all_aliases_lower and len(name) >= 3 and item["count"] >= 5:
+            unknown_entities.append({"name": name, "count": item["count"], "type": "country"})
+
+    # 3. Ask LLM to propose new models for the top unknowns
+    new_models = 0
+    if unknown_entities[:15]:
+        try:
+            prompt = f"""You are building an OSINT intelligence model catalog. Below are trending entities/topics detected in news articles this week that are NOT yet in our catalog.
+
+For each, propose: name, family (foundation/market/threat/risk), section, description (1 sentence), and aliases (synonyms, translations EN/FR/local language, abbreviations, tickers).
+
+Only propose entities that are clearly identifiable (companies, organizations, people, technologies, geopolitical concepts). Skip generic words.
+
+Trending unknowns:
+{json.dumps(unknown_entities[:15], ensure_ascii=False)}
+
+Return ONLY a JSON array (no markdown):
+[{{"name": "...", "family": "...", "section": "...", "description": "...", "aliases": ["...", "..."]}}]
+If none are worth adding, return []."""
+
+            raw = await _call_gemini(prompt)
+            cleaned = raw.strip()
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+            # Fix truncated JSON
+            try:
+                proposals = json.loads(cleaned)
+            except json.JSONDecodeError:
+                fixed = cleaned
+                fixed += ']' * (fixed.count('[') - fixed.count(']'))
+                fixed += '}' * (fixed.count('{') - fixed.count('}'))
+                fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+                proposals = json.loads(fixed)
+
+            for p in proposals:
+                if not isinstance(p, dict) or 'name' not in p:
+                    continue
+                if p['name'].lower() in model_names_lower:
+                    continue
+                model = IntelModel(
+                    name=p['name'],
+                    family=p.get('family', 'market'),
+                    section=p.get('section', 'Trends'),
+                    description=p.get('description'),
+                    aliases=p.get('aliases', []),
+                    origin='ai_enriched',
+                )
+                db.add(model)
+                model_names_lower.add(p['name'].lower())
+                new_models += 1
+
+        except Exception as e:
+            logger.warning(f"Intel model enrichment LLM failed: {e}")
+
+    if updated_counts or new_models:
+        await db.commit()
+
+    logger.info(f"Intel models enriched: {updated_counts} counts updated, {new_models} new models added")
+    return new_models
+
+
 async def run_weekly_analysis(db: AsyncSession) -> dict:
-    """Run analysis, name clusters with LLM, cache to disk."""
+    """Run analysis, name clusters with LLM, enrich intel models, cache to disk."""
     result = await analyze_categories(db, days=7)
 
     # LLM pass: name clusters properly
     result["categories"] = await _name_clusters_with_llm(result["categories"])
+
+    # Enrich intel models catalog from trending data
+    new_models = await _enrich_intel_models(db, result)
+    result["new_intel_models"] = new_models
 
     path = _get_cache_path()
     path.parent.mkdir(parents=True, exist_ok=True)
