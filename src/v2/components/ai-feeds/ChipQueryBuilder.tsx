@@ -1,6 +1,6 @@
 // src/v2/components/ai-feeds/ChipQueryBuilder.tsx
 import { useState, useRef, useEffect } from 'react';
-import { X, Trash2, ChevronDown, ChevronRight, ChevronLeft, Plus, Minus, Filter, Sparkles, Loader2 } from 'lucide-react';
+import { X, Trash2, ChevronDown, ChevronRight, ChevronLeft, Plus, Minus, Filter, Sparkles, Loader2, Tags } from 'lucide-react';
 import type { FeedQuery, QueryLayer, QueryPart } from '@/v2/lib/ai-feeds-api';
 import type { CategoryL1, CategoryL2, CategoryLeaf } from '@/v2/lib/ai-feeds-api';
 
@@ -24,6 +24,7 @@ const SCOPE_OPTIONS = [
 export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoading = false }: Props) {
   const [addingOrTo, setAddingOrTo] = useState<number | null>(null);
   const [orValue, setOrValue] = useState('');
+  const [editingAliases, setEditingAliases] = useState<string | null>(null); // "li-pi"
 
   // Add filter bar state
   const [showAddBar, setShowAddBar] = useState(false);
@@ -68,6 +69,14 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
     updateLayer(layerIdx, { ...layer, parts: [...layer.parts, { type: 'keyword', value: value.trim(), scope: 'title_and_content' }] });
     setOrValue('');
     setAddingOrTo(null);
+  }
+
+  function updateAliases(layerIdx: number, partIdx: number, aliasText: string) {
+    const layer = query.layers[layerIdx]!;
+    const parts = [...layer.parts];
+    const part = parts[partIdx]!;
+    parts[partIdx] = { type: part.type, value: part.value, scope: part.scope, aliases: aliasText.split(',').map(a => a.trim()).filter(Boolean) };
+    updateLayer(layerIdx, { ...layer, parts });
   }
 
   function updateScope(layerIdx: number, scope: QueryPart['scope']) {
@@ -196,12 +205,36 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
             <div className="flex items-center gap-2 py-1.5">
               <div className="flex items-center gap-1.5 flex-1 flex-wrap">
                 {layer.parts.map((part, pi) => (
-                  <div key={pi} className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
-                    <Filter size={11} className="text-[#42d3a5]" />
-                    <span className="text-[11px] font-medium text-slate-700">{part.value}</span>
-                    <button onClick={() => removePart(li, pi)} className="p-0.5 text-slate-400 hover:text-red-500 transition-colors">
-                      <X size={11} />
-                    </button>
+                  <div key={pi} className="inline-flex flex-col">
+                    <div className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
+                      <Filter size={11} className="text-[#42d3a5]" />
+                      <span className="text-[11px] font-medium text-slate-700">{part.value}</span>
+                      {/* Aliases badge */}
+                      <button
+                        onClick={() => setEditingAliases(editingAliases === `${li}-${pi}` ? null : `${li}-${pi}`)}
+                        className="text-[8px] font-bold text-blue-500 hover:text-blue-700 bg-blue-50 px-1 py-0.5 rounded"
+                        title="Éditer les aliases / mots-clés"
+                      >
+                        <Tags size={9} className="inline" /> {part.aliases?.length || 0}
+                      </button>
+                      <button onClick={() => removePart(li, pi)} className="p-0.5 text-slate-400 hover:text-red-500 transition-colors">
+                        <X size={11} />
+                      </button>
+                    </div>
+                    {/* Aliases editor */}
+                    {editingAliases === `${li}-${pi}` && (
+                      <div className="mt-1 p-1.5 bg-blue-50 border border-blue-100 rounded-lg">
+                        <label className="text-[8px] font-bold text-blue-600 uppercase block mb-0.5">Aliases / mots-clés</label>
+                        <input
+                          autoFocus
+                          value={(part.aliases || []).join(', ')}
+                          onChange={e => updateAliases(li, pi, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingAliases(null); }}
+                          placeholder="war, conflict, strike..."
+                          className="w-full text-[10px] px-2 py-1 border border-blue-200 rounded bg-white focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
                 {addingOrTo === li ? (

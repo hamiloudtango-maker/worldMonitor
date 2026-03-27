@@ -93,6 +93,7 @@ export async function buildCatalogWithFeeds(): Promise<WidgetDef[]> {
   try {
     const { listFeeds } = await import('@/v2/lib/ai-feeds-api');
     const { feeds } = await listFeeds();
+    console.log('[WidgetCatalog] Loaded', feeds.length, 'AI feeds for widget catalog');
     const feedWidgets: WidgetDef[] = feeds.map(f => ({
       id: `ai-feed-${f.id}`,
       title: f.name,
@@ -104,7 +105,8 @@ export async function buildCatalogWithFeeds(): Promise<WidgetDef[]> {
       minH: 3,
     }));
     return [...FULL_CATALOG, ...feedWidgets];
-  } catch {
+  } catch (e) {
+    console.warn('[WidgetCatalog] Failed to load feeds:', e);
     return FULL_CATALOG;
   }
 }
