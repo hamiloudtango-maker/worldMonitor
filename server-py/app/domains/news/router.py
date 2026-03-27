@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import CurrentUser, get_current_user
 from app.db import get_db
-from app.domains.news.rss_catalog import RSS_CATALOG
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/news/v1", tags=["news"])
@@ -81,11 +80,21 @@ async def list_feed_digest(
 
 
 @router.get("/rss-catalog")
-async def list_rss_catalog():
-    """List all pre-built RSS sources available for ingestion."""
+async def list_rss_catalog(db: AsyncSession = Depends(get_db)):
+    """List all RSS sources available for ingestion."""
+    from sqlalchemy import select
+    from app.models.ai_feed import RssCatalogEntry
+    result = await db.execute(
+        select(RssCatalogEntry).where(RssCatalogEntry.active == True)
+    )
+    sources = result.scalars().all()
     return {
-        "sources": RSS_CATALOG,
-        "total": len(RSS_CATALOG),
+        "sources": [
+            {"name": s.name, "url": s.url, "lang": s.lang, "tier": s.tier,
+             "tags": s.tags or [], "country": s.country}
+            for s in sources
+        ],
+        "total": len(sources),
     }
 
 
