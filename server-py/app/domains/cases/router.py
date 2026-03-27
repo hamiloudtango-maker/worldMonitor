@@ -107,6 +107,42 @@ def _serialize_article(a: Article) -> dict:
     }
 
 
+# Common FR→EN country name mapping for cases
+_COUNTRY_FR_EN = {
+    "mongolie": "Mongolia", "france": "France", "taiwan": "Taiwan",
+    "allemagne": "Germany", "espagne": "Spain", "italie": "Italy",
+    "russie": "Russia", "chine": "China", "japon": "Japan",
+    "coree du sud": "South Korea", "coree du nord": "North Korea",
+    "royaume-uni": "United Kingdom", "etats-unis": "United States",
+    "bresil": "Brazil", "mexique": "Mexico", "inde": "India",
+    "turquie": "Turkey", "egypte": "Egypt", "maroc": "Morocco",
+    "algerie": "Algeria", "tunisie": "Tunisia", "arabie saoudite": "Saudi Arabia",
+    "emirats arabes unis": "UAE", "iran": "Iran", "irak": "Iraq",
+    "syrie": "Syria", "liban": "Lebanon", "israel": "Israel",
+    "palestine": "Palestine", "ukraine": "Ukraine", "pologne": "Poland",
+    "roumanie": "Romania", "grece": "Greece", "suede": "Sweden",
+    "norvege": "Norway", "finlande": "Finland", "danemark": "Denmark",
+    "pays-bas": "Netherlands", "belgique": "Belgium", "suisse": "Switzerland",
+    "autriche": "Austria", "hongrie": "Hungary", "portugal": "Portugal",
+    "colombie": "Colombia", "perou": "Peru", "chili": "Chile",
+    "argentine": "Argentina", "venezuela": "Venezuela", "cuba": "Cuba",
+    "nigeria": "Nigeria", "afrique du sud": "South Africa", "ethiopie": "Ethiopia",
+    "kenya": "Kenya", "senegal": "Senegal", "cote d ivoire": "Ivory Coast",
+    "thailande": "Thailand", "vietnam": "Vietnam", "indonesie": "Indonesia",
+    "malaisie": "Malaysia", "philippines": "Philippines", "pakistan": "Pakistan",
+    "bangladesh": "Bangladesh", "myanmar": "Myanmar", "cambodge": "Cambodia",
+    "australie": "Australia", "nouvelle-zelande": "New Zealand",
+}
+
+
+def _add_country_names(case_name: str, cc: str, strong: list[str]):
+    """Add both FR and EN country names as strong search terms."""
+    name_lower = case_name.lower()
+    en_name = _COUNTRY_FR_EN.get(name_lower)
+    if en_name and en_name.lower() != name_lower:
+        strong.append(en_name)
+
+
 def _get_case_search_terms(case: Case) -> tuple[list[str], list[str]]:
     """Extract strong and weak search terms from a case.
 
@@ -144,10 +180,13 @@ def _get_case_search_terms(case: Case) -> tuple[list[str], list[str]]:
             ticker = card.get("stock_ticker", "")
             if ticker and len(ticker) >= 2:
                 strong.append(ticker)
-            # Country code is strong (2-letter ISO)
+            # Country code — keep for country_codes_json matching only (handled in filter)
             cc = (card.get("country_code") or "").upper()
             if cc and len(cc) == 2:
                 strong.append(cc)
+            # For country-type cases, add both FR and EN country names as strong terms
+            if case.type == "country":
+                _add_country_names(case.name, cc, strong)
             # Sector is weak (generic)
             sector = card.get("sector", "")
             if sector and len(sector) >= 3:
