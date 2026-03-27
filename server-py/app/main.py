@@ -129,6 +129,15 @@ async def lifespan(app: FastAPI):
 
         await create_all_tables()
 
+    # Seed RSS catalog on boot (inserts only missing sources)
+    from app.db import async_session
+    from app.domains.ai_feeds.seed import seed_catalog
+    async with async_session() as db:
+        count = await seed_catalog(db)
+        if count:
+            import logging
+            logging.getLogger(__name__).info(f"Seeded {count} RSS catalog entries")
+
     # Start background ingestion tasks
     import asyncio
     catalog_task = asyncio.create_task(_auto_ingest_catalog())
