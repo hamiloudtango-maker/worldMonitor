@@ -845,6 +845,11 @@ export default defineConfig(({ mode }) => {
           '**/test-results/**',
           '**/playwright-report/**',
           '**/.playwright-mcp/**',
+          '**/server-py/**',
+          '**/*.db',
+          '**/*.db-wal',
+          '**/*.db-shm',
+          '**/*.db-journal',
         ],
       },
       proxy: {
