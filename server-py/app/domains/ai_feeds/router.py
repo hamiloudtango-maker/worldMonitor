@@ -146,8 +146,9 @@ async def update_catalog_source(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a catalog source's metadata."""
+    import uuid as _uuid
     from app.models.ai_feed import RssCatalogEntry
-    entry = await db.get(RssCatalogEntry, source_id)
+    entry = await db.get(RssCatalogEntry, _uuid.UUID(source_id))
     if not entry:
         raise HTTPException(404, "Source not found")
 
@@ -167,8 +168,9 @@ async def delete_catalog_source(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a custom source, or deactivate a builtin source."""
+    import uuid as _uuid
     from app.models.ai_feed import RssCatalogEntry
-    entry = await db.get(RssCatalogEntry, source_id)
+    entry = await db.get(RssCatalogEntry, _uuid.UUID(source_id))
     if not entry:
         raise HTTPException(404, "Source not found")
 
@@ -194,9 +196,10 @@ async def bulk_action_catalog(
     if not ids or action not in ("activate", "deactivate", "delete"):
         raise HTTPException(400, "ids and action (activate|deactivate|delete) required")
 
+    import uuid as _uuid
     affected = 0
     for source_id in ids:
-        entry = await db.get(RssCatalogEntry, source_id)
+        entry = await db.get(RssCatalogEntry, _uuid.UUID(source_id))
         if not entry:
             continue
         if action == "activate":
