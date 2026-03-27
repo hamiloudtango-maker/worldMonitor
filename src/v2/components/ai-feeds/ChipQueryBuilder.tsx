@@ -66,9 +66,12 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
   function addOrPart(layerIdx: number, value: string) {
     if (!value.trim()) return;
     const layer = query.layers[layerIdx]!;
+    const newPartIdx = layer.parts.length;
     updateLayer(layerIdx, { ...layer, parts: [...layer.parts, { type: 'keyword', value: value.trim(), scope: 'title_and_content' }] });
     setOrValue('');
     setAddingOrTo(null);
+    // Auto-open aliases editor for the new chip
+    setEditingAliases(`${layerIdx}-${newPartIdx}`);
   }
 
   function updateAliases(layerIdx: number, partIdx: number, aliasText: string) {
@@ -97,6 +100,7 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
 
   function addFilterFromText(value: string) {
     if (!value.trim()) return;
+    const newLayerIdx = query.layers.length;
     onChange({
       layers: [
         ...query.layers,
@@ -104,6 +108,8 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
       ],
     });
     resetAddBar();
+    // Auto-open aliases editor for the new chip
+    setEditingAliases(`${newLayerIdx}-0`);
   }
 
   function resetAddBar() {

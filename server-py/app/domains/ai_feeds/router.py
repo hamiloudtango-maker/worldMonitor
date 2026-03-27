@@ -690,6 +690,25 @@ async def add_feed_source(
         origin=body.origin,
     )
     db.add(source)
+
+    # Also persist in global RSS catalog (dedup by URL)
+    from app.models.ai_feed import RssCatalogEntry
+    existing = await db.execute(
+        select(RssCatalogEntry).where(RssCatalogEntry.url == body.url)
+    )
+    if not existing.scalar():
+        catalog_entry = RssCatalogEntry(
+            url=body.url,
+            name=body.name,
+            lang=body.lang,
+            tier=body.tier or 3,
+            source_type=body.source_type,
+            country=body.country,
+            continent=body.continent,
+            origin="custom",
+        )
+        db.add(catalog_entry)
+
     await db.commit()
     await db.refresh(source)
     return _serialize_source(source)
