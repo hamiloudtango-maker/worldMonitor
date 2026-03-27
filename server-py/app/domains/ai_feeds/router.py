@@ -79,12 +79,16 @@ async def list_catalog(
     continent: str | None = None,
     tag: str | None = None,
     lang: str | None = None,
+    status_filter: str | None = None,
     q: str | None = None,
+    include_inactive: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
     from app.models.ai_feed import RssCatalogEntry
-    query = select(RssCatalogEntry).where(RssCatalogEntry.active == True)
+    query = select(RssCatalogEntry)
 
+    if not include_inactive:
+        query = query.where(RssCatalogEntry.active == True)
     if country:
         query = query.where(RssCatalogEntry.country.ilike(country))
     if continent:
@@ -95,23 +99,121 @@ async def list_catalog(
     result = await db.execute(query)
     sources = result.scalars().all()
 
-    # Filter by tag (JSON array) and text search in Python
     catalog = []
     for s in sources:
         if tag and tag.lower() not in [t.lower() for t in (s.tags or [])]:
             continue
         if q:
             q_lower = q.lower()
-            if q_lower not in s.name.lower() and q_lower not in (s.country or "").lower():
+            if q_lower not in s.name.lower() and q_lower not in (s.country or "").lower() and q_lower not in (s.url or "").lower():
                 continue
-        catalog.append({
-            "name": s.name, "url": s.url, "lang": s.lang, "tier": s.tier,
-            "source_type": s.source_type, "country": s.country,
-            "continent": s.continent, "tags": s.tags or [],
-            "active": s.active, "description": s.description,
-        })
+        # Status filter
+        if status_filter:
+            st = _source_status(s)
+            if status_filter != st:
+                continue
+        catalog.append(_serialize_catalog(s))
 
     return {"sources": catalog, "total": len(catalog)}
+
+
+def _source_status(s) -> str:
+    if not s.active:
+        return "disabled"
+    if s.fetch_error_count >= 10:
+        return "error"
+    if s.fetch_error_count >= 3:
+        return "degraded"
+    return "active"
+
+
+def _serialize_catalog(s) -> dict:
+    return {
+        "id": str(s.id), "name": s.name, "url": s.url, "lang": s.lang,
+        "tier": s.tier, "source_type": s.source_type, "country": s.country,
+        "continent": s.continent, "tags": s.tags or [], "active": s.active,
+        "description": s.description, "origin": s.origin,
+        "last_fetched_at": s.last_fetched_at.isoformat() if s.last_fetched_at else None,
+        "fetch_error_count": s.fetch_error_count,
+        "status": _source_status(s),
+    }
+
+
+@router.patch("/catalog/{source_id}")
+async def update_catalog_source(
+    source_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a catalog source's metadata."""
+    from app.models.ai_feed import RssCatalogEntry
+    entry = await db.get(RssCatalogEntry, source_id)
+    if not entry:
+        raise HTTPException(404, "Source not found")
+
+    allowed = {"name", "tags", "tier", "country", "continent", "description", "active", "source_type", "lang"}
+    for key, val in body.items():
+        if key in allowed:
+            setattr(entry, key, val)
+
+    await db.commit()
+    await db.refresh(entry)
+    return _serialize_catalog(entry)
+
+
+@router.delete("/catalog/{source_id}")
+async def delete_catalog_source(
+    source_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a custom source, or deactivate a builtin source."""
+    from app.models.ai_feed import RssCatalogEntry
+    entry = await db.get(RssCatalogEntry, source_id)
+    if not entry:
+        raise HTTPException(404, "Source not found")
+
+    if entry.origin == "builtin":
+        entry.active = False
+        await db.commit()
+        return {"ok": True, "action": "deactivated"}
+
+    await db.delete(entry)
+    await db.commit()
+    return {"ok": True, "action": "deleted"}
+
+
+@router.post("/catalog/bulk-action")
+async def bulk_action_catalog(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk activate/deactivate/delete catalog sources."""
+    from app.models.ai_feed import RssCatalogEntry
+    ids = body.get("ids", [])
+    action = body.get("action")
+    if not ids or action not in ("activate", "deactivate", "delete"):
+        raise HTTPException(400, "ids and action (activate|deactivate|delete) required")
+
+    affected = 0
+    for source_id in ids:
+        entry = await db.get(RssCatalogEntry, source_id)
+        if not entry:
+            continue
+        if action == "activate":
+            entry.active = True
+            affected += 1
+        elif action == "deactivate":
+            entry.active = False
+            affected += 1
+        elif action == "delete":
+            if entry.origin == "builtin":
+                entry.active = False
+            else:
+                await db.delete(entry)
+            affected += 1
+
+    await db.commit()
+    return {"affected": affected}
 
 
 @router.post("/catalog/validate-url")
