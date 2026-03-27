@@ -18,22 +18,13 @@ export default function TemplateGrid({ templates, onSelect }: Props) {
             onClick={() => onSelect(t)}
             className="text-left p-4 rounded-xl border border-slate-200 hover:border-[#42d3a5]/40 hover:shadow-sm transition-all group"
           >
-            <div className="text-[13px] font-semibold text-slate-700 mb-3">{t.name}</div>
-            <div className="space-y-1.5">
-              {/* Chip 1 */}
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
-                <Sparkles size={12} className="text-[#42d3a5]" />
-                <span className="text-[11px] font-medium text-slate-700">{t.chip1.label}</span>
-                <span className="text-[8px] font-bold text-[#42d3a5] bg-[#42d3a5]/10 px-1 py-0.5 rounded">AI</span>
-              </div>
-              {/* AND separator */}
-              <div className="text-[10px] font-semibold text-slate-400 pl-2">AND</div>
-              {/* Chip 2 */}
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
-                <Sparkles size={12} className="text-[#42d3a5]" />
-                <span className="text-[11px] font-medium text-slate-700">{t.chip2.label}</span>
-                <span className="text-[8px] font-bold text-[#42d3a5] bg-[#42d3a5]/10 px-1 py-0.5 rounded">AI</span>
-              </div>
+            <div className="text-[13px] font-semibold text-slate-700 mb-2">{t.name}</div>
+            {t.description && (
+              <div className="text-[10px] text-slate-400 line-clamp-2 mb-2">{t.description}</div>
+            )}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
+              <Sparkles size={12} className="text-[#42d3a5]" />
+              <span className="text-[11px] font-medium text-slate-700">{t.chip1.label}</span>
             </div>
           </button>
         ))}
