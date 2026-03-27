@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import DateTime, Float, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -29,6 +29,12 @@ class Article(Base):
     entities_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Country codes (JSON string: ["UA", "RU"])
     country_codes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Enriched metadata (single LLM call)
+    sentiment: Mapped[str | None] = mapped_column(String(10), nullable=True)  # positive, negative, neutral
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)  # 2-3 sentence summary
+    tags_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: ["conflict", "nuclear", "diplomacy"]
+    countries_mentioned_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: ["France", "Iran", "United States"]
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

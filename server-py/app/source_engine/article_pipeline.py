@@ -91,9 +91,9 @@ async def translate_batch(texts: list[str], source_lang: str) -> list[str]:
     return texts  # Fallback: return originals
 
 
-# ── NER extraction (Gemini Flash, marifa-inspired) ──────────────
+# ── Unified enrichment (single LLM call: NER + sentiment + summary + tags + countries) ──
 
-NER_PROMPT = """Extract entities from these news headlines. Return ONLY valid JSON.
+ENRICH_PROMPT = """Analyze these news headlines. Return ONLY valid JSON (no markdown).
 
 Headlines:
 {headlines}
@@ -103,30 +103,46 @@ Return this exact JSON structure:
   "articles": [
     {{
       "index": 0,
+      "title_en": "English translation of headline (if already English, copy as-is)",
       "persons": ["Name1", "Name2"],
       "organizations": ["NATO", "OPEC"],
-      "countries": ["US", "UA", "RU"],
-      "theme": "conflict|economic|tech|military|disaster|health|cyber|diplomatic|protest|crime|environmental|infrastructure|terrorism|general"
+      "country_codes": ["US", "UA", "RU"],
+      "countries_mentioned": ["United States", "Ukraine", "Russia"],
+      "theme": "conflict|economic|tech|military|disaster|health|cyber|diplomatic|protest|crime|environmental|infrastructure|terrorism|general",
+      "tags": ["nuclear", "diplomacy", "sanctions"],
+      "sentiment": "positive|negative|neutral",
+      "summary": "Brief 1-2 sentence summary of the headline's topic and significance."
     }}
   ]
 }}
 
 Rules:
-- countries: use ISO 3166-1 alpha-2 codes (US, FR, UA, RU, CN, IR, etc.)
+- title_en: translate to English if not already English. Keep original if already in English.
+- country_codes: ISO 3166-1 alpha-2 (US, FR, UA, RU, CN, IR, etc.)
+- countries_mentioned: full country names in English (United States, France, Ukraine, etc.)
 - persons: only named individuals (leaders, officials, CEOs)
 - organizations: political bodies, companies, military alliances, NGOs
-- theme: pick the single most relevant category
-- If unsure, use empty arrays and "general"
+- theme: pick the single most relevant category from the list
+- tags: 1-5 specific topic keywords (lowercase, e.g. "nuclear", "oil prices", "ai regulation")
+- sentiment: overall tone of the headline
+- summary: 1-2 sentences explaining what the article is about
+- If unsure, use empty arrays and "general"/"neutral"
 """
 
+_EMPTY_ENRICHMENT = {
+    "title_en": "", "persons": [], "organizations": [], "country_codes": [],
+    "countries_mentioned": [], "theme": "general", "tags": [],
+    "sentiment": "neutral", "summary": "",
+}
 
-async def extract_entities_batch(titles: list[str]) -> list[dict]:
-    """Extract NER entities from a batch of titles using Gemini Flash."""
+
+async def enrich_batch(titles: list[str]) -> list[dict]:
+    """Enrich a batch of headlines in a single LLM call."""
     if not titles:
         return []
     numbered = "\n".join(f"{i}. {t}" for i, t in enumerate(titles))
     try:
-        raw = await _call_gemini(NER_PROMPT.format(headlines=numbered))
+        raw = await _call_gemini(ENRICH_PROMPT.format(headlines=numbered))
         cleaned = raw.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[1]
@@ -134,15 +150,14 @@ async def extract_entities_batch(titles: list[str]) -> list[dict]:
             cleaned = cleaned.rsplit("```", 1)[0]
         data = json.loads(cleaned.strip())
         articles = data.get("articles", [])
-        # Build index-based lookup
         by_index = {a["index"]: a for a in articles}
         return [
-            by_index.get(i, {"persons": [], "organizations": [], "countries": [], "theme": "general"})
+            {**_EMPTY_ENRICHMENT, **by_index.get(i, {})}
             for i in range(len(titles))
         ]
     except Exception as e:
-        logger.warning(f"NER extraction failed: {e}")
-    return [{"persons": [], "organizations": [], "countries": [], "theme": "general"}] * len(titles)
+        logger.warning(f"Enrichment failed: {e}")
+    return [dict(_EMPTY_ENRICHMENT) for _ in titles]
 
 
 # ── Full pipeline ───────────────────────────────────────────────
@@ -176,7 +191,7 @@ async def ingest_articles(
     if not new_rows:
         return 0
 
-    # Step 1: Keyword classification (local, instant)
+    # Step 1: Keyword classification (local, instant — no LLM)
     classifications = []
     for r, _, _ in new_rows:
         title = str(r.get("title", ""))
@@ -187,38 +202,31 @@ async def ingest_articles(
     titles = [str(r.get("title", "")) for r, _, _ in new_rows]
     langs = [detect_lang(t) for t in titles]
 
-    # Step 3: Translate non-EN/FR titles
-    to_translate_idx = [i for i, lang in enumerate(langs) if lang not in TARGET_LANGS and titles[i]]
-    translated = dict.fromkeys(range(len(titles)))
+    # Step 3: Unified enrichment (single LLM call: translate + NER + sentiment + summary + tags)
+    all_enriched: list[dict] = []
+    for batch_start in range(0, len(titles), 10):
+        batch = titles[batch_start:batch_start + 10]
+        enriched = await enrich_batch(batch)
+        all_enriched.extend(enriched)
 
-    if to_translate_idx:
-        batch = [titles[i] for i in to_translate_idx]
-        results = await translate_batch(batch, "multi")
-        for idx, result in zip(to_translate_idx, results):
-            translated[idx] = result
-
-    # Step 4: NER extraction (batch all titles — use translated when available)
-    ner_titles = [translated.get(i) or titles[i] for i in range(len(titles))]
-    # Batch in groups of 10
-    all_ner: list[dict] = []
-    for batch_start in range(0, len(ner_titles), 10):
-        batch = ner_titles[batch_start:batch_start + 10]
-        ner_results = await extract_entities_batch(batch)
-        all_ner.extend(ner_results)
-
-    # Step 5: Store
+    # Step 4: Store
     inserted = 0
     for i, (r, h, link) in enumerate(new_rows):
         title = titles[i]
-        ner = all_ner[i] if i < len(all_ner) else {}
+        enriched = all_enriched[i] if i < len(all_enriched) else dict(_EMPTY_ENRICHMENT)
         cls = classifications[i]
 
-        # Merge NER theme with keyword theme (keyword wins if not "general")
-        theme = cls["theme"] if cls["theme"] != "general" else ner.get("theme", "general")
+        # Merge keyword theme with LLM theme (keyword wins if not "general")
+        theme = cls["theme"] if cls["theme"] != "general" else enriched.get("theme", "general")
 
         # Combine entities
-        entities = ner.get("persons", []) + ner.get("organizations", [])
-        countries = ner.get("countries", [])
+        entities = enriched.get("persons", []) + enriched.get("organizations", [])
+        country_codes = enriched.get("country_codes", [])
+        countries_mentioned = enriched.get("countries_mentioned", [])
+
+        # Translation from enrichment
+        title_en = enriched.get("title_en", "")
+        translated = title_en if (title_en and title_en != title) else None
 
         # Parse pub_date
         pub_date = None
@@ -237,7 +245,7 @@ async def ingest_articles(
             hash=h,
             source_id=source_id,
             title=title,
-            title_translated=translated.get(i),
+            title_translated=translated,
             description=str(r.get("description", "") or "")[:500],
             link=link,
             pub_date=pub_date,
@@ -246,7 +254,11 @@ async def ingest_articles(
             theme=theme,
             confidence=cls["confidence"],
             entities_json=json.dumps(entities) if entities else None,
-            country_codes_json=json.dumps(countries) if countries else None,
+            country_codes_json=json.dumps(country_codes) if country_codes else None,
+            sentiment=enriched.get("sentiment"),
+            summary=enriched.get("summary"),
+            tags_json=json.dumps(enriched.get("tags", [])) if enriched.get("tags") else None,
+            countries_mentioned_json=json.dumps(countries_mentioned) if countries_mentioned else None,
         )
         db.add(article)
         inserted += 1
