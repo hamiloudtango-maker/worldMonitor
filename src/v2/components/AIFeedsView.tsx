@@ -4,7 +4,7 @@ import { useAIFeeds } from '@/v2/hooks/useAIFeeds';
 import type { AIFeedData, FeedQuery } from '@/v2/lib/ai-feeds-api';
 import { bootstrapFeed, addFeedSource, refreshFeed } from '@/v2/lib/ai-feeds-api';
 import FeedList from './ai-feeds/FeedList';
-import QueryBuilder from './ai-feeds/QueryBuilder';
+import ChipQueryBuilder from './ai-feeds/ChipQueryBuilder';
 import SourceSelector from './ai-feeds/SourceSelector';
 import FeedPreview from './ai-feeds/FeedPreview';
 import FeedCreator from './ai-feeds/FeedCreator';
@@ -177,7 +177,7 @@ export default function AIFeedsView() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              <QueryBuilder query={localQuery} onChange={handleQueryChange} />
+              <ChipQueryBuilder query={localQuery} onChange={handleQueryChange} />
               <div className="border-t border-slate-100 pt-4">
                 <FeedPreview feedId={selected.id} query={localQuery} onCountChange={setPreviewCount} />
               </div>
