@@ -716,13 +716,14 @@ Rules:
 - operator must be "AND", "OR", or "NOT"
 - suggested_sources must be exact names from the catalog (case-sensitive match)
 - Suggest 5-15 relevant sources. Prefer tier 1-2 sources. Match by country/continent/tags relevance.
-- CRITICAL: The first layer MUST use operator "OR" (not AND). An article matches if it contains ANY of the keywords. AND is too restrictive for monitoring feeds.
+- CRITICAL: The first layer MUST use operator "OR" (not AND). An article matches if it contains ANY of the keywords.
+- AND layers (optional, for layer 2+): used to narrow results. Each part in an AND layer MUST also have aliases/similar terms. Example: AND layer with "Russie" must include aliases ["Russia", "Russian", "Kremlin", "Moscow", "Россия", "russe"].
 - CRITICAL: Generate rich, comprehensive keywords. The first OR layer MUST contain 15-25 keywords/terms covering all aspects of the topic.
   Example for "Énergie & Ressources": oil, gas, petroleum, nuclear energy, renewable, solar, wind power, OPEC, pipeline, mining, coal, uranium, lithium, hydrogen, electricity grid, energy security, fossil fuel, natural gas, LNG, crude oil, pétrole, gaz naturel, énergie nucléaire, énergie renouvelable, transition énergétique
   Example for "Guerre Ukraine": Ukraine war, Russian invasion, Zelensky, Putin, Donbas, Crimea, NATO, Bakhmut, drone strike, frontline, ceasefire, guerre Ukraine, invasion russe, cessez-le-feu, війна, Україна, вторгнення
   Example for "Cybersécurité": cyberattack, ransomware, data breach, malware, phishing, hacking, vulnerability, zero-day, DDoS, cyber espionage, CISA, APT, threat actor, CVE, incident response, cyberattaque, piratage, faille de sécurité, rançongiciel
 - MANDATORY: Include keywords in 3 languages: English + French + local language relevant to the topic (e.g. Ukrainian for Ukraine, Arabic for Middle East, Japanese for Japan, Russian for Russia, German for Germany, etc.)
-- Generate 2-3 layers max. Layer 1 = OR with all topic keywords in 3 languages. Layer 2 (optional) = NOT to exclude noise. Do NOT use AND layers — they are too restrictive.
+- Generate 2-3 layers max. Layer 1 = OR with all topic keywords in 3 languages. Layer 2 (optional) = AND to narrow by geography/actor (with aliases!). Layer 3 (optional) = NOT to exclude noise.
 - For entities, always include common aliases (abbreviations, stock tickers, former names)
 
 Available RSS sources catalog:
