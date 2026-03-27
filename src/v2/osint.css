@@ -107,11 +107,4 @@
   .animate-slide-in {
     animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-
-  /* Force widget visibility — DarkReader / theme resets can make them transparent */
-  .react-grid-item {
-    background-color: #ffffff !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-  }
 }
