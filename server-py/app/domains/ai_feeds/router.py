@@ -653,6 +653,44 @@ async def get_suggestions(
     return {"suggestions": unique[:20]}
 
 
+# ── AI Aliases — generate synonyms/translations for a term ───
+@router.post("/ai/aliases")
+async def generate_aliases(body: dict):
+    """Generate aliases (synonyms, translations, abbreviations) for a search term."""
+    import re
+    from app.source_engine.detector import _call_gemini
+
+    term = body.get("term", "").strip()
+    term_type = body.get("type", "keyword")  # keyword, entity, topic
+    if not term:
+        return {"aliases": []}
+
+    prompt = f"""Generate aliases for this OSINT search term. Include synonyms, translations (English, French, and local language if applicable), abbreviations, and related terms.
+
+Term: "{term}"
+Type: {term_type}
+
+Return ONLY a JSON array of strings. No markdown, no explanation.
+Example for "Russie": ["Russia", "Russian", "Kremlin", "Moscow", "Россия", "russe", "federation de Russie", "Russian Federation"]
+Example for "cyberattack": ["cyberattaque", "cyber attack", "hacking", "piratage", "intrusion", "breach", "кибератака"]
+Example for "OTAN": ["NATO", "North Atlantic Treaty Organization", "Alliance atlantique", "НАТО"]
+
+Generate 8-15 aliases for "{term}":"""
+
+    try:
+        raw = await _call_gemini(prompt)
+        cleaned = raw.strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        aliases = json.loads(cleaned.strip())
+        if isinstance(aliases, list):
+            return {"aliases": [a for a in aliases if isinstance(a, str) and a.strip()][:15]}
+    except Exception as e:
+        logger.warning(f"Alias generation failed for '{term}': {e}")
+
+    return {"aliases": []}
+
+
 # ── AI Bootstrap — auto-generate query + suggest sources ─────
 @router.post("/ai/bootstrap")
 async def ai_bootstrap(

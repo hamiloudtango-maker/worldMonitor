@@ -52,6 +52,16 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
     onChange({ layers: updated });
   }
 
+  function _autoGenerateAliases(layerIdx: number, partIdx: number, term: string, type: string) {
+    import('@/v2/lib/ai-feeds-api').then(({ generateAliases }) =>
+      generateAliases(term, type).then(({ aliases }) => {
+        if (aliases.length > 0) {
+          updateAliases(layerIdx, partIdx, aliases.join(', '));
+        }
+      })
+    ).catch(() => {});
+  }
+
   function removeLayer(idx: number) {
     onChange({ layers: query.layers.filter((_, i) => i !== idx) });
   }
@@ -70,8 +80,8 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
     updateLayer(layerIdx, { ...layer, parts: [...layer.parts, { type: 'keyword', value: value.trim(), scope: 'title_and_content' }] });
     setOrValue('');
     setAddingOrTo(null);
-    // Auto-open aliases editor for the new chip
-    setEditingAliases(`${layerIdx}-${newPartIdx}`);
+    // Auto-generate aliases via LLM
+    _autoGenerateAliases(layerIdx, newPartIdx, value.trim(), 'keyword');
   }
 
   function updateAliases(layerIdx: number, partIdx: number, aliasText: string) {
@@ -108,8 +118,8 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
       ],
     });
     resetAddBar();
-    // Auto-open aliases editor for the new chip
-    setEditingAliases(`${newLayerIdx}-0`);
+    // Auto-generate aliases via LLM
+    _autoGenerateAliases(newLayerIdx, 0, value.trim(), 'keyword');
   }
 
   function resetAddBar() {

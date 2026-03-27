@@ -247,6 +247,13 @@ export function bootstrapFeed(name: string, description?: string): Promise<Boots
   });
 }
 
+export function generateAliases(term: string, type: string = 'keyword'): Promise<{ aliases: string[] }> {
+  return api('/ai-feeds/ai/aliases', {
+    method: 'POST',
+    body: JSON.stringify({ term, type }),
+  });
+}
+
 export function validateUrl(url: string): Promise<{
   valid: boolean; feeds_found: { url: string; title: string }[]; error?: string;
 }> {
