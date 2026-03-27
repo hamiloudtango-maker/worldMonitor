@@ -28,74 +28,74 @@ const CATEGORIES: ServiceCategory[] = [
     name: 'Actualites & Articles',
     icon: Globe,
     services: [
-      { name: 'GDELT', description: 'Index global articles 3 jours, 250 articles/requete', url: 'api.gdeltproject.org', auth: 'none', healthEndpoint: '/conflict/v1/gdelt?query=test&max_records=1' },
+      { name: 'GDELT', description: 'Index global articles 3 jours, 250 articles/requete', url: 'api.gdeltproject.org', auth: 'none', healthEndpoint: '/conflict/v1/get-humanitarian-summary?country=France' },
       { name: 'Google News RSS', description: 'Recherche dynamique avec fallback GDELT', url: 'news.google.com', auth: 'none' },
-      { name: 'Hacker News', description: 'Top stories tech/startup', url: 'hacker-news.firebaseio.com', auth: 'none', healthEndpoint: '/research/v1/hackernews?feed=top&limit=1' },
-      { name: 'arXiv', description: 'Articles scientifiques (IA, physique, bio...)', url: 'export.arxiv.org', auth: 'none', healthEndpoint: '/research/v1/arxiv?category=cs.AI&max_results=1' },
+      { name: 'Hacker News', description: 'Top stories tech/startup', url: 'hacker-news.firebaseio.com', auth: 'none', healthEndpoint: '/research/v1/list-hackernews-items?feed=top&limit=1' },
+      { name: 'arXiv', description: 'Articles scientifiques (IA, physique, bio...)', url: 'export.arxiv.org', auth: 'none', healthEndpoint: '/research/v1/list-arxiv-papers?category=cs.AI&max_results=1' },
     ],
   },
   {
     name: 'Finance & Economie',
     icon: TrendingUp,
     services: [
-      { name: 'FRED', description: 'Indicateurs economiques US (Fed Reserve)', url: 'api.stlouisfed.org', auth: 'key_optional', keyName: 'FRED_API_KEY', healthEndpoint: '/economic/v1/fred-data?series_id=DGS10' },
-      { name: 'World Bank', description: 'Indicateurs economiques par pays', url: 'api.worldbank.org', auth: 'none', healthEndpoint: '/economic/v1/world-bank?indicator=NY.GDP.MKTP.CD&country=FR' },
-      { name: 'CoinGecko', description: 'Crypto: prix, volume, market cap', url: 'api.coingecko.com', auth: 'none', healthEndpoint: '/market/v1/stablecoin-markets' },
-      { name: 'Polymarket', description: 'Marches predictifs geopolitiques', url: 'gamma-api.polymarket.com', auth: 'none', healthEndpoint: '/prediction/v1/polymarket-events?limit=1' },
-      { name: 'UN Comtrade', description: 'Statistiques commerce international', url: 'comtradeapi.un.org', auth: 'none' },
+      { name: 'FRED', description: 'Indicateurs economiques US (Fed Reserve)', url: 'api.stlouisfed.org', auth: 'key_optional', keyName: 'FRED_API_KEY', healthEndpoint: '/economic/v1/get-fred-series?series_id=DGS10' },
+      { name: 'World Bank', description: 'Indicateurs economiques par pays', url: 'api.worldbank.org', auth: 'none', healthEndpoint: '/economic/v1/list-world-bank-indicators?indicator=NY.GDP.MKTP.CD&country=FR' },
+      { name: 'CoinGecko', description: 'Crypto: prix, volume, market cap', url: 'api.coingecko.com', auth: 'none', healthEndpoint: '/market/v1/list-stablecoin-markets' },
+      { name: 'Polymarket', description: 'Marches predictifs geopolitiques', url: 'gamma-api.polymarket.com', auth: 'none', healthEndpoint: '/prediction/v1/list-prediction-markets?limit=1' },
+      { name: 'UN Comtrade', description: 'Statistiques commerce international', url: 'comtradeapi.un.org', auth: 'none', healthEndpoint: '/trade/v1/list-comtrade-flows?reporter=250&partner=276&commodity=TOTAL' },
     ],
   },
   {
     name: 'Catastrophes naturelles',
     icon: AlertTriangle,
     services: [
-      { name: 'USGS Earthquakes', description: 'Seismes temps reel (M4.5+)', url: 'earthquake.usgs.gov', auth: 'none', healthEndpoint: '/seismology/v1/earthquakes' },
-      { name: 'NASA EONET', description: 'Evenements naturels (volcans, feux, tempetes)', url: 'eonet.gsfc.nasa.gov', auth: 'none', healthEndpoint: '/natural/v1/events?limit=1' },
-      { name: 'NASA FIRMS', description: 'Detection incendies satellite VIIRS', url: 'firms.modaps.eosdis.nasa.gov', auth: 'key_optional', keyName: 'NASA_FIRMS_API_KEY', healthEndpoint: '/wildfire/v1/active-fires' },
+      { name: 'USGS Earthquakes', description: 'Seismes temps reel (M4.5+)', url: 'earthquake.usgs.gov', auth: 'none', healthEndpoint: '/seismology/v1/list-earthquakes' },
+      { name: 'NASA EONET', description: 'Evenements naturels (volcans, feux, tempetes)', url: 'eonet.gsfc.nasa.gov', auth: 'none', healthEndpoint: '/natural/v1/list-natural-events?limit=1' },
+      { name: 'NASA FIRMS', description: 'Detection incendies satellite VIIRS', url: 'firms.modaps.eosdis.nasa.gov', auth: 'key_optional', keyName: 'NASA_FIRMS_API_KEY', healthEndpoint: '/wildfire/v1/list-fire-detections' },
     ],
   },
   {
     name: 'Maritime & Aviation',
     icon: Ship,
     services: [
-      { name: 'NGA Maritime Safety', description: 'Avertissements navigation (US Navy)', url: 'msi.nga.mil', auth: 'none', healthEndpoint: '/maritime/v1/navigational-warnings' },
-      { name: 'FlightRadar24 RSS', description: 'Actualites aviation', url: 'flightradar24.com', auth: 'none' },
+      { name: 'NGA Maritime Safety', description: 'Avertissements navigation (US Navy)', url: 'msi.nga.mil', auth: 'none', healthEndpoint: '/maritime/v1/list-navigational-warnings' },
+      { name: 'FlightRadar24 RSS', description: 'Actualites aviation', url: 'flightradar24.com', auth: 'none', healthEndpoint: '/aviation/v1/list-aviation-news' },
     ],
   },
   {
     name: 'Imagerie satellite',
     icon: Satellite,
     services: [
-      { name: 'Sentinel-2 (Element84)', description: 'Imagerie optique 10m via AWS STAC', url: 'earth-search.aws.element84.com', auth: 'none', healthEndpoint: '/imagery/v1/search?lat=48.85&lon=2.35&limit=1' },
+      { name: 'Sentinel-2 (Element84)', description: 'Imagerie optique 10m via AWS STAC', url: 'earth-search.aws.element84.com', auth: 'none', healthEndpoint: '/imagery/v1/search-imagery?lat=48.85&lon=2.35&limit=1' },
     ],
   },
   {
     name: 'Humanitaire & Conflits',
     icon: Users,
     services: [
-      { name: 'UNHCR', description: 'Statistiques refugies et deplaces', url: 'api.unhcr.org', auth: 'none', healthEndpoint: '/displacement/v1/stats?year=2024&coa=FRA' },
-      { name: 'HDX HAPI', description: 'Evenements conflits et victimes', url: 'hapi.humdata.org', auth: 'none' },
+      { name: 'UNHCR', description: 'Statistiques refugies et deplaces', url: 'api.unhcr.org', auth: 'none', healthEndpoint: '/displacement/v1/get-displacement-summary?year=2024&coa=FRA' },
+      { name: 'HDX HAPI', description: 'Evenements conflits et victimes', url: 'hapi.humdata.org', auth: 'none', healthEndpoint: '/conflict/v1/get-humanitarian-summary?country=France' },
     ],
   },
   {
     name: 'Radiation',
     icon: Radiation,
     services: [
-      { name: 'Safecast', description: 'Mesures radioactivite communautaires', url: 'api.safecast.org', auth: 'none', healthEndpoint: '/radiation/v1/measurements?lat=48.85&lon=2.35&distance=100' },
+      { name: 'Safecast', description: 'Mesures radioactivite communautaires', url: 'api.safecast.org', auth: 'none', healthEndpoint: '/radiation/v1/list-radiation-observations?lat=48.85&lon=2.35&distance=100' },
     ],
   },
   {
     name: 'Cybersecurite',
     icon: Shield,
     services: [
-      { name: 'Feodo Tracker', description: 'Serveurs C2 botnet (abuse.ch)', url: 'feodotracker.abuse.ch', auth: 'none', healthEndpoint: '/cyber/v1/threat-feeds' },
+      { name: 'Feodo Tracker', description: 'Serveurs C2 botnet (abuse.ch)', url: 'feodotracker.abuse.ch', auth: 'none', healthEndpoint: '/cyber/v1/list-cyber-threats' },
     ],
   },
   {
     name: 'Meteo & Climat',
     icon: Cloud,
     services: [
-      { name: 'Open-Meteo', description: 'Previsions meteo villes majeures', url: 'api.open-meteo.com', auth: 'none', healthEndpoint: '/climate/v1/weather-summary' },
+      { name: 'Open-Meteo', description: 'Previsions meteo villes majeures', url: 'api.open-meteo.com', auth: 'none', healthEndpoint: '/climate/v1/list-climate-anomalies' },
     ],
   },
   {
@@ -158,10 +158,8 @@ export default function ApiServices() {
   async function checkService(service: ServiceInfo): Promise<ServiceStatus> {
     if (!service.healthEndpoint) return 'unknown';
     try {
-      const resp = await fetch(`http://localhost:8000/api${service.healthEndpoint}`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      return resp.ok ? 'ok' : 'error';
+      await api(service.healthEndpoint);
+      return 'ok';
     } catch {
       return 'error';
     }
