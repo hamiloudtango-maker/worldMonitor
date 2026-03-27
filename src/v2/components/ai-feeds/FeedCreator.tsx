@@ -67,12 +67,12 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
       .finally(() => setTreeLoading(false));
   }, [activeTab]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click — keep drill-down state so user can resume
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
-        setDrill({ depth: 0 });
+        // Don't reset drill — user can reopen and continue where they left off
       }
     }
     document.addEventListener('mousedown', handleClick);
