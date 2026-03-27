@@ -196,7 +196,10 @@ def _case_article_filter(case: Case):
 
     # 1. Strong terms — match alone (high signal: "Mongolia", "Gobi Desert minerals")
     for term in strong_terms:
-        if len(term) >= 3:
+        if len(term) == 2 and term.isupper():
+            # Country code — only match in country_codes_json, not in free text
+            conditions.append(Article.country_codes_json.ilike(f'%"{term}"%'))
+        elif len(term) >= 3:
             conditions.append(Article.title.ilike(f"%{term}%"))
             conditions.append(Article.entities_json.ilike(f"%{term}%"))
 
