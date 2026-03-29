@@ -51,25 +51,32 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const [caseQuery, _setCaseQuery] = useState<FeedQuery>(
     caseData.query?.layers?.length ? { layers: caseData.query.layers } : { layers: [] }
   );
-  // Auto-convert new format {"models": [...]} into visible chips
-  const caseModelIds: string[] = caseData.query?.models || [];
+  // Auto-convert model_layers into visible ChipQueryBuilder layers
+  const modelLayers: { operator: string; model_ids: string[] }[] = caseData.query?.model_layers || [];
   const [modelsResolved, setModelsResolved] = useState(false);
   useEffect(() => {
-    if (!caseModelIds.length || modelsResolved) return;
+    if (!modelLayers.length || modelsResolved) return;
     import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
       fetchIntelTree().then(({ families }) => {
-        // Find models by ID and build layers
-        const layers: FeedQuery['layers'] = [];
+        // Build ID → model lookup (with and without dashes)
+        const modelMap = new Map<string, { name: string; aliases: string[] }>();
         for (const fam of families) {
           for (const sec of fam.sections) {
             for (const m of sec.models) {
-              if (caseModelIds.includes(m.id)) {
-                layers.push({
-                  operator: 'OR',
-                  parts: [{ type: 'topic' as const, value: m.name, aliases: m.aliases || [], scope: 'title_and_content' as const }],
-                });
-              }
+              modelMap.set(m.id, { name: m.name, aliases: m.aliases || [] });
+              modelMap.set(m.id.replace(/-/g, ''), { name: m.name, aliases: m.aliases || [] });
             }
+          }
+        }
+        // Convert each model_layer to a ChipQueryBuilder layer
+        const layers: FeedQuery['layers'] = [];
+        for (const ml of modelLayers) {
+          const parts = ml.model_ids
+            .map(mid => modelMap.get(mid) || modelMap.get(mid.replace(/-/g, '')))
+            .filter(Boolean)
+            .map(m => ({ type: 'topic' as const, value: m!.name, aliases: m!.aliases, scope: 'title_and_content' as const }));
+          if (parts.length) {
+            layers.push({ operator: ml.operator as 'OR' | 'AND' | 'NOT', parts });
           }
         }
         if (layers.length) {
@@ -79,7 +86,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
         }
       })
     );
-  }, [caseModelIds.length]);
+  }, [modelLayers.length]);
   const caseQueryRef = useRef(caseQuery);
   // Wrapper: update ref IMMEDIATELY (synchronous), then schedule React state update
   const setCaseQuery = useCallback((q: FeedQuery) => {

@@ -5,8 +5,9 @@
  * selecting "Mergers & Acquisitions" searches for ["M&A", "merger", "acquisition", "rachat"]
  * in article text, instead of just matching a.theme === 'economic'.
  */
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Search, X, ChevronDown } from 'lucide-react';
+import { api } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
 import { useFacetModels, articleText, matchesFacet, type FacetChoice } from '@/v2/hooks/useFacetModels';
 
@@ -204,21 +205,79 @@ export default function FilterBar({ filters, onChange, stats, articles }: Props)
 
   const hasFilters = filters.q || filters.models.length;
 
+  // ── Fuzzy search bar with backend suggestions ──
+  const [searchInput, setSearchInput] = useState('');
+  const [suggestions, setSuggestions] = useState<{ model_id: string; model_name: string; family: string; section: string; matched_term: string; score: number }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const fetchSuggestions = useCallback((q: string) => {
+    if (q.length < 2) { setSuggestions([]); return; }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      api<{ results: typeof suggestions }>(`/ai-feeds/intel-models/search?q=${encodeURIComponent(q)}&limit=8`)
+        .then(r => setSuggestions(r.results))
+        .catch(() => {});
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggestions(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSuggestions]);
+
+  function selectSuggestion(modelId: string) {
+    if (!filters.models.includes(modelId)) {
+      onChange({ ...filters, models: [...filters.models, modelId] });
+    }
+    setSearchInput('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {/* Search input */}
-      <div className="relative">
+      {/* Search bar with fuzzy suggestions */}
+      <div className="relative" ref={searchRef}>
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
         <input
-          value={filters.q}
-          onChange={e => onChange({ ...filters, q: e.target.value })}
-          placeholder="Rechercher..."
-          className="w-44 pl-8 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[12px] outline-none focus:border-[#42d3a5] focus:ring-1 focus:ring-[#42d3a5]/20 transition-all"
+          value={searchInput}
+          onChange={e => { setSearchInput(e.target.value); fetchSuggestions(e.target.value); setShowSuggestions(true); }}
+          onFocus={() => { if (searchInput.length >= 2) setShowSuggestions(true); }}
+          placeholder="Rechercher un modèle..."
+          className="w-56 pl-8 pr-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[12px] outline-none focus:border-[#42d3a5] focus:ring-1 focus:ring-[#42d3a5]/20 transition-all"
         />
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute top-8 left-0 w-72 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
+            {suggestions.map(s => {
+              const already = filters.models.includes(s.model_id);
+              return (
+                <button
+                  key={s.model_id}
+                  onClick={() => selectSuggestion(s.model_id)}
+                  disabled={already}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] transition-all ${
+                    already ? 'opacity-40' : 'hover:ring-1 hover:ring-[#42d3a5]/30'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="truncate font-medium text-slate-700">{s.model_name}</span>
+                    <span className="text-[9px] text-slate-400 ml-1.5">{s.family} / {s.section}</span>
+                  </div>
+                  {s.matched_term !== s.model_name && (
+                    <span className="text-[9px] text-slate-400 truncate max-w-[80px]">via "{s.matched_term}"</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
-
-      {/* Facet dropdowns */}
-      <Dropdown label="Intel Models" items={modelOptions} selected={filters.models} onToggle={v => toggle('models', v)} color={FACET_COLORS.model!} />
 
       {/* Active chips — color-coded by level */}
       {filters.models.map(id => {

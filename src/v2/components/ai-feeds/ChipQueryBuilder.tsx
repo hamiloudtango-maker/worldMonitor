@@ -1,7 +1,8 @@
 // src/v2/components/ai-feeds/ChipQueryBuilder.tsx
 // Feedly-style query builder: OR within rows, AND between rows, NOT to exclude
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, ChevronDown, ChevronRight, ChevronLeft, Plus, Minus, Filter, Sparkles, Loader2, Tags } from 'lucide-react';
+import { api } from '@/v2/lib/api';
 import type { FeedQuery, QueryLayer, QueryPart } from '@/v2/lib/ai-feeds-api';
 import type { CategoryL1, CategoryL2, CategoryLeaf } from '@/v2/lib/ai-feeds-api';
 
@@ -356,19 +357,14 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
               placeholder={resolving ? 'Resolution en cours...' : 'Tapez un terme et Entree, ou choisissez ci-dessous...'}
               className={`w-full pl-9 pr-4 py-2.5 text-[12px] border rounded-xl focus:outline-none bg-white ${resolving ? 'border-[#42d3a5] text-slate-400' : 'border-slate-200 focus:border-[#42d3a5]'}`} />
           </div>
-          {/* Intel Models drill-down */}
-          <IntelModelPicker
-            families={tree}
-            loaded={tree.length > 0}
-            level={intelLevel}
-            setLevel={setIntelLevel}
-            onLoad={() => {}}
+          {/* Fuzzy suggestions from backend */}
+          <FuzzySuggestions
+            query={addSearch}
+            selectedValues={new Set(query.layers.flatMap(l => l.parts.map(p => p.value)))}
             onSelect={m => {
               if (addingOrTo !== null) {
-                // OR mode: add to existing layer
                 addOrPartFromModel(addingOrTo, m);
               } else {
-                // AND/NOT mode: new layer
                 const op = addIsNot ? 'NOT' : (query.layers.length === 0 ? 'OR' : 'AND');
                 onChange({
                   layers: [...query.layers, { operator: op, parts: [{ type: 'entity', value: m.name, aliases: m.aliases, scope: 'title_and_content' }] }],
@@ -376,8 +372,6 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
                 resetAddBar();
               }
             }}
-            selectedValues={new Set(query.layers.flatMap(l => l.parts.map(p => p.value)))}
-            filter={addSearch}
           />
           <button onClick={resetAddBar} className="mt-2 text-[11px] text-slate-400 hover:text-slate-600">Annuler</button>
         </div>
@@ -481,6 +475,80 @@ function IntelModelPicker({ families, loaded, level, setLevel, onLoad, onSelect,
               <div className="text-[9px] text-slate-300 truncate">{(m.aliases || []).slice(0, 4).join(', ')}</div>
             </div>
             {isSelected && <span className="text-[9px] font-bold text-emerald-600">Ajoute</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
+/* ═══ Fuzzy Suggestions — replaces IntelModelPicker, uses backend RapidFuzz ═══ */
+function FuzzySuggestions({ query, selectedValues, onSelect }: {
+  query: string;
+  selectedValues: Set<string>;
+  onSelect: (m: { name: string; aliases: string[] }) => void;
+}) {
+  const [results, setResults] = useState<{ model_id: string; model_name: string; family: string; section: string; matched_term: string; score: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    if (!query || query.length < 2) { setResults([]); return; }
+    clearTimeout(debounceRef.current);
+    setLoading(true);
+    debounceRef.current = setTimeout(() => {
+      api<{ results: typeof results }>(`/ai-feeds/intel-models/search?q=${encodeURIComponent(query)}&limit=10`)
+        .then(r => { setResults(r.results); setLoading(false); })
+        .catch(() => setLoading(false));
+    }, 200);
+    return () => clearTimeout(debounceRef.current);
+  }, [query]);
+
+  // Also resolve aliases when user selects a suggestion
+  async function handleSelect(modelId: string, modelName: string) {
+    try {
+      const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
+      const res = await resolveIntelModel(modelName);
+      onSelect({ name: res.model.name, aliases: res.model.aliases || [] });
+    } catch {
+      onSelect({ name: modelName, aliases: [] });
+    }
+  }
+
+  if (!query || query.length < 2) {
+    return <div className="py-3 text-center text-[11px] text-slate-400">Tapez au moins 2 caractères</div>;
+  }
+
+  if (loading) {
+    return <div className="flex items-center gap-2 py-3 justify-center"><Loader2 size={14} className="animate-spin text-[#42d3a5]" /><span className="text-[11px] text-slate-400">Recherche...</span></div>;
+  }
+
+  if (results.length === 0) {
+    return <div className="py-3 text-center text-[11px] text-slate-400">Aucun modèle trouvé — appuyez Entrée pour créer</div>;
+  }
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+      {results.map(r => {
+        const already = selectedValues.has(r.model_name);
+        return (
+          <button
+            key={r.model_id}
+            onClick={() => handleSelect(r.model_id, r.model_name)}
+            disabled={already}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] border-b border-slate-100 last:border-b-0 ${
+              already ? 'opacity-40' : 'hover:ring-1 hover:ring-[#42d3a5]/30'
+            }`}
+          >
+            <Sparkles size={12} className={already ? 'text-slate-300' : 'text-[#42d3a5]'} />
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-slate-700">{r.model_name}</span>
+              <span className="text-[9px] text-slate-400 ml-1.5">{r.family} / {r.section}</span>
+            </div>
+            {r.matched_term !== r.model_name && (
+              <span className="text-[9px] text-slate-400 truncate max-w-[80px]">via "{r.matched_term}"</span>
+            )}
           </button>
         );
       })}

@@ -23,6 +23,7 @@ _encoder = None
 _model_vectors: dict[str, np.ndarray] = {}   # model_id_hex → vector
 _model_kp: KeywordProcessor | None = None     # FlashText processor
 _model_names: dict[str, str] = {}             # model_id_hex → model name
+_model_meta: dict[str, dict] = {}             # model_id_hex → {family, section}
 _search_choices: list[str] = []               # flat list for search bar
 _search_to_model: dict[str, str] = {}         # choice → model_id_hex
 
@@ -42,11 +43,12 @@ def _get_encoder():
 
 def load_models(models: list) -> None:
     """Pre-compute model vectors, FlashText processor, and search index."""
-    global _model_vectors, _model_kp, _model_names, _search_choices, _search_to_model
+    global _model_vectors, _model_kp, _model_names, _model_meta, _search_choices, _search_to_model
     encoder = _get_encoder()
 
     _model_kp = KeywordProcessor(case_sensitive=False)
     _model_names.clear()
+    _model_meta.clear()
     _search_choices.clear()
     _search_to_model.clear()
 
@@ -58,6 +60,7 @@ def load_models(models: list) -> None:
         aliases = m.aliases or []
         all_terms = [m.name] + aliases
         _model_names[mid] = m.name
+        _model_meta[mid] = {'family': getattr(m, 'family', ''), 'section': getattr(m, 'section', '')}
 
         # FlashText: add aliases >= 4 chars as keywords → returns model_id on match
         for term in all_terms:
@@ -180,9 +183,12 @@ def search_models(query: str, limit: int = 10) -> list[dict]:
         if not mid or mid in seen_models:
             continue
         seen_models.add(mid)
+        meta = _model_meta.get(mid, {})
         out.append({
             "model_id": mid,
             "model_name": _model_names.get(mid, term),
+            "family": meta.get("family", ""),
+            "section": meta.get("section", ""),
             "matched_term": term,
             "score": score,
         })

@@ -172,7 +172,11 @@ export interface CaseData {
   name: string;
   type: string;
   search_keywords: string;
-  query: { layers?: any[]; models?: string[] } | null;
+  query: {
+    layers?: any[];
+    models?: string[];
+    model_layers?: { operator: string; model_ids: string[] }[];
+  } | null;
   identity_card: Record<string, any> | null;
   status: string;
   article_count: number;

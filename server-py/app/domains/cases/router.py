@@ -241,24 +241,173 @@ def _case_article_filter(case: Case):
     return Article.id.in_(select(CaseArticle.article_id).where(CaseArticle.case_id == case.id))
 
 
-def _get_model_ids(case: Case) -> list[str]:
-    """Extract Intel Model IDs from case query_json. Supports both formats."""
+async def _ai_compose_query(db, name: str, case_type: str, identity: dict) -> list[str]:
+    """Use LLM to compose a multi-model query from the Intel Models catalog.
+
+    Finds existing models by fuzzy search, creates missing ones,
+    and returns a list of model IDs for optimal coverage.
+    """
+    from app.models.intel_model import IntelModel
+    from app.source_engine.matching_engine import search_models
+
+    all_models = (await db.scalars(select(IntelModel).order_by(IntelModel.family, IntelModel.section))).all()
+
+    # Build compact catalog for the LLM
+    catalog_lines = []
+    for m in all_models:
+        catalog_lines.append(f"{m.id.hex[:12]}|{m.family}/{m.section}|{m.name}")
+    catalog_text = "\n".join(catalog_lines[:300])  # limit context size
+
+    # Type → default section for new models
+    TYPE_SECTIONS = {
+        "company": ("foundation", "Companies"),
+        "person": ("foundation", "Persons"),
+        "country": ("foundation", "Countries"),
+        "thematic": ("foundation", "Industries"),
+    }
+    default_fam, default_sec = TYPE_SECTIONS.get(case_type, ("foundation", "Industries"))
+
+    description = identity.get("description", "") if identity else ""
+    sector = identity.get("sector", "") if identity else ""
+
+    try:
+        from app.source_engine.detector import _call_gemini
+        import re as _re
+
+        prompt = f"""You are composing an OSINT intelligence query for a case.
+
+Case: "{name}"
+Type: {case_type}
+  - company = surveiller une organisation (entreprise, ONG, institution)
+  - person = suivre un individu clé (dirigeant, politique, personnalité)
+  - country = veille géopolitique sur un pays ou une région
+  - thematic = sujet transversal (industrie, technologie, risque)
+Description: {description}
+Sector: {sector}
+
+Here is the catalog of existing Intel Models (id|family/section|name):
+{catalog_text}
+
+Your job: compose a FOCUSED intelligence query using LAYERS.
+
+LAYER LOGIC (sequential, top-down):
+- Line 1 (OR): base set — the main entity. Articles matching any model in this line.
+- Line 2 (AND): narrows — its industry/sector. Keeps only articles that ALSO match this line.
+- Line 3 (AND): narrows more — its country. Keeps only articles that ALSO match this line.
+- Line N (NOT): excludes — removes articles matching this line from the result above.
+
+Each line can have multiple models joined by OR (union within the line).
+
+For a COMPANY like "{name}":
+  Line 1 (OR): the company itself
+  Line 2 (AND): its core industry
+  Line 3 (AND): its country of headquarters
+
+For a COUNTRY:
+  Line 1 (OR): the country itself
+  Line 2 (AND): 1-2 key topics for this country
+
+If a model doesn't exist in the catalog, include it as NEW.
+
+Return ONLY valid JSON (no markdown):
+{{
+  "layers": [
+    {{"operator": "OR", "existing_ids": ["id1"], "new_models": []}},
+    {{"operator": "AND", "existing_ids": ["id2", "id3"], "new_models": []}},
+    {{"operator": "AND", "existing_ids": ["id4"], "new_models": []}}
+  ]
+}}
+
+Each layer can have:
+- existing_ids: 12-char IDs from the catalog above
+- new_models: [{{"name": "...", "family": "{default_fam}", "section": "{default_sec}", "aliases": ["8-15 aliases, multilingual, min 3 chars"]}}]
+
+Rules:
+- Companies → foundation/Companies, Countries → foundation/Countries, Industries → foundation/Industries
+- 3 layers MAX. No generic themes (ESG, Sustainability). Be specific."""
+
+        raw = await _call_gemini(prompt)
+        cleaned = _re.sub(r"^```(?:json)?\s*", "", raw.strip())
+        cleaned = _re.sub(r"\s*```$", "", cleaned)
+        data = json.loads(cleaned.strip())
+
+        id_map = {m.id.hex[:12]: m.id.hex for m in all_models}
+        result_layers = []
+
+        for layer in data.get("layers", []):
+            op = layer.get("operator", "OR")
+            layer_model_ids = []
+
+            # Resolve existing IDs
+            for short_id in layer.get("existing_ids", []):
+                full_id = id_map.get(short_id[:12])
+                if full_id:
+                    layer_model_ids.append(full_id)
+
+            # Create new models if needed
+            for new in layer.get("new_models", []):
+                existing = search_models(new["name"], limit=1)
+                if existing and existing[0]["score"] >= 80:
+                    layer_model_ids.append(existing[0]["model_id"])
+                    logger.info("Compose: '%s' matched existing '%s'", new["name"], existing[0]["model_name"])
+                else:
+                    m = IntelModel(
+                        name=new["name"],
+                        family=new.get("family", default_fam),
+                        section=new.get("section", default_sec),
+                        aliases=new.get("aliases", [new["name"]]),
+                        origin="ai_enriched",
+                    )
+                    db.add(m)
+                    await db.flush()
+                    layer_model_ids.append(m.id.hex)
+                    logger.info("Compose: created '%s' in %s/%s", m.name, m.family, m.section)
+
+            if layer_model_ids:
+                result_layers.append({"operator": op, "model_ids": layer_model_ids})
+
+        logger.info("AI compose for case '%s': %d layers", name, len(result_layers))
+        return result_layers
+
+    except Exception:
+        logger.warning("AI compose failed for case '%s', fallback to fuzzy search", name, exc_info=True)
+        results = search_models(name, limit=1)
+        if results:
+            return [{"operator": "OR", "model_ids": [results[0]["model_id"]]}]
+        return []
+
+
+def _get_model_layers(case: Case) -> list[dict]:
+    """Extract model layers from case query_json.
+    Returns [{"operator": "OR"|"AND"|"NOT", "model_ids": ["hex1", "hex2"]}]"""
     if not case.query_json:
         return []
     try:
         q = json.loads(case.query_json) if isinstance(case.query_json, str) else case.query_json
-        # New format: {"models": ["uuid1", "uuid2"]} — strip dashes for SQLite compat
+        # New format: {"model_layers": [{"operator": "OR", "model_ids": [...]}]}
+        if "model_layers" in q:
+            layers = []
+            for layer in q["model_layers"]:
+                mids = [m.replace("-", "") for m in layer.get("model_ids", []) if m]
+                if mids:
+                    layers.append({"operator": layer.get("operator", "OR"), "model_ids": mids})
+            return layers
+        # Flat format: {"models": ["uuid1", "uuid2"]} → single OR layer
         if "models" in q:
-            return [m.replace("-", "") for m in q["models"] if m]
-        # Legacy format: {"layers": [...]} — extract model IDs from parts
-        # Each part may have an "id" field if it came from an Intel Model
-        for layer in q.get("layers", []):
-            for part in layer.get("parts", []):
-                if part.get("id"):
-                    return [part["id"] for part in layer["parts"] if part.get("id")]
+            mids = [m.replace("-", "") for m in q["models"] if m]
+            return [{"operator": "OR", "model_ids": mids}] if mids else []
     except Exception:
         pass
     return []
+
+
+def _get_model_ids(case: Case) -> list[str]:
+    """Flat list of all model IDs (for backward compat)."""
+    layers = _get_model_layers(case)
+    all_ids = []
+    for layer in layers:
+        all_ids.extend(layer.get("model_ids", []))
+    return all_ids
 
 
 async def _count_articles_and_alerts(db: AsyncSession, case: Case) -> tuple[int, int]:
@@ -266,14 +415,36 @@ async def _count_articles_and_alerts(db: AsyncSession, case: Case) -> tuple[int,
     from sqlalchemy import text
     model_ids = _get_model_ids(case)
 
-    if model_ids:
-        # New path: JOIN article_models
-        placeholders = ",".join(f":m{i}" for i in range(len(model_ids)))
-        params = {f"m{i}": mid for i, mid in enumerate(model_ids)}
+    model_layers = _get_model_layers(case)
+    if model_layers:
+        # Sequential layer logic: OR within layer, AND/NOT between layers
+        # Build nested SQL: each layer filters the result of all previous layers
+        params = {}
+        pidx = 0
+
+        # Start with all article IDs
+        inner_sql = "SELECT id FROM articles"
+
+        for layer in model_layers:
+            op = layer["operator"]
+            mids = layer["model_ids"]
+            placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
+            for i, mid in enumerate(mids):
+                params[f"p{pidx + i}"] = mid
+            pidx += len(mids)
+
+            # Articles matching ANY model in this layer (OR within layer)
+            layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+
+            if op == "NOT":
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+            else:
+                # AND: intersection — keep articles that are in BOTH previous result and this layer
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
         result = await db.execute(text(
-            "SELECT count(DISTINCT a.id), sum(CASE WHEN a.threat_level IN ('critical','high') THEN 1 ELSE 0 END) "
-            "FROM articles a JOIN article_models am ON am.article_id = a.id "
-            f"WHERE am.model_id IN ({placeholders})"
+            f"SELECT count(*), sum(CASE WHEN a.threat_level IN ('critical','high') THEN 1 ELSE 0 END) "
+            f"FROM articles a WHERE a.id IN ({inner_sql})"
         ), params)
     else:
         # Legacy path: case_articles (for old cases not yet migrated)
@@ -383,41 +554,9 @@ async def create_case(
         identity = {"name": body.name, "type": body.type, "description": body.description or f"{body.type.title()} named {body.name}"}
     search_keywords = _generate_search_keywords(body.name, identity, body.description)
 
-    # Auto-resolve case name to Intel Model (create if not found)
+    # AI-compose: find or create Intel Models, then compose a multi-model query
     from app.models.intel_model import IntelModel
-    existing_model = (await db.scalars(
-        select(IntelModel).where(func.lower(IntelModel.name) == body.name.lower())
-    )).first()
-
-    if not existing_model:
-        # Try LLM resolve
-        try:
-            from app.source_engine.detector import _call_gemini
-            import re as _re
-            prompt = f"""Create an intelligence model for the OSINT term: "{body.name}"
-Return ONLY valid JSON (no markdown):
-{{"name": "Proper name", "family": "foundation", "section": "{'Companies' if body.type == 'company' else 'Geopolitics' if body.type == 'country' else 'Custom'}",
-"description": "One sentence", "aliases": ["8-15 aliases in English, French, local language. Min 3 chars each."]}}"""
-            raw = await _call_gemini(prompt)
-            cleaned = _re.sub(r"^```(?:json)?\s*", "", raw.strip())
-            cleaned = _re.sub(r"\s*```$", "", cleaned)
-            data = json.loads(cleaned.strip())
-            existing_model = IntelModel(
-                name=data.get("name", body.name),
-                family=data.get("family", "foundation"),
-                section=data.get("section", "Custom"),
-                description=data.get("description"),
-                aliases=data.get("aliases", [body.name]),
-                origin="ai_enriched",
-            )
-            db.add(existing_model)
-            await db.flush()
-            logger.info("Auto-created Intel Model '%s' for case '%s'", existing_model.name, body.name)
-        except Exception:
-            logger.warning("Failed to auto-create Intel Model for case '%s'", body.name, exc_info=True)
-
-    # Set query to reference the Intel Model
-    query_models = [str(existing_model.id)] if existing_model else []
+    query_layers = await _ai_compose_query(db, body.name, body.type, identity)
     case = Case(
         id=uuid.uuid4(),
         org_id=user.org_id,
@@ -425,7 +564,7 @@ Return ONLY valid JSON (no markdown):
         name=body.name,
         type=body.type,
         search_keywords=search_keywords,
-        query_json=json.dumps({"models": query_models}) if query_models else None,
+        query_json=json.dumps({"model_layers": query_layers}) if query_layers else None,
         identity_card=json.dumps(identity),
         status="active",
     )
@@ -606,16 +745,40 @@ async def case_articles(
     cutoff = datetime.now(timezone.utc) - __import__('datetime').timedelta(days=days)
     model_ids = _get_model_ids(case)
 
-    if model_ids:
-        # New path: article_models
-        from app.models.article_model import ArticleModel
-        import uuid as _uuid
-        mid_uuids = [_uuid.UUID(m) for m in model_ids]
+    model_layers = _get_model_layers(case)
+    if model_layers:
+        # Sequential layer logic via raw SQL (same as _count_articles_and_alerts)
+        from sqlalchemy import text as sa_text
+        params = {}
+        pidx = 0
+        inner_sql = f"SELECT id FROM articles WHERE pub_date >= :cutoff"
+        params["cutoff"] = cutoff.isoformat()
+
+        for layer in model_layers:
+            op = layer["operator"]
+            mids = layer["model_ids"]
+            placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
+            for i, mid in enumerate(mids):
+                params[f"p{pidx + i}"] = mid
+            pidx += len(mids)
+            layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+            if op == "NOT":
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+            else:
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
+        # Wrap in ORM-compatible query
         stmt = (
             select(Article)
-            .join(ArticleModel, ArticleModel.article_id == Article.id)
-            .where(ArticleModel.model_id.in_(mid_uuids), Article.pub_date >= cutoff)
-            .group_by(Article.id)
+            .where(Article.id.in_(sa_text(inner_sql)))
+            .order_by(desc(Article.pub_date))
+        )
+        # We need to pass params via execution_options or raw — use raw approach
+        result_ids = await db.execute(sa_text(inner_sql), params)
+        matched_ids = [row[0] for row in result_ids.fetchall()]
+        stmt = (
+            select(Article)
+            .where(Article.id.in_(matched_ids))
             .order_by(desc(Article.pub_date))
         )
     else:
