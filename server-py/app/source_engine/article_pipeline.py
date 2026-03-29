@@ -80,11 +80,12 @@ Return this exact JSON structure:
     {{
       "index": 0,
       "title_en": "English translation of headline (if already English, copy as-is)",
+      "family": "politics",
+      "section": "Geopolitics",
       "persons": ["Name1", "Name2"],
       "organizations": ["NATO", "OPEC"],
       "country_codes": ["US", "UA", "RU"],
       "countries_mentioned": ["United States", "Ukraine", "Russia"],
-      "theme": "conflict|economic|tech|military|disaster|health|cyber|diplomatic|protest|crime|environmental|infrastructure|terrorism|general",
       "tags": ["nuclear", "diplomacy", "sanctions"],
       "sentiment": "positive|negative|neutral",
       "summary": "Brief 1-2 sentence summary of the headline's topic and significance."
@@ -92,22 +93,36 @@ Return this exact JSON structure:
   ]
 }}
 
+TAXONOMY — pick ONE family + section per article:
+  politics: Geopolitics, Governance, Legal & Regulation, Conflicts & Crises, Social Movements, Intelligence & Influence
+  economy: Macroeconomics, Finance & Markets, Trade & Commodities, Supply Chains, Infrastructure, Agriculture & Food, Corporate, Employment
+  defense: Military, Armament, Terrorism, Nuclear Weapons
+  technology: Digital & AI, Hardware, Telecom, Space, Platforms & Internet, Science & Research
+  cyber: Attacks, Threat Actors, Vulnerabilities, Detection, Cyber Policy
+  energy: Fossil, Nuclear, Renewables, Energy Markets, Policy & Grid
+  health: Diseases, Pharma & Biotech, Public Health, Healthcare Systems
+  environment: Climate, Disasters, Sustainability, Resources
+  society: Migration, Rights & Justice, Organized Crime, Education & Culture, Religion, Information & Media, Labor
+  mute: Noise, Entertainment
+
 Rules:
+- family + section: classify the article into the MOST relevant family and section from the taxonomy above
 - title_en: translate to English if not already English. Keep original if already in English.
 - country_codes: ISO 3166-1 alpha-2 (US, FR, UA, RU, CN, IR, etc.)
 - countries_mentioned: full country names in English (United States, France, Ukraine, etc.)
 - persons: only named individuals (leaders, officials, CEOs)
 - organizations: political bodies, companies, military alliances, NGOs
-- theme: pick the single most relevant category from the list
 - tags: 1-5 specific topic keywords (lowercase, e.g. "nuclear", "oil prices", "ai regulation")
 - sentiment: overall tone of the headline
 - summary: 1-2 sentences explaining what the article is about
-- If unsure, use empty arrays and "general"/"neutral"
+- Sports, job postings, celebrity gossip → mute/Noise or mute/Entertainment
+- If unsure, use "economy" / "Corporate" as default
 """
 
 _EMPTY_ENRICHMENT = {
-    "title_en": "", "persons": [], "organizations": [], "country_codes": [],
-    "countries_mentioned": [], "theme": "general", "tags": [],
+    "title_en": "", "family": "economy", "section": "Corporate",
+    "persons": [], "organizations": [], "country_codes": [],
+    "countries_mentioned": [], "tags": [],
     "sentiment": "neutral", "summary": "",
 }
 
@@ -159,7 +174,6 @@ def _build_article(
     source_id: str, row: dict, h: str, link: str,
     title: str, lang: str, cls: dict, enriched: dict,
 ) -> Article:
-    theme = cls["theme"] if cls["theme"] != "general" else enriched.get("theme", "general")
     persons = enriched.get("persons", [])
     organizations = enriched.get("organizations", [])
     entities = persons + organizations
@@ -167,6 +181,16 @@ def _build_article(
     countries_mentioned = enriched.get("countries_mentioned", [])
     title_en = enriched.get("title_en", "")
     translated = title_en if (title_en and title_en != title) else None
+
+    # Validate family/section against taxonomy
+    from app.domains.ai_feeds.taxonomy import is_valid
+    family = enriched.get("family", "economy")
+    section = enriched.get("section", "Corporate")
+    if not is_valid(family, section):
+        family, section = "economy", "Corporate"
+
+    # theme from classifier as fallback, family/section from Gemini is primary
+    theme = cls["theme"] if cls["theme"] != "general" else family
 
     return Article(
         hash=h,
@@ -180,6 +204,8 @@ def _build_article(
         threat_level=cls["threat_level"],
         theme=theme,
         confidence=cls["confidence"],
+        family=family,
+        section=section,
         entities_json=json.dumps(entities) if entities else None,
         persons_json=json.dumps(persons) if persons else None,
         orgs_json=json.dumps(organizations) if organizations else None,
@@ -245,7 +271,7 @@ async def ingest_articles(
 
     await db.commit()
 
-    # Delta-match new articles against Intel Models (SET + MiniLM)
+    # Match new articles against Intel Models (FlashText + Gemma)
     if new_articles:
         try:
             from app.source_engine.matching_engine import match_articles, store_matches
@@ -399,7 +425,7 @@ async def enrich_and_store(
         await db.rollback()
         return 0
 
-    # Delta-match new articles against Intel Models (SET + MiniLM)
+    # Match new articles against Intel Models (FlashText + Gemma)
     if new_articles:
         try:
             from app.source_engine.matching_engine import match_articles, store_matches
@@ -408,7 +434,7 @@ async def enrich_and_store(
                 await store_matches(db, matches)
                 await db.commit()
         except Exception:
-            logger.debug("model matching after enrich_and_store skipped", exc_info=True)
+            logger.debug("model matching after ingest_articles skipped", exc_info=True)
 
     # Delta-match new articles against all active cases
     if new_articles:

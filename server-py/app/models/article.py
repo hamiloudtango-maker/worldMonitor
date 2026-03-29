@@ -33,6 +33,10 @@ class Article(Base):
     # Country codes (JSON string: ["UA", "RU"])
     country_codes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Taxonomy classification (Gemini Flash)
+    family: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)  # politics, economy, defense...
+    section: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)  # Geopolitics, Corporate...
+
     # Enriched metadata (single LLM call)
     sentiment: Mapped[str | None] = mapped_column(String(10), nullable=True)  # positive, negative, neutral
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)  # 2-3 sentence summary

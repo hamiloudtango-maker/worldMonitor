@@ -13,8 +13,14 @@ class QueryLayer(BaseModel):
     parts: list[QueryPart] = []
 
 
+class ModelLayer(BaseModel):
+    operator: str = "OR"  # OR | AND | NOT
+    model_ids: list[str] = []
+
+
 class FeedQuery(BaseModel):
     layers: list[QueryLayer] = []
+    model_layers: list[ModelLayer] = []
 
 
 class AIConfig(BaseModel):

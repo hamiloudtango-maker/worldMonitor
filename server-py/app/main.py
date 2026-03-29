@@ -89,6 +89,7 @@ async def _auto_ingest_catalog():
         try:
             async with async_session() as db:
                 await ingest_full_catalog(db, db_session_factory=async_session)
+
             await finish_job(job_id)
         except Exception as e:
             await finish_job(job_id, error=str(e)[:500])
@@ -98,6 +99,29 @@ async def _auto_ingest_catalog():
                 pass  # UnicodeEncodeError on Windows terminal
 
         await asyncio.sleep(10 * 60)  # every 10 min
+
+
+async def _auto_classify_articles():
+    """Background task: classify articles > 1 day with no family/section via FlashText.
+    Runs continuously — processes batches of 500, sleeps 30s between batches.
+    Stops when nothing left, then checks every 5 min for new unclassified articles."""
+    import asyncio
+    from app.db import async_session
+    from app.source_engine.matching_engine import classify_unclassified_articles
+
+    await _db_ready.wait()
+    await asyncio.sleep(30)  # let ingestion start first
+
+    while True:
+        try:
+            async with async_session() as db:
+                n = await classify_unclassified_articles(db)
+            if n > 0:
+                await asyncio.sleep(5)  # more to do, short pause
+            else:
+                await asyncio.sleep(5 * 60)  # nothing left, check every 5 min
+        except Exception:
+            await asyncio.sleep(60)
 
 
 async def _auto_refresh_cases():
@@ -206,13 +230,16 @@ async def lifespan(app: FastAPI):
     # Seed RSS catalog + Intel Models on boot
     from app.db import async_session
     from app.domains.ai_feeds.seed import seed_catalog
-    from app.domains.ai_feeds.intel_models_seed import seed_intel_models
+    from app.domains.ai_feeds.intel_models_seed import seed_intel_models, migrate_existing_models
     import logging
     _log = logging.getLogger(__name__)
     async with async_session() as db:
         count = await seed_catalog(db)
         if count:
             _log.info(f"Seeded {count} RSS catalog entries")
+        migrated = await migrate_existing_models(db)
+        if migrated:
+            _log.info(f"Migrated {migrated} intel models to new taxonomy")
         im_count = await seed_intel_models(db)
         if im_count:
             _log.info(f"Seeded {im_count} intel models")
@@ -263,16 +290,18 @@ async def lifespan(app: FastAPI):
     _db_ready = asyncio.Event()
     _db_ready.set()
 
-    # Start background ingestion tasks
+    # Start background tasks
     catalog_task = asyncio.create_task(_auto_ingest_catalog())
     refresh_task = asyncio.create_task(_auto_refresh_cases())
     category_task = asyncio.create_task(_auto_analyze_categories())
+    classify_task = asyncio.create_task(_auto_classify_articles())
 
     yield
 
     catalog_task.cancel()
     refresh_task.cancel()
     category_task.cancel()
+    classify_task.cancel()
     from app.source_engine.scheduler import shutdown
     await shutdown()
 

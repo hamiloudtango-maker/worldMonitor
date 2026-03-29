@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import CurrentUser, get_current_user
 from app.db import get_db
 from app.domains.cases.identity import generate_identity_card
+from app.domains.ai_feeds.schemas import FeedQuery
 from app.models.article import Article
 from app.models.case import Case, CaseBoard
 
@@ -38,7 +39,7 @@ class CaseUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     search_keywords: str | None = None
-    query: dict | None = None  # Feed-style query {layers: [...]}
+    query: FeedQuery | None = None
     identity_card: dict | None = None
     status: str | None = None
     regenerate: bool = False  # if True, re-generate identity card + keywords from description
@@ -261,8 +262,8 @@ async def _ai_compose_query(db, name: str, case_type: str, identity: dict) -> li
     # Type → default section for new models
     TYPE_SECTIONS = {
         "company": ("foundation", "Companies"),
-        "person": ("foundation", "Persons"),
-        "country": ("foundation", "Countries"),
+        "person": ("foundation", "People"),
+        "country": ("geo", "Global"),
         "thematic": ("foundation", "Industries"),
     }
     default_fam, default_sec = TYPE_SECTIONS.get(case_type, ("foundation", "Industries"))
@@ -312,8 +313,10 @@ Each layer can have:
 - new_models: [{{"name": "...", "family": "{default_fam}", "section": "{default_sec}", "aliases": ["8-15 SPECIFIC aliases, multilingual, min 5 chars. NEVER use common words that appear in normal text (e.g. 'Total', 'Global', 'National', 'Energy'). Only use unique identifiers for this entity."]}}]
 
 Rules:
-- Companies → foundation/Companies, Countries → foundation/Countries, Industries → foundation/Industries
-- 1 layer ONLY. The user adds more manually."""
+- Companies → foundation/Companies, Countries → geo/<region>, Industries → foundation/Industries, Organizations → foundation/Organizations, People → foundation/People
+- VALID FAMILIES: politics, economy, defense, technology, cyber, energy, health, environment, society, foundation, geo, mute
+- 1 layer ONLY. The user adds more manually.
+- Aliases must be SPECIFIC (no common words like "Total", "Global", "National"), multilingual (EN/FR + relevant), min 5 chars each."""
 
         raw = await _call_gemini(prompt)
         cleaned = _re.sub(r"^```(?:json)?\s*", "", raw.strip())
@@ -333,24 +336,43 @@ Rules:
                 if full_id:
                     layer_model_ids.append(full_id)
 
-            # Create new models if needed
+            # Create new models if needed — dedup by name + aliases
+            from app.domains.ai_feeds.taxonomy import is_valid
             for new in layer.get("new_models", []):
+                # Check fuzzy match by name
                 existing = search_models(new["name"], limit=1)
                 if existing and existing[0]["score"] >= 80:
                     layer_model_ids.append(existing[0]["model_id"])
                     logger.info("Compose: '%s' matched existing '%s'", new["name"], existing[0]["model_name"])
-                else:
-                    m = IntelModel(
-                        name=new["name"],
-                        family=new.get("family", default_fam),
-                        section=new.get("section", default_sec),
-                        aliases=new.get("aliases", [new["name"]]),
-                        origin="ai_enriched",
-                    )
-                    db.add(m)
-                    await db.flush()
-                    layer_model_ids.append(m.id.hex)
-                    logger.info("Compose: created '%s' in %s/%s", m.name, m.family, m.section)
+                    continue
+
+                # Check name overlap with existing models
+                new_name_lower = new["name"].lower()
+                dup = None
+                for em in all_models:
+                    if em.name.lower() == new_name_lower:
+                        dup = em
+                        break
+                if dup:
+                    layer_model_ids.append(dup.id.hex)
+                    logger.info("Compose: '%s' deduped to existing '%s'", new["name"], dup.name)
+                    continue
+
+                fam = new.get("family", default_fam)
+                sec = new.get("section", default_sec)
+                if not is_valid(fam, sec):
+                    fam, sec = default_fam, default_sec
+                m = IntelModel(
+                    name=new["name"],
+                    family=fam,
+                    section=sec,
+                    aliases=new_aliases,
+                    origin="ai_enriched",
+                )
+                db.add(m)
+                await db.flush()
+                layer_model_ids.append(m.id.hex)
+                logger.info("Compose: created '%s' in %s/%s", m.name, m.family, m.section)
 
             if layer_model_ids:
                 result_layers.append({"operator": op, "model_ids": layer_model_ids})
@@ -668,7 +690,7 @@ async def update_case(
 
     query_changed = False
     if body.query is not None:
-        case.query_json = json.dumps(body.query)
+        case.query_json = body.query.model_dump_json()
         query_changed = True
 
     case.updated_at = datetime.now(timezone.utc)

@@ -95,6 +95,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
                 layers: [
                   { operator: 'OR', parts: [{ type: template.chip1.type, value: model.name, aliases: model.aliases, scope: 'title_and_content' }] },
                 ],
+                model_layers: [{ operator: 'OR', model_ids: [model.id] }],
               });
               return;
             }
@@ -354,21 +355,25 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   if (state.step === 'refine') {
     const template = state.template;
 
-    function addModel(m: { name: string; aliases: string[] }) {
+    function addModel(m: { id: string; name: string; aliases: string[] }) {
       const newPart = { type: 'entity' as const, value: m.name, aliases: m.aliases, scope: 'title_and_content' as const };
       if (query.layers.length === 0) {
-        // First model → create first OR layer
-        setQuery({ layers: [{ operator: 'OR', parts: [newPart] }] });
+        setQuery({ layers: [{ operator: 'OR', parts: [newPart] }], model_layers: [{ operator: 'OR', model_ids: [m.id] }] });
       } else {
-        // Subsequent models → new AND layer
-        setQuery({ layers: [...query.layers, { operator: 'AND', parts: [newPart] }] });
+        setQuery({
+          layers: [...query.layers, { operator: 'AND', parts: [newPart] }],
+          model_layers: [...(query.model_layers || []), { operator: 'AND', model_ids: [m.id] }],
+        });
       }
     }
 
     function removeChip(li: number, pi: number) {
       const parts = query.layers[li].parts.filter((_, i) => i !== pi);
-      if (parts.length === 0) setQuery({ layers: query.layers.filter((_, i) => i !== li) });
-      else { const updated = [...query.layers]; updated[li] = { ...query.layers[li], parts }; setQuery({ layers: updated }); }
+      if (parts.length === 0) {
+        setQuery({ layers: query.layers.filter((_, i) => i !== li), model_layers: (query.model_layers || []).filter((_, i) => i !== li) });
+      } else {
+        const updated = [...query.layers]; updated[li] = { ...query.layers[li], parts }; setQuery({ ...query, layers: updated });
+      }
     }
 
     const selectedValues = new Set(query.layers.flatMap(l => l.parts.map(p => p.value)));
@@ -411,7 +416,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
                   if (e.key === 'Enter' && searchValue.trim()) {
                     const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
                     const { model } = await resolveIntelModel(searchValue.trim());
-                    addModel({ name: model.name, aliases: model.aliases });
+                    addModel({ id: model.id, name: model.name, aliases: model.aliases });
                     setSearchValue('');
                   }
                 }}
@@ -477,7 +482,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
 
 /* ═══ Intel Model Browser — 3-level drill-down ═══ */
 function IntelModelBrowser({ onSelect, selectedValues }: {
-  onSelect: (m: { name: string; aliases: string[] }) => void;
+  onSelect: (m: { id: string; name: string; aliases: string[] }) => void;
   selectedValues: Set<string>;
 }) {
   const [families, setFamilies] = useState<import('@/v2/lib/ai-feeds-api').IntelFamily[]>([]);
@@ -563,8 +568,9 @@ function IntelModelBrowser({ onSelect, selectedValues }: {
       {section.models.map((m, mi) => {
         const isSelected = selectedValues.has(m.name);
         return (
-          <button key={mi} onClick={() => { if (!isSelected) onSelect({ name: m.name, aliases: m.aliases }); }}
+          <button key={mi}
             disabled={isSelected}
+            onClick={() => { if (!isSelected) onSelect({ id: m.id, name: m.name, aliases: m.aliases }); }}
             className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-slate-100 last:border-b-0 transition-colors ${
               isSelected ? 'bg-emerald-50 opacity-60' : 'hover:bg-slate-50'
             }`}>

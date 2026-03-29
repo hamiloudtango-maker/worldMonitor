@@ -26,7 +26,7 @@ export default function AIFeedsView() {
   function handleSelect(feed: AIFeedData) {
     setSelected(feed);
     setLocalQuery(feed.query || { layers: [] });
-    setLocalModelLayers((feed.query as any)?.model_layers || []);
+    setLocalModelLayers(feed.query?.model_layers || []);
     setDirty(false);
     setCreating(false);
   }
@@ -71,6 +71,7 @@ export default function AIFeedsView() {
       }
 
       setLocalQuery(query);
+      setLocalModelLayers(query.model_layers || []);
       setSelected({ ...feed, source_count: bootstrap.resolved_sources?.length || 0 });
       setDirty(false);
       setCreating(false);
@@ -87,6 +88,7 @@ export default function AIFeedsView() {
     if (selected?.id === id) {
       setSelected(null);
       setLocalQuery({ layers: [] });
+      setLocalModelLayers([]);
     }
   }
 

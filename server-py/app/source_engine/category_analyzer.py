@@ -328,21 +328,34 @@ async def _enrich_intel_models(db: AsyncSession, result: dict) -> int:
     new_models = 0
     if unknown_entities[:10]:
         try:
+            from app.domains.ai_feeds.taxonomy import FAMILIES, SECTIONS
+            taxonomy_lines = []
+            for fam, secs in SECTIONS.items():
+                taxonomy_lines.append(f"  {fam} ({FAMILIES[fam]}): {', '.join(secs)}")
+            taxonomy_text = "\n".join(taxonomy_lines)
+
             prompt = f"""You are curating an OSINT intelligence model catalog. Below are trending entities detected this week that are NOT yet in our catalog.
 
 STRICT RULES:
 - Only add entities that are DURABLE and SIGNIFICANT (companies, organizations, technologies, geopolitical concepts)
 - Do NOT add: individual people, single events, generic topics, country names, or short-lived trends
 - Do NOT add anything that is too generic (like "diplomacy", "politics", "economy")
-- Each model must have 8-15 aliases in English, French, and the relevant language for the subject
-- Every alias must be at least 3 characters
 - If an entity is not worth tracking long-term, skip it
+
+ALIAS RULES:
+- 8-15 aliases per model: synonyms, abbreviations, translations (English, French, + relevant language)
+- Every alias must be SPECIFIC enough to find this entity in news articles without false positives
+- NEVER use common words that appear in unrelated text (e.g. "Total", "Global", "National", "Energy")
+- Every alias must be at least 3 characters
+
+TAXONOMY (you MUST pick from these families and sections):
+{taxonomy_text}
 
 Trending unknowns:
 {json.dumps(unknown_entities[:10], ensure_ascii=False)}
 
 Return ONLY a JSON array (no markdown). Return [] if none are worth adding.
-[{{"name": "...", "family": "foundation|market|threat|risk", "section": "...", "description": "...", "aliases": ["..."]}}]"""
+[{{"name": "...", "family": "...", "section": "...", "description": "...", "aliases": ["..."]}}]"""
 
             raw = await _call_gemini(prompt)
             cleaned = raw.strip()
@@ -358,17 +371,27 @@ Return ONLY a JSON array (no markdown). Return [] if none are worth adding.
                 fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
                 proposals = json.loads(fixed)
 
+            from app.domains.ai_feeds.taxonomy import is_valid
             for p in proposals:
                 if not isinstance(p, dict) or 'name' not in p:
                     continue
                 if p['name'].lower() in model_names_lower:
                     continue
+                fam = p.get('family', 'foundation')
+                sec = p.get('section', 'Companies')
+                if not is_valid(fam, sec):
+                    logger.warning(f"LLM proposed invalid taxonomy {fam}/{sec} for '{p['name']}', skipping")
+                    continue
+                # Dedup: check name overlap
+                if p['name'].lower() in model_names_lower:
+                    logger.info(f"Enrichment: '{p['name']}' already exists, skipping")
+                    continue
                 model = IntelModel(
                     name=p['name'],
-                    family=p.get('family', 'market'),
-                    section=p.get('section', 'Trends'),
+                    family=fam,
+                    section=sec,
                     description=p.get('description'),
-                    aliases=p.get('aliases', []),
+                    aliases=new_aliases,
                     origin='ai_enriched',
                 )
                 db.add(model)

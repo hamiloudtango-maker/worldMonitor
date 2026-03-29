@@ -56,6 +56,67 @@ def _serialize_source(s: AIFeedSource) -> dict:
     }
 
 
+async def _ensure_matching(db, model_layers: list[dict]) -> None:
+    """Ensure articles are matched against the given models before querying.
+    - Articles < 2 days: Gemini Flash (semantic)
+    - Articles > 2 days: FlashText (exact keywords)
+    """
+    from sqlalchemy import text as sa_text
+    from datetime import timedelta
+
+    all_mids = []
+    for layer in model_layers:
+        all_mids.extend(m.replace("-", "") for m in layer.get("model_ids", []) if m)
+    if not all_mids:
+        return
+
+    unique_mids = list(set(all_mids))
+
+    # Find articles not yet matched against these models (last 30 days)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+
+    from app.models.article import Article
+    from app.models.article_model import ArticleModel
+    from app.source_engine.matching_engine import match_articles_targeted, match_articles_gemini, store_matches
+
+    # Find articles not already matched against these specific models
+    # Using ORM to avoid UUID string/hex mismatch
+    already_matched = select(ArticleModel.article_id).where(
+        ArticleModel.model_id.in_([uuid.UUID(m) if len(m) == 32 else uuid.UUID(m) for m in unique_mids])
+    )
+
+    # Older articles (2-30 days) — FlashText
+    older_articles = (await db.execute(
+        select(Article)
+        .where(Article.created_at > cutoff, Article.created_at <= two_days_ago)
+        .where(Article.id.not_in(already_matched))
+        .limit(1000)
+    )).scalars().all()
+
+    if older_articles:
+        matches = match_articles_targeted(older_articles, unique_mids)
+        if matches:
+            await store_matches(db, matches)
+            await db.commit()
+        logger.info(f"FlashText matched {len(older_articles)} older articles -> {len(matches)} matches")
+
+    # Recent articles (< 2 days) — Gemini Flash
+    recent_articles = (await db.execute(
+        select(Article)
+        .where(Article.created_at > two_days_ago)
+        .where(Article.id.not_in(already_matched))
+        .limit(500)
+    )).scalars().all()
+
+    if recent_articles:
+        matches = await match_articles_gemini(recent_articles, unique_mids, db)
+        if matches:
+            await store_matches(db, matches)
+            await db.commit()
+        logger.info(f"Gemini matched {len(recent_articles)} recent articles -> {len(matches)} matches")
+
+
 async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
     """Run feed query against articles table and populate ai_feed_results.
     Supports new format (models: []) via article_models JOIN, and legacy (layers: []) via LIKE."""
@@ -68,6 +129,8 @@ async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
         model_layers = [{"operator": "OR", "model_ids": query_data["models"]}]
 
     if model_layers:
+        # Ensure matching is up to date for these models
+        await _ensure_matching(db, model_layers)
         params = {}
         pidx = 0
         inner_sql = "SELECT id FROM articles"
@@ -697,14 +760,11 @@ async def intel_models_tree(db: AsyncSession = Depends(get_db)):
             "description": m.description, "article_count": m.article_count,
         })
 
-    DEFAULT_LABELS = {
-        "market": "Market Intelligence", "threat": "Threat Intelligence",
-        "risk": "Risk Intelligence", "foundation": "Foundation",
-        "biopharma": "Biopharma Research", "mute": "Mute Filters",
-        "geopolitical": "Geopolitical",
-    }
+    from app.domains.ai_feeds.taxonomy import FAMILIES
     families = []
-    for fam_key in sorted(tree.keys(), key=lambda k: list(DEFAULT_LABELS.keys()).index(k) if k in DEFAULT_LABELS else 99):
+    # Order: taxonomy order, then any extras at the end
+    fam_order = list(FAMILIES.keys())
+    for fam_key in sorted(tree.keys(), key=lambda k: fam_order.index(k) if k in fam_order else 99):
         sections = []
         for sec_name, sec_models in tree[fam_key].items():
             sections.append({
@@ -714,7 +774,7 @@ async def intel_models_tree(db: AsyncSession = Depends(get_db)):
             })
         families.append({
             "key": fam_key,
-            "label": fam_labels.get(fam_key, DEFAULT_LABELS.get(fam_key, fam_key)),
+            "label": fam_labels.get(fam_key, FAMILIES.get(fam_key, fam_key)),
             "aliases": fam_aliases.get(fam_key, []),
             "sections": sections,
         })
@@ -1165,15 +1225,30 @@ async def resolve_intel_model(
     try:
         from app.source_engine.detector import _call_gemini
 
+        from app.domains.ai_feeds.taxonomy import FAMILIES, SECTIONS
+        taxonomy_lines = []
+        for fam, secs in SECTIONS.items():
+            taxonomy_lines.append(f"  {fam} ({FAMILIES[fam]}): {', '.join(secs)}")
+        taxonomy_text = "\n".join(taxonomy_lines)
+
         prompt = f"""Create an intelligence model for the OSINT term: "{term}"
+
+TAXONOMY (you MUST pick from these families and sections):
+{taxonomy_text}
+
+ALIAS RULES:
+- 8-15 aliases: synonyms, abbreviations, translations (English, French, + relevant language)
+- Every alias must be specific enough to find this entity in news articles
+- NEVER use common words that appear in unrelated text (e.g. "Total", "Global", "National")
+- Every alias must be at least 3 characters
 
 Return ONLY valid JSON (no markdown):
 {{
   "name": "Proper name for this concept",
-  "family": "foundation|market|threat|risk",
-  "section": "Best fitting section (Companies, Industries, Technologies, Strategic Moves, Threat Actors, Political Risk, etc.)",
+  "family": "one of the families above",
+  "section": "one of the sections above for that family",
   "description": "One sentence description",
-  "aliases": ["8-15 aliases: synonyms, translations in English, French, and the relevant language for the subject. Every alias must be at least 3 characters."]
+  "aliases": ["alias1", "alias2", "..."]
 }}"""
 
         raw = await _call_gemini(prompt)
@@ -1182,12 +1257,36 @@ Return ONLY valid JSON (no markdown):
         cleaned = re.sub(r"\s*```$", "", cleaned)
         data = json.loads(cleaned.strip())
 
+        from app.domains.ai_feeds.taxonomy import is_valid
+        fam = data.get("family", "foundation")
+        sec = data.get("section", "Companies")
+        if not is_valid(fam, sec):
+            fam, sec = "foundation", "Companies"
+
+        # Dedup: check if LLM-generated name already exists (case-insensitive)
+        llm_name = data.get("name", term)
+        llm_aliases = data.get("aliases", [term])
+        llm_name_lower = llm_name.lower()
+        for m in all_models:
+            if m.name.lower() == llm_name_lower:
+                m.last_used_at = datetime.now(timezone.utc)
+                await db.commit()
+                await db.refresh(m)
+                return {
+                    "model": {
+                        "id": str(m.id), "name": m.name, "family": m.family,
+                        "section": m.section, "aliases": m.aliases or [],
+                        "description": m.description, "article_count": m.article_count,
+                    },
+                    "created": False,
+                }
+
         model = IntelModel(
-            name=data.get("name", term),
-            family=data.get("family", "market"),
-            section=data.get("section", "Trends"),
+            name=llm_name,
+            family=fam,
+            section=sec,
             description=data.get("description"),
-            aliases=data.get("aliases", [term]),
+            aliases=llm_aliases,
             origin="ai_enriched",
             last_used_at=datetime.now(timezone.utc),
         )
@@ -1208,8 +1307,8 @@ Return ONLY valid JSON (no markdown):
         # Fallback: create minimal model without LLM
         model = IntelModel(
             name=term,
-            family="market",
-            section="Trends",
+            family="foundation",
+            section="Companies",
             aliases=[term],
             origin="ai_enriched",
             last_used_at=datetime.now(timezone.utc),

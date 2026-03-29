@@ -1,10 +1,9 @@
 """
-Unified matching engine: FlashText + MiniLM + RapidFuzz search.
+Unified matching engine: FlashText + EmbeddingGemma + RapidFuzz.
 
-One strategy for the entire platform:
+Ingestion pipeline:
   - FlashText: exact word-boundary matching (aliases in article text) — 0 false positives
-  - MiniLM: semantic cosine similarity on full text — catches related articles
-  - Union of both → article_models junction table
+  - EmbeddingGemma 300m: semantic cosine similarity for what FlashText missed (threshold 0.30)
   - RapidFuzz: fuzzy search for the search bar (model suggestions)
 
 Loaded once at startup. Called at ingestion for each new article batch.
@@ -13,12 +12,12 @@ Loaded once at startup. Called at ingestion for each new article batch.
 import json
 import logging
 import numpy as np
+from datetime import datetime, timezone
 from flashtext import KeywordProcessor
 from rapidfuzz import fuzz, process
 
 logger = logging.getLogger(__name__)
 
-# ── Lazy-loaded encoder ──
 _encoder = None
 _model_vectors: dict[str, np.ndarray] = {}   # model_id_hex → vector
 _model_kp: KeywordProcessor | None = None     # FlashText processor
@@ -28,16 +27,16 @@ _search_choices: list[str] = []               # flat list for search bar
 _search_to_model: dict[str, str] = {}         # choice → model_id_hex
 
 EMBED_MODEL = "google/embeddinggemma-300m"
-MIN_COSINE_SCORE = 0.35  # validated: Gemma vrais > 0.43, faux < 0.21
+MIN_COSINE_SCORE = 0.30
 
 
 def _get_encoder():
     global _encoder
     if _encoder is None:
         from sentence_transformers import SentenceTransformer
-        logger.info("Loading MiniLM encoder...")
+        logger.info("Loading EmbeddingGemma 300m...")
         _encoder = SentenceTransformer(EMBED_MODEL, trust_remote_code=True)
-        logger.info("MiniLM encoder loaded")
+        logger.info("EmbeddingGemma loaded")
     return _encoder
 
 
@@ -104,25 +103,21 @@ def _article_full_text(article) -> str:
     return " ".join(parts)
 
 
-def _article_metadata_text(article) -> str:
-    """Title + description for EmbeddingGemma (best signal for entity matching)."""
-    return (article.title or '') + ' ' + (article.description or '')
-
-
 def match_articles(articles: list) -> list[tuple[str, str, float, str]]:
     """Match a batch of articles against all Intel Models.
+    Phase 1: FlashText (exact keyword match).
+    Phase 2: EmbeddingGemma (semantic, threshold 0.30, for what FlashText missed).
 
     Returns list of (article_id_hex, model_id_hex, score, method).
-    Uses RapidFuzz (partial_ratio >= 90) + MiniLM (cosine >= 0.50).
     """
     if not articles or not _model_kp:
         return []
 
     encoder = _get_encoder()
     results: list[tuple[str, str, float, str]] = []
-
-    # ── Phase 1: FlashText match (exact word-boundary in full text) ──
     flash_matches: set[tuple[str, str]] = set()
+
+    # Phase 1: FlashText
     for a in articles:
         aid = a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')
         full_text = _article_full_text(a)
@@ -133,17 +128,16 @@ def match_articles(articles: list) -> list[tuple[str, str, float, str]]:
                 flash_matches.add(pair)
                 results.append((aid, mid, 1.0, "flash"))
 
-    # ── Phase 2: EmbeddingGemma semantic match on title+description ──
+    # Phase 2: EmbeddingGemma for articles not fully matched
     if _model_vectors:
-        full_texts = []
+        art_texts = []
         art_ids = []
         for a in articles:
             aid = a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')
-            full_texts.append(_article_full_text(a))
+            art_texts.append(_article_full_text(a))
             art_ids.append(aid)
 
-        art_vecs = encoder.encode(full_texts, normalize_embeddings=True, batch_size=64)
-
+        art_vecs = encoder.encode(art_texts, normalize_embeddings=True, batch_size=64)
         model_ids = list(_model_vectors.keys())
         model_matrix = np.array([_model_vectors[mid] for mid in model_ids])
         sim_matrix = np.dot(art_vecs, model_matrix.T)
@@ -159,8 +153,7 @@ def match_articles(articles: list) -> list[tuple[str, str, float, str]]:
 
     n_flash = len(flash_matches)
     n_embed = len(results) - n_flash
-    logger.info(f"match_articles: {len(articles)} articles -> {len(results)} matches "
-                f"({n_flash} flash + {n_embed} embed)")
+    logger.info(f"match_articles: {len(articles)} articles -> {len(results)} matches ({n_flash} flash + {n_embed} embed)")
     return results
 
 
@@ -193,6 +186,239 @@ def search_models(query: str, limit: int = 10) -> list[dict]:
             "score": score,
         })
     return out
+
+
+def match_articles_targeted(articles: list, model_ids: list[str]) -> list[tuple[str, str, float, str]]:
+    """Match articles against a SPECIFIC set of model IDs (not all models).
+    Used by cases/feeds refresh — only checks models in the query.
+
+    Returns list of (article_id_hex, model_id_hex, score, method).
+    """
+    if not articles or not model_ids or not _model_kp:
+        return []
+
+    target_set = set(model_ids)
+    results: list[tuple[str, str, float, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for a in articles:
+        aid = a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')
+        full_text = _article_full_text(a)
+        found_mids = _model_kp.extract_keywords(full_text)
+        for mid in set(found_mids):
+            if mid in target_set:
+                pair = (aid, mid)
+                if pair not in seen:
+                    seen.add(pair)
+                    results.append((aid, mid, 1.0, "flash"))
+
+    logger.info(f"match_targeted: {len(articles)} articles x {len(model_ids)} models -> {len(results)} matches")
+    return results
+
+
+async def match_articles_gemini(articles: list, model_ids: list[str], db) -> list[tuple[str, str, float, str]]:
+    """Semantic matching via Gemini Flash for recent articles (< 1 week).
+    Sends article titles + model names/aliases to Gemini, asks which models match.
+
+    Returns list of (article_id_hex, model_id_hex, score, method).
+    """
+    if not articles or not model_ids:
+        return []
+
+    from app.source_engine.detector import call_gemini, get_gemini_token
+    import httpx
+
+    # Build model catalog for the prompt
+    model_catalog = []
+    for mid in model_ids:
+        name = _model_names.get(mid, mid[:8])
+        meta = _model_meta.get(mid, {})
+        model_catalog.append(f"{mid[:12]}|{meta.get('family','')}/{meta.get('section','')}|{name}")
+    catalog_text = "\n".join(model_catalog)
+
+    results: list[tuple[str, str, float, str]] = []
+    token = await get_gemini_token()
+
+    # Process in batches of 15 articles
+    async with httpx.AsyncClient(timeout=120) as client:
+        for batch_start in range(0, len(articles), 15):
+            batch = articles[batch_start:batch_start + 15]
+            headlines = "\n".join(
+                f"{i}. {(a.title or '')[:120]}"
+                for i, a in enumerate(batch)
+            )
+
+            prompt = f"""Match these news headlines to relevant Intel Models from the catalog below.
+
+Headlines:
+{headlines}
+
+Intel Models catalog (id|family/section|name):
+{catalog_text}
+
+For each headline, return the IDs of ALL matching models (0 to many).
+A model matches if the headline is clearly about that model's topic.
+
+Return ONLY valid JSON (no markdown):
+{{"matches": [{{"index": 0, "model_ids": ["id1", "id2"]}}, ...]}}
+
+Rules:
+- Only match if clearly relevant — no guessing
+- Use the 12-char IDs from the catalog
+- Empty model_ids [] if no model matches"""
+
+            try:
+                import re
+                raw = await call_gemini(prompt, client=client, token=token)
+                cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip())
+                cleaned = re.sub(r"\s*```$", "", cleaned)
+                import json as _json
+                data = _json.loads(cleaned)
+
+                id_map = {mid[:12]: mid for mid in model_ids}
+                for m in data.get("matches", []):
+                    idx = m.get("index", -1)
+                    if 0 <= idx < len(batch):
+                        a = batch[idx]
+                        aid = a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')
+                        for short_id in m.get("model_ids", []):
+                            full_id = id_map.get(short_id[:12])
+                            if full_id:
+                                results.append((aid, full_id, 0.9, "gemini"))
+            except Exception as e:
+                logger.warning(f"Gemini matching batch failed: {e}")
+
+    logger.info(f"match_gemini: {len(articles)} articles x {len(model_ids)} models -> {len(results)} matches")
+    return results
+
+
+def classify_article_by_flashtext(article) -> tuple[str, str] | None:
+    """Classify an article into family/section using FlashText.
+    Finds which models match, takes the most frequent family/section.
+    Returns (family, section) or None if no match.
+    """
+    if not _model_kp:
+        return None
+    full_text = _article_full_text(article)
+    found_mids = set(_model_kp.extract_keywords(full_text))
+    if not found_mids:
+        return None
+
+    # Count family/section occurrences from matched models
+    from collections import Counter
+    pairs = Counter()
+    for mid in found_mids:
+        meta = _model_meta.get(mid, {})
+        fam = meta.get("family", "")
+        sec = meta.get("section", "")
+        if fam and sec and fam not in ("mute", "foundation"):
+            pairs[(fam, sec)] += 1
+
+    if not pairs:
+        return None
+    return pairs.most_common(1)[0][0]
+
+
+async def classify_unclassified_articles(db) -> int:
+    """Backfill classification for articles > 1 day old with no family/section.
+    Phase 1: FlashText (exact keywords).
+    Phase 2: EmbeddingGemma 300m (semantic, for what FlashText missed).
+    """
+    from sqlalchemy import select
+    from app.models.article import Article
+    from datetime import timedelta
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+
+    articles = (await db.execute(
+        select(Article).where(
+            Article.created_at < cutoff,
+            (Article.family == None) | (Article.family == ""),
+        ).limit(500)
+    )).scalars().all()
+    if not articles:
+        return 0
+
+    classified = 0
+    remaining = []
+
+    # Phase 1: FlashText
+    for a in articles:
+        result = classify_article_by_flashtext(a)
+        if result:
+            a.family, a.section = result
+            classified += 1
+        else:
+            remaining.append(a)
+
+    # Phase 2: Gemma for articles FlashText missed
+    if remaining:
+        gemma_classified = _classify_by_gemma(remaining)
+        classified += gemma_classified
+
+    if classified:
+        await db.commit()
+    logger.info(f"classify_unclassified: {classified}/{len(articles)} (FlashText: {classified - len([a for a in remaining if a.family])}, Gemma: {len([a for a in remaining if a.family])})")
+    return classified
+
+
+# ── Lazy-loaded Gemma encoder for background classification ──
+_gemma_encoder = None
+_section_vectors: dict[tuple[str, str], 'numpy.ndarray'] = {}
+
+MIN_SECTION_SCORE = 0.20  # threshold for section classification
+
+
+def _get_gemma():
+    """Lazy-load Gemma encoder + section vectors."""
+    global _gemma_encoder, _section_vectors
+    if _gemma_encoder is not None:
+        return _gemma_encoder
+
+    import numpy as np
+    from sentence_transformers import SentenceTransformer
+    from app.domains.ai_feeds.taxonomy import SECTION_DESCRIPTIONS
+
+    logger.info("Loading EmbeddingGemma 300m for background classification...")
+    _gemma_encoder = SentenceTransformer("google/embeddinggemma-300m", trust_remote_code=True)
+
+    # Embed section descriptions once
+    keys = list(SECTION_DESCRIPTIONS.keys())
+    texts = list(SECTION_DESCRIPTIONS.values())
+    vecs = _gemma_encoder.encode(texts, normalize_embeddings=True, batch_size=64)
+    _section_vectors = {keys[i]: vecs[i] for i in range(len(keys))}
+
+    logger.info(f"Gemma loaded, {len(_section_vectors)} section vectors ready")
+    return _gemma_encoder
+
+
+def _classify_by_gemma(articles: list) -> int:
+    """Classify articles by cosine similarity against section description embeddings."""
+    import numpy as np
+
+    encoder = _get_gemma()
+    if not _section_vectors:
+        return 0
+
+    # Skip geo/mute/foundation — not useful for thematic classification
+    thematic = {k: v for k, v in _section_vectors.items() if k[0] not in ("geo", "mute", "foundation")}
+    keys = list(thematic.keys())
+    sec_matrix = np.array([thematic[k] for k in keys])
+
+    art_texts = [(a.title or "") + " " + (a.description or "")[:200] for a in articles]
+    art_vecs = encoder.encode(art_texts, normalize_embeddings=True, batch_size=64)
+
+    sim = np.dot(art_vecs, sec_matrix.T)
+
+    classified = 0
+    for i, a in enumerate(articles):
+        best_idx = int(np.argmax(sim[i]))
+        best_score = float(sim[i][best_idx])
+        if best_score >= MIN_SECTION_SCORE:
+            a.family, a.section = keys[best_idx]
+            classified += 1
+
+    return classified
 
 
 async def store_matches(db, matches: list[tuple[str, str, float, str]]) -> int:
