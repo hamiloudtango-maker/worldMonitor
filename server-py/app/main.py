@@ -197,6 +197,8 @@ async def lifespan(app: FastAPI):
     if settings.database_url.startswith("sqlite"):
         from app.db import create_all_tables
         import app.models.intel_model  # noqa: F401 — register model before create_all
+        import app.models.intel_category  # noqa: F401
+        import app.models.article_model  # noqa: F401
         import app.models.job  # noqa: F401 — register model before create_all
 
         await create_all_tables()
@@ -215,18 +217,45 @@ async def lifespan(app: FastAPI):
         if im_count:
             _log.info(f"Seeded {im_count} intel models")
 
+    # Seed intel categories (family/section) from existing models
+    from sqlalchemy import select
+    from app.models.intel_category import IntelCategory
+    from app.models.intel_model import IntelModel
+    async with async_session() as db:
+        existing = (await db.scalars(select(IntelCategory))).all()
+        if not existing:
+            models = (await db.scalars(select(IntelModel))).all()
+            fams: set[str] = set()
+            secs: set[tuple[str, str]] = set()
+            for m in models:
+                fams.add(m.family)
+                secs.add((m.family, m.section))
+            fam_labels = {
+                "market": "Market Intelligence", "threat": "Threat Intelligence",
+                "risk": "Risk Intelligence", "foundation": "Foundation",
+                "biopharma": "Biopharma Research", "geopolitical": "Geopolitical", "mute": "Mute Filters",
+            }
+            for f in fams:
+                db.add(IntelCategory(level="family", key=f, label=fam_labels.get(f, f), aliases=[]))
+            for f, s in secs:
+                db.add(IntelCategory(level="section", key=s, parent_key=f, label=s, aliases=[]))
+            await db.commit()
+            _log.info(f"Seeded {len(fams)} family + {len(secs)} section categories")
+
     # Run initial category analysis on boot (uses cached data, fast)
     from app.source_engine.category_analyzer import run_weekly_analysis, get_cached_analysis
     if not get_cached_analysis():
         async with async_session() as db:
             await run_weekly_analysis(db)
 
-    # Populate case_articles junction table (safety net — ensures consistency on boot)
-    from app.domains.cases.matching import refresh_all_cases
+    # Cases use article_models now — no more case_articles LIKE refresh at boot
+
+    # Pre-load matching engine (RapidFuzz + MiniLM) with Intel Models
+    from app.source_engine.matching_engine import load_models
+    from app.models.intel_model import IntelModel as _IM
     async with async_session() as db:
-        counts = await refresh_all_cases(db)
-        if counts:
-            _log.info("case_articles refreshed: %s", {k: v for k, v in counts.items() if v})
+        _all_models = (await db.scalars(select(_IM))).all()
+        load_models(_all_models)
 
     # Signal background tasks that DB is ready
     import asyncio

@@ -9,8 +9,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
-import { api, listCases } from '@/v2/lib/api';
-import type { CaseData } from '@/v2/lib/api';
+import { api } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo, FLAGS } from '@/v2/lib/constants';
 import { useGlobalData } from '@/v2/hooks/useData';
@@ -18,7 +17,7 @@ import LiveMap from './LiveMap';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
 import { renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
-import { useFacetModels, articleText, matchesFacet } from '@/v2/hooks/useFacetModels';
+import { fetchArticlesByModels } from '@/v2/lib/api';
 
 const COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#eab308'];
 
@@ -74,40 +73,21 @@ export default function WorldView() {
   const [rssSources, setRssSources] = useState<RssSource[]>([]);
   const [fullCatalog, setFullCatalog] = useState<WidgetDef[]>(CATALOG);
   const [filters, setFilters] = useState<ActiveFilters>(EMPTY_FILTERS);
-  const [cases, setCases] = useState<CaseData[]>([]);
+  const [modelArticles, setModelArticles] = useState<Article[] | null>(null);
 
-  // Load cases for filter dropdown
-  useEffect(() => { listCases().then(setCases).catch(() => {}); }, []);
+  useEffect(() => {
+    if (filters.models.length === 0) { setModelArticles(null); return; }
+    fetchArticlesByModels(filters.models).then(r => setModelArticles(r.articles)).catch(() => {});
+  }, [filters.models]);
 
-  const { choices } = useFacetModels();
+  const baseArticles = filters.models.length > 0 && modelArticles ? modelArticles : articles;
+  const filteredArticles = useMemo(() => {
+    if (!filters.q) return baseArticles;
+    const q = filters.q.toLowerCase();
+    return baseArticles.filter(a => a.title.toLowerCase().includes(q));
+  }, [baseArticles, filters.q]);
 
-  // Filtered articles — models facet uses keyword+alias matching
-  const caseKw = useMemo(() => filters.cases.length > 0
-    ? cases.filter(c => filters.cases.includes(c.name))
-        .flatMap(c => (c.search_keywords || c.name).split('|').map(k => k.trim().toLowerCase()).filter(k => k.length >= 3))
-    : []
-  , [filters.cases, cases]);
-
-  const selectedModels = useMemo(() =>
-    choices.filter(c => filters.models.includes(c.id))
-  , [choices, filters.models]);
-
-  const filteredArticles = useMemo(() => articles.filter(a => {
-    if (filters.q && !a.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
-    // Intel Models: match if article text contains ANY keyword from ANY selected model
-    if (selectedModels.length > 0) {
-      const text = articleText(a);
-      if (!selectedModels.some(m => matchesFacet(text, m))) return false;
-    }
-    if (caseKw.length && !caseKw.some(kw =>
-      a.title.toLowerCase().includes(kw) ||
-      a.entities.some(e => e.toLowerCase().includes(kw)) ||
-      a.source_id.toLowerCase().includes(kw)
-    )) return false;
-    return true;
-  }), [articles, filters, caseKw, selectedModels]);
-
-  const hasFilters = filters.q || filters.models.length || filters.cases.length;
+  const hasFilters = filters.q || filters.models.length;
   const filteredStats = useMemo(() => hasFilters ? (() => {
     const by_theme: Record<string, number> = {};
     const by_threat: Record<string, number> = {};
@@ -143,7 +123,7 @@ export default function WorldView() {
 
   return (
     <div className="space-y-3">
-      <FilterBar filters={filters} onChange={setFilters} stats={stats} articles={articles} cases={cases} />
+      <FilterBar filters={filters} onChange={setFilters} stats={stats} articles={articles} />
       <WidgetGrid
         catalog={fullCatalog}
         storageKey="wm-world-v7"
@@ -217,7 +197,7 @@ function RssFeedWidget({ url, name, onIngest }: { url: string; name: string; onI
     <div className="overflow-y-auto h-full p-2 space-y-1.5">
       <div className="text-[9px] text-slate-400 font-semibold">{items.length} articles</div>
       {items.map((a: any, i: number) => (
-        <a key={a.id || a.link || i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+        <a key={a.id || a.link || i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
           <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{a.title}</p>
           <div className="flex items-center gap-2 mt-0.5">
             {a.theme && <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.theme}</span>}
@@ -311,7 +291,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
           <div className="text-[10px] text-slate-400 font-semibold">{pool.length} articles</div>
           {pool.slice(0, 15).map((a, i) => (
-            <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
               <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{a.title}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 {a.country_codes.slice(0, 3).map(c => <span key={c} className="text-[10px]">{FLAGS[c] || c}</span>)}
@@ -328,7 +308,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'seismology':
       return <ApiList endpoint="/seismology/v1/list-earthquakes?min_magnitude=4&page_size=20" renderItem={(eq, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50 border-l-2" style={{ borderColor: eq.magnitude >= 6 ? '#ef4444' : eq.magnitude >= 5 ? '#f97316' : '#3b82f6' }}>
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 border-l-2" style={{ borderColor: eq.magnitude >= 6 ? '#ef4444' : eq.magnitude >= 5 ? '#f97316' : '#3b82f6' }}>
           <div className="flex justify-between items-center">
             <span className="text-[11px] font-bold text-slate-800">M{eq.magnitude?.toFixed(1)}</span>
             <span className="text-[9px] text-slate-400">{eq.depth_km ? `${Math.round(eq.depth_km)}km` : ''}</span>
@@ -339,7 +319,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'cyber':
       return <ApiList endpoint="/cyber/v1/list-cyber-threats?page_size=20" renderItem={(t, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30">
           <div className="flex justify-between items-center">
             <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-red-50 text-red-600">{t.malware || t.type}</span>
             <span className="text-[9px] text-slate-400">{t.country}</span>
@@ -350,7 +330,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'maritime':
       return <ApiList endpoint="/maritime/v1/list-navigational-warnings?page_size=15" renderItem={(w, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50 border-l-2 border-blue-300">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 border-l-2 border-blue-300">
           <div className="flex justify-between">
             <span className="text-[9px] font-bold text-blue-600">{w.area}</span>
             <span className="text-[9px] text-slate-400">{w.authority}</span>
@@ -361,7 +341,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'natural':
       return <ApiList endpoint="/natural/v1/list-natural-events?limit=20" renderItem={(ev, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30">
           <div className="flex justify-between items-center">
             <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-amber-50 text-amber-700">{ev.category_title || ev.category}</span>
             {ev.closed && <span className="text-[8px] text-emerald-500">Fermé</span>}
@@ -372,7 +352,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'climate':
       return <ApiList endpoint="/climate/v1/list-climate-anomalies?page_size=15" renderItem={(a, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50 flex justify-between items-center">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 flex justify-between items-center">
           <div>
             <span className="text-[10px] font-semibold text-slate-800">{a.location}</span>
             <div className="text-[9px] text-slate-400">{a.temperature_c != null ? `${a.temperature_c}°C` : ''} {a.humidity_pct != null ? `${a.humidity_pct}% hum.` : ''}</div>
@@ -383,7 +363,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'radiation':
       return <ApiList endpoint="/radiation/v1/list-radiation-observations" renderItem={(r, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50 flex justify-between items-center">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 flex justify-between items-center">
           <div>
             <span className="text-[10px] font-semibold text-slate-800">{r.location_name || 'Station'}</span>
             <div className="text-[9px] text-slate-400">{r.source}</div>
@@ -394,14 +374,14 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'aviation':
       return <ApiList endpoint="/aviation/v1/list-aviation-news?page_size=15" renderItem={(n, i) => (
-        <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+        <a key={i} href={n.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
           <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{n.title}</p>
         </a>
       )} />;
 
     case 'crypto':
       return <ApiList endpoint="/market/v1/list-crypto-quotes?per_page=15" renderItem={(c, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50 flex justify-between items-center">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 flex justify-between items-center">
           <div>
             <span className="text-[11px] font-bold text-slate-900">{c.symbol || c.name}</span>
             <span className="text-[9px] text-slate-400 ml-1">{c.name}</span>
@@ -424,7 +404,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'supplychain':
       return <ApiList endpoint="/supply-chain/v1/get-chokepoint-status" renderItem={(cp, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50 flex justify-between items-center">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 flex justify-between items-center">
           <div>
             <span className="text-[10px] font-semibold text-slate-800">{cp.name}</span>
             <div className="text-[9px] text-slate-400">{cp.status} · {cp.active_warnings} alertes</div>
@@ -437,7 +417,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'minerals':
       return <ApiList endpoint="/supply-chain/v1/get-critical-minerals" renderItem={(m, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50 flex justify-between items-center">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 flex justify-between items-center">
           <div>
             <span className="text-[10px] font-semibold text-slate-800">{m.mineral}</span>
             <div className="text-[9px] text-slate-400">{(m.top_producers || []).slice(0, 2).join(', ')}</div>
@@ -458,7 +438,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'predictions':
       return <ApiList endpoint="/prediction/v1/list-prediction-markets?page_size=15" renderItem={(m, i) => (
-        <div key={i} className="p-1.5 rounded-lg hover:bg-slate-50">
+        <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30">
           <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{m.title}</p>
           <div className="flex items-center gap-2 mt-0.5">
             <div className="flex-1 bg-slate-100 rounded-full h-2">
@@ -471,7 +451,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'hackernews':
       return <ApiList endpoint="/research/v1/list-hackernews-items?page_size=20" renderItem={(item, i) => (
-        <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+        <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
           <p className="text-[10px] text-slate-700 font-medium line-clamp-1">{item.title}</p>
           <div className="flex items-center gap-2 mt-0.5 text-[9px] text-slate-400">
             <span>{item.score} pts</span>
@@ -486,7 +466,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
 
     case 'rss':
       return <ApiList endpoint="/news/v1/list-feed-digest" renderItem={(item, i) => (
-        <a key={i} href={item.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+        <a key={i} href={item.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
           <div className="flex justify-between items-center mb-0.5">
             <span className="text-[9px] font-bold text-[#42d3a5]">{item.source}</span>
           </div>

@@ -110,6 +110,29 @@ export async function getMe(): Promise<{ email: string; org_name: string }> {
   return api('/auth/me');
 }
 
+// ── Fetch articles filtered by Intel Model IDs (backend JOIN) ──
+export async function fetchArticlesByModels(modelIds: string[], maxArticles: number = 2000): Promise<{ articles: import('@/v2/lib/constants').Article[]; total: number }> {
+  if (!modelIds.length) return { articles: [], total: 0 };
+  const modelsParam = `models=${modelIds.join(',')}`;
+  const PAGE = 500;
+  const first = await api<{ articles: import('@/v2/lib/constants').Article[]; total: number }>(
+    `/articles/v1/search?limit=${PAGE}&offset=0&${modelsParam}`
+  );
+  const all = [...first.articles];
+  const total = Math.min(first.total, maxArticles);
+  if (total > PAGE) {
+    const pages = Math.ceil(total / PAGE) - 1;
+    const fetches = Array.from({ length: pages }, (_, i) =>
+      api<{ articles: import('@/v2/lib/constants').Article[] }>(
+        `/articles/v1/search?limit=${PAGE}&offset=${(i + 1) * PAGE}&${modelsParam}`
+      )
+    );
+    const results = await Promise.all(fetches);
+    for (const r of results) all.push(...r.articles);
+  }
+  return { articles: all, total };
+}
+
 // ── Fetch all articles (paginated) ───────────────────────────
 export async function fetchAllArticles(params: string = '', maxArticles: number = 2000): Promise<import('@/v2/lib/constants').Article[]> {
   const PAGE = 500;
@@ -149,7 +172,7 @@ export interface CaseData {
   name: string;
   type: string;
   search_keywords: string;
-  query: { layers: any[] } | null;
+  query: { layers?: any[]; models?: string[] } | null;
   identity_card: Record<string, any> | null;
   status: string;
   article_count: number;

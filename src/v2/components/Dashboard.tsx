@@ -14,7 +14,7 @@ import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo } from '@/v2/lib/constants';
 import { useCases } from '@/v2/hooks/useCases';
 import { DataProvider, useGlobalData } from '@/v2/hooks/useData';
-import { useFacetModels, articleText, matchesFacet } from '@/v2/hooks/useFacetModels';
+import { fetchArticlesByModels } from '@/v2/lib/api';
 import LiveMap from './LiveMap';
 import CasesView from './CasesView';
 import WorldView from './WorldView';
@@ -25,6 +25,7 @@ import NotificationPanel from './shared/NotificationPanel';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 import SourceManager from './SourceManager';
 import ApiServices from './ApiServices';
+import IntelModelsManager from './IntelModelsManager';
 import ArticleReader from './ArticleReader';
 import { ArticleReaderContext } from '@/v2/hooks/useArticleReader';
 
@@ -59,9 +60,9 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════ */
 function getNavFromHash(): NavKey {
-  const hash = window.location.hash.replace('#', '');
+  const raw = window.location.hash.replace('#', '').split(':')[0];
   const valid: NavKey[] = ['dashboard', 'cases', 'ai-feeds', 'world', 'reports', 'settings'];
-  return valid.includes(hash as NavKey) ? (hash as NavKey) : 'dashboard';
+  return valid.includes(raw as NavKey) ? (raw as NavKey) : 'dashboard';
 }
 
 export default function Dashboard(props: Props) {
@@ -75,14 +76,14 @@ export default function Dashboard(props: Props) {
 function DashboardInner({ user, onLogout }: Props) {
   const [nav, _setNav]              = useState<NavKey>(getNavFromHash);
   const setNav = useCallback((key: NavKey) => {
-    if (window.location.hash !== `#${key}`) window.history.pushState(null, '', `#${key}`);
+    window.location.hash = key;
     _setNav(key);
   }, []);
 
   useEffect(() => {
     const onHash = () => _setNav(getNavFromHash());
-    window.addEventListener('popstate', onHash);
-    return () => window.removeEventListener('popstate', onHash);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
   }, []);
   const { articles, stats, entities, countries, loading, refresh: load } = useGlobalData();
   const [filters, setFilters]       = useState<ActiveFilters>(EMPTY_FILTERS);
@@ -96,38 +97,26 @@ function DashboardInner({ user, onLogout }: Props) {
     buildCatalogWithFeeds().then(setCatalog);
   }, [nav]); // Refresh when switching tabs (in case feeds were created)
 
-  const { choices } = useFacetModels();
+  /* ── Filtered articles: backend JOIN when models selected, local filter for text search ── */
+  const [modelArticles, setModelArticles] = useState<Article[] | null>(null);
 
-  /* ── Filtered articles (memoized) ── */
-  const caseKw = useMemo(() => filters.cases.length > 0
-    ? cases.filter(c => filters.cases.includes(c.name))
-        .flatMap(c => (c.search_keywords || c.name).split('|').map(k => k.trim().toLowerCase()).filter(k => k.length >= 3))
-    : []
-  , [filters.cases, cases]);
+  useEffect(() => {
+    if (filters.models.length === 0) { setModelArticles(null); return; }
+    fetchArticlesByModels(filters.models).then(r => setModelArticles(r.articles)).catch(() => {});
+  }, [filters.models]);
 
-  const selectedModels = useMemo(() =>
-    choices.filter(c => filters.models.includes(c.id))
-  , [choices, filters.models]);
-
-  const filteredArticles = useMemo(() => articles.filter(a => {
-    if (filters.q && !a.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
-    if (selectedModels.length > 0) {
-      const text = articleText(a);
-      if (!selectedModels.some(m => matchesFacet(text, m))) return false;
-    }
-    if (caseKw.length && !caseKw.some(kw =>
-      a.title.toLowerCase().includes(kw) ||
-      a.entities.some(e => e.toLowerCase().includes(kw)) ||
-      a.source_id.toLowerCase().includes(kw)
-    )) return false;
-    return true;
-  }), [articles, filters, caseKw, selectedModels]);
+  const baseArticles = filters.models.length > 0 && modelArticles ? modelArticles : articles;
+  const filteredArticles = useMemo(() => {
+    if (!filters.q) return baseArticles;
+    const q = filters.q.toLowerCase();
+    return baseArticles.filter(a => a.title.toLowerCase().includes(q));
+  }, [baseArticles, filters.q]);
 
   const alertArticles = useMemo(() =>
     filteredArticles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high')
   , [filteredArticles]);
 
-  const hasFilters = filters.q || filters.models.length || filters.cases.length;
+  const hasFilters = filters.q || filters.models.length;
   const filteredStats = useMemo(() => hasFilters ? (() => {
     const by_theme: Record<string, number> = {};
     const by_threat: Record<string, number> = {};
@@ -257,7 +246,7 @@ function DashboardInner({ user, onLogout }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={load} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors" title="Actualiser">
+            <button onClick={load} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 border border-slate-200 transition-colors" title="Actualiser">
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </button>
             <NotificationPanel articles={articles} cases={cases} />
@@ -371,7 +360,7 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
           {cases.length === 0 && <div className="text-center text-xs text-slate-400 py-8">Aucun case — créez-en dans l'onglet Cases</div>}
           {cases.map((c, i) => (
-            <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
               <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
                 {c.type === 'company' ? <Building size={14} /> : c.type === 'country' ? <Globe size={14} /> : <Activity size={14} />}
               </div>
@@ -458,7 +447,7 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
 
 
 /* ═══ Settings View with Tabs ═══ */
-type SettingsTab = 'sources' | 'apis' | 'account';
+type SettingsTab = 'sources' | 'intel-models' | 'apis' | 'account';
 function SettingsView({ user, stats, cases, onLogout }: {
   user: { email: string; org_name: string };
   stats: Stats | null;
@@ -468,6 +457,7 @@ function SettingsView({ user, stats, cases, onLogout }: {
   const [tab, setTab] = useState<SettingsTab>('sources');
   const tabs: { key: SettingsTab; label: string }[] = [
     { key: 'sources', label: 'Sources RSS' },
+    { key: 'intel-models', label: 'Intel Models' },
     { key: 'apis', label: 'APIs & Services' },
     { key: 'account', label: 'Compte' },
   ];
@@ -488,6 +478,7 @@ function SettingsView({ user, stats, cases, onLogout }: {
       </div>
 
       {tab === 'sources' && <SourceManager />}
+      {tab === 'intel-models' && <IntelModelsManager />}
       {tab === 'apis' && <ApiServices />}
       {tab === 'account' && (
         <div className="max-w-lg space-y-4">

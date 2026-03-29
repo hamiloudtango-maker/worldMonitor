@@ -265,12 +265,14 @@ export interface IntelModelData {
 
 export interface IntelSection {
   name: string;
+  aliases: string[];
   models: IntelModelData[];
 }
 
 export interface IntelFamily {
   key: string;
   label: string;
+  aliases: string[];
   sections: IntelSection[];
 }
 

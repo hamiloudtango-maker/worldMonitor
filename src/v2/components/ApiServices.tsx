@@ -208,7 +208,7 @@ export default function ApiServices() {
           <button
             onClick={checkAll}
             disabled={checking}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all disabled:opacity-50"
           >
             <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
             Tester tout
@@ -234,7 +234,7 @@ export default function ApiServices() {
           <div key={cat.name} className="bg-white rounded-xl border border-slate-200/60 overflow-hidden">
             <button
               onClick={() => toggle(cat.name)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50/50 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:ring-1 hover:ring-[#42d3a5]/30 transition-all"
             >
               {isCollapsed ? <ChevronRight size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
               <Icon size={15} className="text-slate-500" />
@@ -340,7 +340,7 @@ function AddSourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (src: 
                 key={k}
                 onClick={() => setType(k)}
                 className={`px-3 py-1.5 text-[11px] font-medium rounded-lg border transition-colors ${
-                  type === k ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                  type === k ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-600 hover:ring-1 hover:ring-[#42d3a5]/30'
                 }`}
               >
                 {l}
@@ -401,7 +401,7 @@ function AddSourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (src: 
 
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="px-4 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+          <button onClick={onClose} className="px-4 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30">
             Annuler
           </button>
           <button

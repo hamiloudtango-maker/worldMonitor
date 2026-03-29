@@ -48,7 +48,38 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const [regenerating, setRegenerating] = useState(false);
   const [currentCase, setCurrentCase] = useState(caseData);
   const [catalog, setCatalog] = useState<WidgetDef[]>(FULL_CATALOG);
-  const [caseQuery, _setCaseQuery] = useState<FeedQuery>(caseData.query?.layers?.length ? caseData.query : { layers: [] });
+  const [caseQuery, _setCaseQuery] = useState<FeedQuery>(
+    caseData.query?.layers?.length ? { layers: caseData.query.layers } : { layers: [] }
+  );
+  // Auto-convert new format {"models": [...]} into visible chips
+  const caseModelIds: string[] = caseData.query?.models || [];
+  const [modelsResolved, setModelsResolved] = useState(false);
+  useEffect(() => {
+    if (!caseModelIds.length || modelsResolved) return;
+    import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
+      fetchIntelTree().then(({ families }) => {
+        // Find models by ID and build layers
+        const layers: FeedQuery['layers'] = [];
+        for (const fam of families) {
+          for (const sec of fam.sections) {
+            for (const m of sec.models) {
+              if (caseModelIds.includes(m.id)) {
+                layers.push({
+                  operator: 'OR',
+                  parts: [{ type: 'topic' as const, value: m.name, aliases: m.aliases || [], scope: 'title_and_content' as const }],
+                });
+              }
+            }
+          }
+        }
+        if (layers.length) {
+          _setCaseQuery({ layers });
+          caseQueryRef.current = { layers };
+          setModelsResolved(true);
+        }
+      })
+    );
+  }, [caseModelIds.length]);
   const caseQueryRef = useRef(caseQuery);
   // Wrapper: update ref IMMEDIATELY (synchronous), then schedule React state update
   const setCaseQuery = useCallback((q: FeedQuery) => {
@@ -86,8 +117,18 @@ export default function CaseBoard({ caseData, onBack }: Props) {
     const q = caseQueryRef.current;
     setSaving(true);
     try {
-      await updateCase(currentCase.id, { query: q });
-      // Backend refreshes junction table synchronously before responding — no sleep needed
+      // Send both layers (for legacy/display) and resolve model_ids for article_models
+      const modelNames = q.layers.flatMap(l => l.parts.map(p => p.value)).filter(Boolean);
+      // Resolve each name to an Intel Model ID
+      const resolvedIds: string[] = [];
+      for (const name of modelNames) {
+        try {
+          const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
+          const res = await resolveIntelModel(name);
+          resolvedIds.push(res.model.id);
+        } catch { /* skip */ }
+      }
+      await updateCase(currentCase.id, { query: { ...q, models: resolvedIds } });
       await load();
     } catch (err) {
       console.error('[CaseBoard] save failed', err);
@@ -116,7 +157,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const caseStats = stats ? { total: stats.total, by_theme: stats.by_theme, by_threat: stats.by_threat, by_source: stats.by_source || {} } : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden">
+    <div className="h-full bg-slate-100 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-5 shrink-0">
         <div className="flex items-center gap-3">
@@ -133,7 +174,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
           {loading && <Loader2 size={16} className="animate-spin text-slate-400" />}
         </div>
         <button onClick={handleIngest} disabled={ingesting}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50">
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 text-slate-600 hover:ring-1 hover:ring-[#42d3a5]/30 transition-colors disabled:opacity-50">
           <RefreshCw size={14} className={ingesting ? 'animate-spin' : ''} />
           {ingesting ? 'Ingestion...' : 'Actualiser'}
         </button>
@@ -160,7 +201,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
                   placeholder="Decrivez le perimetre de veille..."
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[12px] text-slate-700 outline-none focus:border-[#42d3a5] resize-none" />
                 <div className="flex gap-2">
-                  <button onClick={() => setEditingDesc(false)} className="px-3 py-1.5 text-[11px] text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">Annuler</button>
+                  <button onClick={() => setEditingDesc(false)} className="px-3 py-1.5 text-[11px] text-slate-500 border border-slate-200 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30">Annuler</button>
                   <button onClick={handleUpdateDescription} disabled={regenerating}
                     className="px-3 py-1.5 text-[11px] text-white font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1" style={{ background: '#42d3a5' }}>
                     {regenerating ? <><Loader2 size={12} className="animate-spin" /> Regeneration...</> : 'Sauver & Regenerer'}

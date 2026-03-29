@@ -245,6 +245,17 @@ async def ingest_articles(
 
     await db.commit()
 
+    # Delta-match new articles against Intel Models (SET + MiniLM)
+    if new_articles:
+        try:
+            from app.source_engine.matching_engine import match_articles, store_matches
+            matches = match_articles(new_articles)
+            if matches:
+                await store_matches(db, matches)
+                await db.commit()
+        except Exception:
+            logger.debug("model matching after ingest_articles skipped", exc_info=True)
+
     # Delta-match new articles against all active cases
     if new_articles:
         try:
@@ -387,6 +398,17 @@ async def enrich_and_store(
     except Exception:
         await db.rollback()
         return 0
+
+    # Delta-match new articles against Intel Models (SET + MiniLM)
+    if new_articles:
+        try:
+            from app.source_engine.matching_engine import match_articles, store_matches
+            matches = match_articles(new_articles)
+            if matches:
+                await store_matches(db, matches)
+                await db.commit()
+        except Exception:
+            logger.debug("model matching after enrich_and_store skipped", exc_info=True)
 
     # Delta-match new articles against all active cases
     if new_articles:

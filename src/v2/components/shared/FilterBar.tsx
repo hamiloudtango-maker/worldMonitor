@@ -8,7 +8,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, X, ChevronDown } from 'lucide-react';
 import type { Article, Stats } from '@/v2/lib/constants';
-import type { CaseData } from '@/v2/lib/api';
 import { useFacetModels, articleText, matchesFacet, type FacetChoice } from '@/v2/hooks/useFacetModels';
 
 // ── Types ───────────────────────────────────────────────────────
@@ -17,10 +16,9 @@ export interface ActiveFilters {
   q: string;
   /** Intel Model IDs — matched via keywords+aliases */
   models: string[];
-  cases: string[];
 }
 
-export const EMPTY_FILTERS: ActiveFilters = { q: '', models: [], cases: [] };
+export const EMPTY_FILTERS: ActiveFilters = { q: '', models: [] };
 
 // Backward compat — some components still use 'themes'
 /** @deprecated use models */
@@ -31,21 +29,19 @@ interface Props {
   onChange: (f: ActiveFilters) => void;
   stats: Stats | null;
   articles: Article[];
-  cases: CaseData[];
 }
 
 // ── Chip colors ─────────────────────────────────────────────────
 
 const FACET_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   model:   { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  case_:   { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
 
 // ── Dropdown ────────────────────────────────────────────────────
 
 function Dropdown({ label, items, selected, onToggle, color, icon }: {
   label: string;
-  items: { value: string; label: string; count?: number; group?: string }[];
+  items: { value: string; label: string; count?: number; group?: string; indent?: number }[];
   selected: string[];
   onToggle: (value: string) => void;
   color: { bg: string; text: string; border: string };
@@ -123,9 +119,10 @@ function Dropdown({ label, items, selected, onToggle, color, icon }: {
                     <button
                       key={item.value}
                       onClick={() => onToggle(item.value)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[11px] transition-colors ${
-                        active ? `${color.bg} ${color.text} font-semibold` : 'text-slate-600 hover:bg-slate-50'
-                      }`}
+                      style={{ paddingLeft: `${8 + (item.indent || 0) * 12}px` }}
+                      className={`w-full flex items-center gap-2 pr-2 py-1.5 rounded-lg text-left transition-colors ${
+                        item.indent === 0 ? 'text-[12px] font-bold' : item.indent === 1 ? 'text-[11px] font-semibold' : 'text-[11px]'
+                      } ${active ? `${color.bg} ${color.text}` : 'text-slate-600 hover:ring-1 hover:ring-[#42d3a5]/30'}`}
                     >
                       <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
                         active ? `${color.border} ${color.bg}` : 'border-slate-300'
@@ -150,26 +147,37 @@ function Dropdown({ label, items, selected, onToggle, color, icon }: {
 
 // ── Main FilterBar ──────────────────────────────────────────────
 
-export default function FilterBar({ filters, onChange, stats, articles, cases }: Props) {
+export default function FilterBar({ filters, onChange, stats, articles }: Props) {
   const { choices, byFamily, countMatches } = useFacetModels();
 
   // Compute article match counts for Intel Models (cached per articles)
   const modelCounts = useMemo(() => countMatches(articles), [articles, countMatches]);
 
-  // Intel Model options — grouped by family
+  // Intel options — 3 levels with visual hierarchy
   const modelOptions = useMemo(() => {
-    const items: { value: string; label: string; count?: number; group?: string }[] = [];
+    const items: { value: string; label: string; count?: number; group?: string; indent?: number }[] = [];
     for (const [, { label: famLabel, choices: famChoices }] of byFamily) {
-      const sorted = [...famChoices].sort((a, b) => (modelCounts.get(b.id) || 0) - (modelCounts.get(a.id) || 0));
-      for (const c of sorted) {
-        const count = modelCounts.get(c.id) || 0;
-        items.push({ value: c.id, label: c.label, count, group: famLabel });
+      // Sort: families first, then sections, then models by count
+      const lvl1 = famChoices.filter(c => c.level === 'family');
+      const lvl2 = famChoices.filter(c => c.level === 'section');
+      const lvl3 = famChoices.filter(c => c.level === 'model')
+        .sort((a, b) => (modelCounts.get(b.id) || 0) - (modelCounts.get(a.id) || 0));
+
+      // Family-level choice
+      for (const c of lvl1) {
+        items.push({ value: c.id, label: `${c.label}`, count: modelCounts.get(c.id) || 0, group: famLabel, indent: 0 });
+      }
+      // Section-level choices
+      for (const c of lvl2) {
+        items.push({ value: c.id, label: `${c.label}`, count: modelCounts.get(c.id) || 0, group: famLabel, indent: 1 });
+      }
+      // Model-level choices
+      for (const c of lvl3) {
+        items.push({ value: c.id, label: c.label, count: modelCounts.get(c.id) || 0, group: famLabel, indent: 2 });
       }
     }
     return items;
   }, [byFamily, modelCounts]);
-
-  const caseOptions = cases.map(c => ({ value: c.name, label: c.name, count: c.article_count }));
 
   function toggle(key: keyof ActiveFilters, value: string) {
     const arr = filters[key] as string[];
@@ -181,14 +189,20 @@ export default function FilterBar({ filters, onChange, stats, articles, cases }:
     onChange({ ...filters, [key]: (filters[key] as string[]).filter(v => v !== value) });
   }
 
-  // Lookup for model ID → label (for chips)
-  const modelLabelMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of choices) m.set(c.id, c.label);
+  // Lookup for chips
+  const choiceMap = useMemo(() => {
+    const m = new Map<string, { label: string; level: string }>();
+    for (const c of choices) m.set(c.id, { label: c.label, level: c.level });
     return m;
   }, [choices]);
 
-  const hasFilters = filters.q || filters.models.length || filters.cases.length;
+  const LEVEL_STYLE: Record<string, { bg: string; text: string; border: string; tag: string }> = {
+    family:  { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', tag: 'L1' },
+    section: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', tag: 'L2' },
+    model:   { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', tag: 'L3' },
+  };
+
+  const hasFilters = filters.q || filters.models.length;
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -205,22 +219,19 @@ export default function FilterBar({ filters, onChange, stats, articles, cases }:
 
       {/* Facet dropdowns */}
       <Dropdown label="Intel Models" items={modelOptions} selected={filters.models} onToggle={v => toggle('models', v)} color={FACET_COLORS.model!} />
-      <Dropdown label="Case" items={caseOptions} selected={filters.cases} onToggle={v => toggle('cases', v)} color={FACET_COLORS.case_!} />
 
-      {/* Active chips */}
-      {filters.models.map(id => (
-        <span key={`m-${id}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-          {modelLabelMap.get(id) || id}
-          <button onClick={() => removeChip('models', id)} className="hover:text-purple-900"><X size={10} /></button>
-        </span>
-      ))}
-      {filters.cases.map(c => (
-        <span key={`cs-${c}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-          {c}
-          <button onClick={() => removeChip('cases', c)} className="hover:text-emerald-900"><X size={10} /></button>
-        </span>
-      ))}
-
+      {/* Active chips — color-coded by level */}
+      {filters.models.map(id => {
+        const info = choiceMap.get(id);
+        const style = LEVEL_STYLE[info?.level || 'model'] ?? LEVEL_STYLE.model!;
+        return (
+          <span key={`m-${id}`} className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full ${style.bg} ${style.text} border ${style.border}`}>
+            <span className="text-[8px] font-bold opacity-50">{style.tag}</span>
+            {info?.label || id}
+            <button onClick={() => removeChip('models', id)} className="hover:opacity-70"><X size={10} /></button>
+          </span>
+        );
+      })}
       {/* Clear all */}
       {hasFilters && (
         <button onClick={() => onChange(EMPTY_FILTERS)} className="text-[10px] text-slate-400 hover:text-red-500 flex items-center gap-0.5 transition-colors">

@@ -29,6 +29,7 @@ async def search_articles(
     threat: str = Query("", description="Threat level filter (critical, high, medium, low)"),
     source_id: str = Query("", description="Source ID filter"),
     lang: str = Query("", description="Language filter (en, fr, de, es, ar, etc.)"),
+    models: str = Query("", description="Comma-separated Intel Model IDs (UUID). AND between models."),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     days: int = Query(7, ge=1, le=90, description="Retention window in days (default 7)"),
@@ -38,6 +39,23 @@ async def search_articles(
     from datetime import datetime, timezone, timedelta
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     stmt = select(Article).where(Article.pub_date >= cutoff).order_by(desc(Article.pub_date))
+
+    # Intel Model filter via article_models junction (AND between models)
+    if models:
+        import uuid as _uuid
+        from app.models.article_model import ArticleModel
+        model_ids = [m.strip() for m in models.split(",") if m.strip()]
+        if model_ids:
+            for mid in model_ids:
+                try:
+                    mid_uuid = _uuid.UUID(mid)
+                except ValueError:
+                    continue
+                sub = select(ArticleModel.article_id).where(
+                    ArticleModel.article_id == Article.id,
+                    ArticleModel.model_id == mid_uuid,
+                ).correlate(Article)
+                stmt = stmt.where(sub.exists())
 
     if q:
         # SQLite LIKE search (upgrade to FTS5 for PG tsvector in prod)

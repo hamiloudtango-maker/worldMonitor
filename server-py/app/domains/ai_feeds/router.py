@@ -57,24 +57,40 @@ def _serialize_source(s: AIFeedSource) -> dict:
 
 
 async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
-    """Run feed query against articles table and populate ai_feed_results. Returns count inserted."""
+    """Run feed query against articles table and populate ai_feed_results.
+    Supports new format (models: []) via article_models JOIN, and legacy (layers: []) via LIKE."""
     from sqlalchemy import text as sa_text
-    from app.domains._shared.query_compiler import compile_query
 
-    layers = query_data.get("layers", [])
-    compiled = compile_query(layers) if layers else None
-    if compiled is None:
-        return 0
-
-    where_clause, params = compiled
-    result = await db.execute(
-        sa_text(
-            "SELECT title, link, source_id, pub_date, description, threat_level, theme "
-            f"FROM articles WHERE {where_clause} "
-            "ORDER BY pub_date DESC LIMIT 500"
-        ),
-        params,
-    )
+    # New format: query via article_models
+    model_ids = query_data.get("models", [])
+    if model_ids:
+        placeholders = ",".join(f":m{i}" for i in range(len(model_ids)))
+        params = {f"m{i}": mid for i, mid in enumerate(model_ids)}
+        result = await db.execute(
+            sa_text(
+                "SELECT a.title, a.link, a.source_id, a.pub_date, a.description, a.threat_level, a.theme "
+                "FROM articles a JOIN article_models am ON am.article_id = a.id "
+                f"WHERE am.model_id IN ({placeholders}) "
+                "GROUP BY a.id ORDER BY a.pub_date DESC LIMIT 500"
+            ),
+            params,
+        )
+    else:
+        # Legacy format: LIKE
+        from app.domains._shared.query_compiler import compile_query
+        layers = query_data.get("layers", [])
+        compiled = compile_query(layers) if layers else None
+        if compiled is None:
+            return 0
+        where_clause, params = compiled
+        result = await db.execute(
+            sa_text(
+                "SELECT title, link, source_id, pub_date, description, threat_level, theme "
+                f"FROM articles WHERE {where_clause} "
+                "ORDER BY pub_date DESC LIMIT 500"
+            ),
+            params,
+        )
     rows = result.fetchall()
     if not rows:
         return 0
@@ -570,6 +586,14 @@ async def refresh_dynamic_categories(
     return await run_weekly_analysis(db)
 
 
+# ── Intel Models search (fuzzy, for search bar) ─────────────
+@router.get("/intel-models/search")
+async def search_intel_models(q: str = Query("", min_length=2), limit: int = Query(10, le=50)):
+    """Fuzzy search Intel Models by name or alias. Uses RapidFuzz."""
+    from app.source_engine.matching_engine import search_models
+    return {"results": search_models(q, limit=limit)}
+
+
 # ── Intel Models catalog ──────────────────────────────────────
 @router.get("/intel-models")
 async def list_intel_models(
@@ -606,12 +630,26 @@ async def list_intel_models(
 
 @router.get("/intel-models/tree")
 async def intel_models_tree(db: AsyncSession = Depends(get_db)):
-    """Return 3-level tree: family → section → models."""
+    """Return 3-level tree: family → section → models, with aliases at each level."""
     from app.models.intel_model import IntelModel
+    from app.models.intel_category import IntelCategory
+
     result = await db.execute(
         select(IntelModel).order_by(IntelModel.family, IntelModel.section, desc(IntelModel.article_count))
     )
     models = result.scalars().all()
+
+    # Load category aliases
+    cats = (await db.scalars(select(IntelCategory))).all()
+    fam_aliases: dict[str, list] = {}
+    sec_aliases: dict[str, list] = {}
+    fam_labels: dict[str, str] = {}
+    for c in cats:
+        if c.level == "family":
+            fam_aliases[c.key] = c.aliases or []
+            fam_labels[c.key] = c.label
+        elif c.level == "section":
+            sec_aliases[f"{c.parent_key}:{c.key}"] = c.aliases or []
 
     tree: dict[str, dict[str, list]] = {}
     for m in models:
@@ -620,28 +658,419 @@ async def intel_models_tree(db: AsyncSession = Depends(get_db)):
             "description": m.description, "article_count": m.article_count,
         })
 
-    # Convert to ordered list
-    FAMILY_LABELS = {
-        "market": "Market Intelligence",
-        "threat": "Threat Intelligence",
-        "risk": "Risk Intelligence",
-        "foundation": "Foundation",
-        "biopharma": "Biopharma Research",
-        "mute": "Mute Filters",
+    DEFAULT_LABELS = {
+        "market": "Market Intelligence", "threat": "Threat Intelligence",
+        "risk": "Risk Intelligence", "foundation": "Foundation",
+        "biopharma": "Biopharma Research", "mute": "Mute Filters",
+        "geopolitical": "Geopolitical",
     }
     families = []
-    for fam_key in ["market", "threat", "risk", "foundation", "biopharma", "mute"]:
-        if fam_key not in tree:
-            continue
+    for fam_key in sorted(tree.keys(), key=lambda k: list(DEFAULT_LABELS.keys()).index(k) if k in DEFAULT_LABELS else 99):
         sections = []
         for sec_name, sec_models in tree[fam_key].items():
-            sections.append({"name": sec_name, "models": sec_models})
+            sections.append({
+                "name": sec_name,
+                "aliases": sec_aliases.get(f"{fam_key}:{sec_name}", []),
+                "models": sec_models,
+            })
         families.append({
             "key": fam_key,
-            "label": FAMILY_LABELS.get(fam_key, fam_key),
+            "label": fam_labels.get(fam_key, DEFAULT_LABELS.get(fam_key, fam_key)),
+            "aliases": fam_aliases.get(fam_key, []),
             "sections": sections,
         })
     return {"families": families}
+
+
+@router.post("/intel-enrich-aliases")
+async def enrich_aliases(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """LLM-enrich aliases for any level, using hierarchical context.
+
+    Body: { "level": "family"|"section"|"model", "id": "...",
+            "family_key": "...", "section_name": "..." }
+
+    Context rules:
+      - Level 1 (family): LLM reads all sections + models below
+      - Level 2 (section): LLM reads parent family + sibling sections + child models
+      - Level 3 (model): LLM reads parent family + parent section context
+    """
+    import re
+    from app.models.intel_model import IntelModel
+    from app.models.intel_category import IntelCategory
+    from app.source_engine.detector import _call_gemini
+
+    level = body.get("level")
+    target_id = body.get("id")
+    family_key = body.get("family_key", "")
+    section_name = body.get("section_name", "")
+
+    # Gather context
+    all_models = (await db.scalars(select(IntelModel))).all()
+    all_cats = (await db.scalars(select(IntelCategory))).all()
+
+    if level == "family":
+        cat = next((c for c in all_cats if c.level == "family" and c.key == family_key), None)
+        if not cat:
+            raise HTTPException(404, "Family not found")
+        # Context: all sections + models under this family
+        children = [m for m in all_models if m.family == family_key]
+        sections_below = sorted(set(m.section for m in children))
+        models_below = [f"{m.name} ({', '.join((m.aliases or [])[:5])})" for m in children[:30]]
+        current_aliases = cat.aliases or []
+
+        prompt = f"""LEVEL 1 — TOP-LEVEL DOMAIN aliases for OSINT platform.
+
+Family: "{cat.label}" (key: {cat.key})
+Current aliases: {current_aliases}
+Sub-domains: {sections_below}
+Sample entities below:
+{chr(10).join(f'  - {m}' for m in models_below)}
+
+This is the BROADEST level. Generate 10-20 DOMAIN-LEVEL aliases:
+- How an intelligence professional names this entire discipline
+- General terms that encompass ALL sub-topics and entities below
+- NOT sub-topics, NOT entities — pure domain vocabulary
+Example for "Market Intelligence": ["veille économique", "business intelligence", "intelligence économique", "competitive intelligence", "analyse de marché"]
+
+English + French + relevant languages. Min 3 chars.
+Return ONLY a JSON array: ["alias1", "alias2", ...]"""
+
+        target_name = cat.label
+
+    elif level == "section":
+        cat = next((c for c in all_cats if c.level == "section" and c.key == section_name and c.parent_key == family_key), None)
+        if not cat:
+            raise HTTPException(404, "Section not found")
+        fam_cat = next((c for c in all_cats if c.level == "family" and c.key == family_key), None)
+        children = [m for m in all_models if m.family == family_key and m.section == section_name]
+        models_below = [f"{m.name} ({', '.join((m.aliases or [])[:5])})" for m in children[:20]]
+        sibling_secs = sorted(set(m.section for m in all_models if m.family == family_key and m.section != section_name))
+        current_aliases = cat.aliases or []
+
+        prompt = f"""LEVEL 2 — SUB-DOMAIN aliases for OSINT platform.
+
+Parent domain (L1): "{fam_cat.label if fam_cat else family_key}" (aliases: {fam_cat.aliases if fam_cat else []})
+Section: "{section_name}"
+Current aliases: {current_aliases}
+Sibling sections: {sibling_secs[:10]}
+Entities in this section (L3):
+{chr(10).join(f'  - {m}' for m in models_below)}
+
+This is LEVEL 2 — a GENERALIST sub-domain, still broad.
+Generate 10-15 TOPIC-LEVEL aliases:
+- Terms describing this category of intelligence as a topic
+- Broader than any specific entity but scoped within the parent domain
+- NOT entity names — those are Level 3
+Example for "Strategic Moves" under "Market Intelligence": ["stratégie d'entreprise", "corporate strategy", "mouvements stratégiques", "corporate actions", "business strategy"]
+
+English + French + relevant languages. Min 3 chars.
+Return ONLY a JSON array: ["alias1", "alias2", ...]"""
+
+        target_name = section_name
+
+    elif level == "model":
+        model = await db.get(IntelModel, __import__('uuid').UUID(target_id))
+        if not model:
+            raise HTTPException(404, "Model not found")
+        fam_cat = next((c for c in all_cats if c.level == "family" and c.key == model.family), None)
+        sec_cat = next((c for c in all_cats if c.level == "section" and c.key == model.section and c.parent_key == model.family), None)
+        current_aliases = model.aliases or []
+
+        prompt = f"""LEVEL 3 — PRECISE ENTITY aliases for OSINT platform.
+
+Parent domain (L1): "{fam_cat.label if fam_cat else model.family}" (aliases: {fam_cat.aliases if fam_cat else []})
+Parent section (L2): "{sec_cat.label if sec_cat else model.section}" (aliases: {sec_cat.aliases if sec_cat else []})
+Model: "{model.name}"
+Current aliases: {current_aliases}
+
+This is LEVEL 3 — the most SPECIFIC level. This is a concrete entity:
+a company, a person, a technology, a threat actor, a specific concept.
+
+Generate 10-20 PRECISE aliases:
+- Exact name variations, abbreviations, stock tickers, acronyms
+- Translations in English, French, and the entity's local language
+- Former names, parent orgs, subsidiaries, common misspellings
+Example for "TotalEnergies": ["Total", "TotalEnergies SE", "TTE", "Total S.A.", "Total Energies", "Compagnie Française des Pétroles"]
+
+Min 3 chars each.
+Return ONLY a JSON array: ["alias1", "alias2", ...]"""
+
+        target_name = model.name
+
+    else:
+        raise HTTPException(400, "level must be family, section, or model")
+
+    # Call LLM
+    raw = await _call_gemini(prompt)
+    cleaned = raw.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    new_aliases = json.loads(cleaned.strip())
+
+    if not isinstance(new_aliases, list):
+        raise HTTPException(500, "LLM returned invalid format")
+
+    # Filter and deduplicate
+    new_aliases = sorted(set(
+        a.strip() for a in new_aliases if isinstance(a, str) and len(a.strip()) >= 3
+    ))
+
+    # Save
+    if level == "model":
+        model.aliases = new_aliases
+        await db.commit()
+    else:
+        cat.aliases = new_aliases
+        await db.commit()
+
+    return {"level": level, "name": target_name, "aliases": new_aliases, "count": len(new_aliases)}
+
+
+@router.post("/intel-enrich-all")
+async def enrich_all_aliases(db: AsyncSession = Depends(get_db)):
+    """Batch-enrich aliases for the entire Intel tree: all families, sections, models.
+
+    Processes bottom-up: models first (context = family+section names),
+    then sections (context = family + child model aliases),
+    then families (context = child section + model aliases).
+    Streams progress via JSON lines."""
+    import re
+    from app.models.intel_model import IntelModel
+    from app.models.intel_category import IntelCategory
+    from app.source_engine.detector import _call_gemini
+
+    all_models = (await db.scalars(select(IntelModel))).all()
+    all_cats = (await db.scalars(select(IntelCategory))).all()
+
+    fam_cats = {c.key: c for c in all_cats if c.level == "family"}
+    sec_cats = {f"{c.parent_key}:{c.key}": c for c in all_cats if c.level == "section"}
+
+    stats = {"families": 0, "sections": 0, "models": 0, "errors": 0}
+
+    async def _call_and_parse(prompt: str) -> list[str]:
+        raw = await _call_gemini(prompt)
+        cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip())
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        aliases = json.loads(cleaned.strip())
+        if not isinstance(aliases, list):
+            return []
+        return sorted(set(a.strip() for a in aliases if isinstance(a, str) and len(a.strip()) >= 3))
+
+    # ── Phase 1: LEVEL 3 — Models = PRECISE (entities, companies, persons, specific concepts) ──
+    # Context: knows its family + section to stay in scope
+    for m in all_models:
+        if m.aliases and len(m.aliases) >= 5:
+            continue
+        fam_label = fam_cats.get(m.family, None)
+        prompt = f"""You are generating search aliases for a PRECISE intelligence model in an OSINT platform.
+
+Model: "{m.name}"
+Family (broad domain): "{fam_label.label if fam_label else m.family}"
+Section (sub-domain): "{m.section}"
+
+This is LEVEL 3 — the most specific level. This model represents a concrete entity:
+a company, a person, a technology, a specific threat, a precise concept.
+
+Generate 10-15 PRECISE aliases:
+- Exact name variations, abbreviations, stock tickers
+- Translations in English, French, and the entity's local language
+- Common misspellings or alternate spellings people search for
+- Former names, parent companies, subsidiaries if relevant
+
+Every alias must be at least 3 characters. Be specific, not generic.
+Return ONLY a JSON array: ["alias1", "alias2", ...]"""
+        try:
+            m.aliases = await _call_and_parse(prompt)
+            stats["models"] += 1
+        except Exception:
+            stats["errors"] += 1
+
+    await db.commit()
+
+    # ── Phase 2: LEVEL 2 — Sections = GENERAL SUB-DOMAIN (reads L1 family context + L3 model aliases below) ──
+    # Broader than entities but scoped within the family
+    for sec_key, sec_cat in sec_cats.items():
+        fam_key = sec_cat.parent_key
+        children = [m for m in all_models if m.family == fam_key and m.section == sec_cat.key]
+        child_names = ", ".join(m.name for m in children[:15])
+        child_alias_sample = []
+        for m in children[:10]:
+            child_alias_sample.extend((m.aliases or [])[:3])
+        fam_label = fam_cats.get(fam_key, None)
+
+        prompt = f"""You are generating search aliases for a SUB-DOMAIN SECTION in an OSINT intelligence platform.
+
+Section: "{sec_cat.key}"
+Parent family (broad domain): "{fam_label.label if fam_label else fam_key}"
+Entities in this section (Level 3): {child_names}
+Sample entity-level aliases: {child_alias_sample[:20]}
+
+This is LEVEL 2 — a GENERALIST sub-domain, NOT entity-specific.
+Think of it as a TOPIC or CATEGORY that groups related entities.
+
+Example: if section = "Strategic Moves" → aliases should be: ["stratégie d'entreprise", "corporate strategy", "business moves", "mouvements stratégiques", "corporate actions"]
+NOT specific entities like "M&A" or "IPO" (those are Level 3).
+
+Generate 10-15 GENERALIST sub-domain aliases:
+- Topic-level terms that describe this category of intelligence
+- Terms an analyst would use to search for this type of information broadly
+- English + French + relevant languages. Min 3 chars.
+
+Return ONLY a JSON array: ["alias1", "alias2", ...]"""
+        try:
+            sec_cat.aliases = await _call_and_parse(prompt)
+            stats["sections"] += 1
+        except Exception:
+            stats["errors"] += 1
+
+    await db.commit()
+
+    # ── Phase 3: LEVEL 1 — Families = BROADEST DOMAIN (reads L2 section aliases below) ──
+    # The widest filter — entire intelligence domain
+    for fam_key, fam_cat in fam_cats.items():
+        children_secs = [c for c in all_cats if c.level == "section" and c.parent_key == fam_key]
+        sec_names = [c.key for c in children_secs]
+        sec_alias_sample = []
+        for c in children_secs[:8]:
+            sec_alias_sample.extend((c.aliases or [])[:3])
+        model_count = len([m for m in all_models if m.family == fam_key])
+
+        prompt = f"""You are generating search aliases for a TOP-LEVEL intelligence DOMAIN in an OSINT platform.
+
+Family: "{fam_cat.label}" (key: {fam_key})
+Sub-domains (Level 2): {sec_names}
+Sample sub-domain aliases: {sec_alias_sample[:15]}
+Number of entities under this domain: {model_count}
+
+This is LEVEL 1 — the BROADEST level. This represents an entire field of intelligence.
+
+Example: if family = "Market Intelligence" → aliases should be: ["veille économique", "business intelligence", "market analysis", "intelligence économique", "veille marché", "competitive intelligence", "analyse de marché"]
+NOT sub-topics like "technology" or "strategy" (those are Level 2).
+
+Generate 10-20 VERY BROAD domain-level aliases:
+- Terms that encompass the entire field
+- How an intelligence professional would name this discipline
+- English + French + other relevant languages. Min 3 chars.
+
+Return ONLY a JSON array: ["alias1", "alias2", ...]"""
+        try:
+            fam_cat.aliases = await _call_and_parse(prompt)
+            stats["families"] += 1
+        except Exception:
+            stats["errors"] += 1
+
+    await db.commit()
+    return stats
+
+
+@router.put("/intel-categories/{cat_level}/{cat_key}")
+async def update_intel_category(
+    cat_level: str, cat_key: str,
+    parent_key: str | None = Query(None),
+    body: dict = {},
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a category's label or aliases."""
+    from app.models.intel_category import IntelCategory
+    stmt = select(IntelCategory).where(IntelCategory.level == cat_level, IntelCategory.key == cat_key)
+    if parent_key:
+        stmt = stmt.where(IntelCategory.parent_key == parent_key)
+    cat = (await db.scalars(stmt)).first()
+    if not cat:
+        raise HTTPException(404, "Category not found")
+    if "label" in body:
+        cat.label = body["label"]
+    if "aliases" in body:
+        cat.aliases = body["aliases"]
+    await db.commit()
+    return {"id": str(cat.id), "level": cat.level, "key": cat.key, "label": cat.label, "aliases": cat.aliases or []}
+
+
+@router.put("/intel-models/{model_id}")
+async def update_intel_model(
+    model_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an intel model's name, aliases, family, section."""
+    from app.models.intel_model import IntelModel
+    import uuid
+    m = await db.get(IntelModel, uuid.UUID(model_id))
+    if not m:
+        raise HTTPException(404, "Model not found")
+    if "name" in body:
+        m.name = body["name"]
+    if "aliases" in body:
+        m.aliases = body["aliases"]
+    if "family" in body:
+        m.family = body["family"]
+    if "section" in body:
+        m.section = body["section"]
+    await db.commit()
+    return {
+        "id": str(m.id), "name": m.name, "family": m.family,
+        "section": m.section, "aliases": m.aliases or [],
+        "article_count": m.article_count, "origin": m.origin,
+    }
+
+
+@router.delete("/intel-models/{model_id}")
+async def delete_intel_model(
+    model_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete an intel model."""
+    from app.models.intel_model import IntelModel
+    import uuid
+    m = await db.get(IntelModel, uuid.UUID(model_id))
+    if not m:
+        raise HTTPException(404, "Model not found")
+    await db.delete(m)
+    await db.commit()
+    return {"deleted": True}
+
+
+@router.post("/intel-models/dedup")
+async def dedup_intel_models(db: AsyncSession = Depends(get_db)):
+    """Find and merge duplicate intel models (same name, case-insensitive).
+    Keeps the one with the most aliases, merges aliases from others, then deletes dupes."""
+    from app.models.intel_model import IntelModel
+    from collections import defaultdict
+
+    result = await db.execute(select(IntelModel).order_by(IntelModel.name))
+    models = result.scalars().all()
+
+    # Group by lowercase name
+    groups: dict[str, list] = defaultdict(list)
+    for m in models:
+        groups[m.name.lower().strip()].append(m)
+
+    merged_count = 0
+    deleted_count = 0
+    for name_lower, group in groups.items():
+        if len(group) <= 1:
+            continue
+        # Keep the one with most aliases
+        group.sort(key=lambda x: len(x.aliases or []), reverse=True)
+        keeper = group[0]
+        all_aliases = set(a.lower() for a in (keeper.aliases or []))
+        for dupe in group[1:]:
+            # Merge aliases
+            for a in (dupe.aliases or []):
+                all_aliases.add(a.lower())
+            # Sum article counts
+            keeper.article_count = (keeper.article_count or 0) + (dupe.article_count or 0)
+            await db.delete(dupe)
+            deleted_count += 1
+        # Deduplicate aliases
+        keeper.aliases = sorted(set(a for a in all_aliases if len(a) >= 3))
+        merged_count += 1
+
+    await db.commit()
+    return {"merged_groups": merged_count, "deleted_duplicates": deleted_count}
 
 
 @router.post("/intel-models/resolve")

@@ -231,7 +231,7 @@ export default function SourceManager() {
 
   /* ---- Row ---- */
   const SourceRow = ({ s }: { s: CatalogSource }) => (
-    <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+    <tr className="border-b border-slate-100 hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
       <td className="pl-3 pr-1 py-2">
         <input type="checkbox" checked={selected.has(s.id)}
           onChange={() => toggleOne(s.id)} className="accent-blue-600 rounded" />
@@ -348,7 +348,7 @@ export default function SourceManager() {
           {([['none', 'Liste'], ['tags', 'Par thématique'], ['country', 'Par pays']] as const).map(([val, label]) => (
             <button key={val}
               onClick={() => { setGroupBy(val); setCollapsed(new Set()); }}
-              className={`px-3 py-1.5 transition-colors ${groupBy === val ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+              className={`px-3 py-1.5 transition-all ${groupBy === val ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:ring-1 hover:ring-[#42d3a5]/30'}`}>
               {label}
             </button>
           ))}

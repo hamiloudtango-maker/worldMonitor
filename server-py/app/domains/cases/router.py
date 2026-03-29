@@ -241,14 +241,48 @@ def _case_article_filter(case: Case):
     return Article.id.in_(select(CaseArticle.article_id).where(CaseArticle.case_id == case.id))
 
 
+def _get_model_ids(case: Case) -> list[str]:
+    """Extract Intel Model IDs from case query_json. Supports both formats."""
+    if not case.query_json:
+        return []
+    try:
+        q = json.loads(case.query_json) if isinstance(case.query_json, str) else case.query_json
+        # New format: {"models": ["uuid1", "uuid2"]} — strip dashes for SQLite compat
+        if "models" in q:
+            return [m.replace("-", "") for m in q["models"] if m]
+        # Legacy format: {"layers": [...]} — extract model IDs from parts
+        # Each part may have an "id" field if it came from an Intel Model
+        for layer in q.get("layers", []):
+            for part in layer.get("parts", []):
+                if part.get("id"):
+                    return [part["id"] for part in layer["parts"] if part.get("id")]
+    except Exception:
+        pass
+    return []
+
+
 async def _count_articles_and_alerts(db: AsyncSession, case: Case) -> tuple[int, int]:
-    """Count articles + alerts via indexed JOIN on case_articles."""
+    """Count articles + alerts via article_models (new) or case_articles (legacy)."""
     from sqlalchemy import text
-    result = await db.execute(text(
-        "SELECT count(*), sum(CASE WHEN a.threat_level IN ('critical','high') THEN 1 ELSE 0 END) "
-        "FROM articles a JOIN case_articles ca ON ca.article_id = a.id "
-        "WHERE ca.case_id = :cid"
-    ), {"cid": case.id.hex})
+    model_ids = _get_model_ids(case)
+
+    if model_ids:
+        # New path: JOIN article_models
+        placeholders = ",".join(f":m{i}" for i in range(len(model_ids)))
+        params = {f"m{i}": mid for i, mid in enumerate(model_ids)}
+        result = await db.execute(text(
+            "SELECT count(DISTINCT a.id), sum(CASE WHEN a.threat_level IN ('critical','high') THEN 1 ELSE 0 END) "
+            "FROM articles a JOIN article_models am ON am.article_id = a.id "
+            f"WHERE am.model_id IN ({placeholders})"
+        ), params)
+    else:
+        # Legacy path: case_articles (for old cases not yet migrated)
+        result = await db.execute(text(
+            "SELECT count(*), sum(CASE WHEN a.threat_level IN ('critical','high') THEN 1 ELSE 0 END) "
+            "FROM articles a JOIN case_articles ca ON ca.article_id = a.id "
+            "WHERE ca.case_id = :cid"
+        ), {"cid": case.id.hex})
+
     row = result.one()
     return row[0] or 0, int(row[1] or 0)
 
@@ -349,6 +383,41 @@ async def create_case(
         identity = {"name": body.name, "type": body.type, "description": body.description or f"{body.type.title()} named {body.name}"}
     search_keywords = _generate_search_keywords(body.name, identity, body.description)
 
+    # Auto-resolve case name to Intel Model (create if not found)
+    from app.models.intel_model import IntelModel
+    existing_model = (await db.scalars(
+        select(IntelModel).where(func.lower(IntelModel.name) == body.name.lower())
+    )).first()
+
+    if not existing_model:
+        # Try LLM resolve
+        try:
+            from app.source_engine.detector import _call_gemini
+            import re as _re
+            prompt = f"""Create an intelligence model for the OSINT term: "{body.name}"
+Return ONLY valid JSON (no markdown):
+{{"name": "Proper name", "family": "foundation", "section": "{'Companies' if body.type == 'company' else 'Geopolitics' if body.type == 'country' else 'Custom'}",
+"description": "One sentence", "aliases": ["8-15 aliases in English, French, local language. Min 3 chars each."]}}"""
+            raw = await _call_gemini(prompt)
+            cleaned = _re.sub(r"^```(?:json)?\s*", "", raw.strip())
+            cleaned = _re.sub(r"\s*```$", "", cleaned)
+            data = json.loads(cleaned.strip())
+            existing_model = IntelModel(
+                name=data.get("name", body.name),
+                family=data.get("family", "foundation"),
+                section=data.get("section", "Custom"),
+                description=data.get("description"),
+                aliases=data.get("aliases", [body.name]),
+                origin="ai_enriched",
+            )
+            db.add(existing_model)
+            await db.flush()
+            logger.info("Auto-created Intel Model '%s' for case '%s'", existing_model.name, body.name)
+        except Exception:
+            logger.warning("Failed to auto-create Intel Model for case '%s'", body.name, exc_info=True)
+
+    # Set query to reference the Intel Model
+    query_models = [str(existing_model.id)] if existing_model else []
     case = Case(
         id=uuid.uuid4(),
         org_id=user.org_id,
@@ -356,6 +425,7 @@ async def create_case(
         name=body.name,
         type=body.type,
         search_keywords=search_keywords,
+        query_json=json.dumps({"models": query_models}) if query_models else None,
         identity_card=json.dumps(identity),
         status="active",
     )
@@ -477,12 +547,18 @@ async def update_case(
     await db.commit()
     await db.refresh(case)
 
-    # Re-populate case_articles junction synchronously so the response has fresh counts
+    # Re-populate junction: article_models for new format, case_articles for legacy
     if query_changed:
-        from app.domains.cases.matching import refresh_case_articles
-        count = await refresh_case_articles(db, case)
-        await db.commit()
-        logger.info("update_case(%s): query_changed, refresh matched %d articles, query_json=%s", case.name, count, (case.query_json or '')[:200])
+        model_ids = _get_model_ids(case)
+        if not model_ids:
+            # Legacy format: use LIKE-based refresh
+            from app.domains.cases.matching import refresh_case_articles
+            count = await refresh_case_articles(db, case)
+            await db.commit()
+            logger.info("update_case(%s): legacy refresh, %d articles", case.name, count)
+        else:
+            # New format: article_models already populated at ingestion, just log
+            logger.info("update_case(%s): query uses %d model_ids, no refresh needed", case.name, len(model_ids))
 
     article_count, alert_count = await _count_articles_and_alerts(db, case)
 
@@ -520,9 +596,7 @@ async def case_articles(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get articles matching this case via indexed JOIN, within retention window."""
-    from app.models.case import CaseArticle
-
+    """Get articles matching this case via article_models (new) or case_articles (legacy)."""
     case = await db.scalar(
         select(Case).where(Case.id == case_id, Case.org_id == user.org_id)
     )
@@ -530,12 +604,29 @@ async def case_articles(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
 
     cutoff = datetime.now(timezone.utc) - __import__('datetime').timedelta(days=days)
-    stmt = (
-        select(Article)
-        .join(CaseArticle, CaseArticle.article_id == Article.id)
-        .where(CaseArticle.case_id == case_id, Article.pub_date >= cutoff)
-        .order_by(desc(Article.pub_date))
-    )
+    model_ids = _get_model_ids(case)
+
+    if model_ids:
+        # New path: article_models
+        from app.models.article_model import ArticleModel
+        import uuid as _uuid
+        mid_uuids = [_uuid.UUID(m) for m in model_ids]
+        stmt = (
+            select(Article)
+            .join(ArticleModel, ArticleModel.article_id == Article.id)
+            .where(ArticleModel.model_id.in_(mid_uuids), Article.pub_date >= cutoff)
+            .group_by(Article.id)
+            .order_by(desc(Article.pub_date))
+        )
+    else:
+        # Legacy path: case_articles
+        from app.models.case import CaseArticle
+        stmt = (
+            select(Article)
+            .join(CaseArticle, CaseArticle.article_id == Article.id)
+            .where(CaseArticle.case_id == case_id, Article.pub_date >= cutoff)
+            .order_by(desc(Article.pub_date))
+        )
 
     if threat:
         stmt = stmt.where(Article.threat_level == threat)
@@ -629,6 +720,21 @@ async def ingest_case(
 
     from app.domains.jobs.helpers import start_job, finish_job
     job_id = await start_job("case_ingest", target_id=str(case_id))
+
+    # Auto-migrate legacy cases to new format (models)
+    model_ids = _get_model_ids(case)
+    if not model_ids:
+        try:
+            from app.models.intel_model import IntelModel
+            existing_model = (await db.scalars(
+                select(IntelModel).where(func.lower(IntelModel.name) == case.name.lower())
+            )).first()
+            if existing_model:
+                case.query_json = json.dumps({"models": [str(existing_model.id)]})
+                await db.commit()
+                logger.info("Auto-migrated case '%s' to models format (model=%s)", case.name, existing_model.name)
+        except Exception:
+            logger.debug("Auto-migration skipped for case '%s'", case.name, exc_info=True)
 
     try:
         from app.source_engine.google_news import fetch_google_news
