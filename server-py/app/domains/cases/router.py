@@ -38,6 +38,7 @@ class CaseUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     search_keywords: str | None = None
+    query: dict | None = None  # Feed-style query {layers: [...]}
     identity_card: dict | None = None
     status: str | None = None
     regenerate: bool = False  # if True, re-generate identity card + keywords from description
@@ -217,75 +218,39 @@ def _get_case_search_terms(case: Case) -> tuple[list[str], list[str]]:
     return dedup(strong), dedup(weak)
 
 
-def _case_article_filter(case: Case):
-    """Return a SQLAlchemy filter for case articles.
-
-    Strategy:
-    - Strong terms (case name, aliases, tickers) → match alone in title/entities/countries
-    - Weak terms (generic: "Mining", "China trade") → only match if the article
-      ALSO contains a strong term (AND logic), preventing noise
-    - Tagged articles always match
+def _case_where_clause(case: Case) -> str | None:
+    """Return the raw SQL WHERE clause string for a case's query, or None.
+    Used by matching.py for populating the junction table (LIKE scan at write time).
     """
-    from sqlalchemy import or_, and_
-
-    strong_terms, weak_terms = _get_case_search_terms(case)
-
-    conditions = []
-
-    # 1. Strong terms — match alone (full country names, entity names, etc.)
-    #    Terms < 3 chars are ignored (too noisy)
-    for term in strong_terms:
-        if len(term) >= 3:
-            conditions.append(Article.title.ilike(f"%{term}%"))
-            conditions.append(Article.entities_json.ilike(f"%{term}%"))
-
-    # 2. Country code match via structured field only (e.g. "MN" for Mongolia)
-    if case.identity_card:
-        try:
-            card = json.loads(case.identity_card) if isinstance(case.identity_card, str) else case.identity_card
-            cc = (card.get("country_code") or "").upper()
-            if cc and len(cc) == 2:
-                conditions.append(Article.country_codes_json.ilike(f'%"{cc}"%'))
-        except Exception:
-            pass
-
-    # 3. Weak terms — only match if article also has a strong term (AND logic)
-    #    This prevents "Mining" alone from matching all mining articles worldwide
-    strong_3plus = [s for s in strong_terms if len(s) >= 3]
-    if weak_terms and strong_3plus:
-        strong_anchor = or_(
-            *[Article.title.ilike(f"%{s}%") for s in strong_3plus],
-            *[Article.entities_json.ilike(f"%{s}%") for s in strong_3plus],
-        )
-        for term in weak_terms:
-            term = term.strip()
-            if len(term) >= 3 and term.lower() not in {s.lower() for s in strong_terms}:
-                weak_match = or_(
-                    Article.title.ilike(f"%{term}%"),
-                    Article.entities_json.ilike(f"%{term}%"),
-                )
-                conditions.append(and_(weak_match, strong_anchor))
-
-    return or_(*conditions)
+    if not case.query_json:
+        return None
+    try:
+        query = json.loads(case.query_json) if isinstance(case.query_json, str) else case.query_json
+        layers = query.get("layers", [])
+        if layers:
+            from app.domains._shared.query_filter import build_query_where
+            return build_query_where(layers)
+    except Exception:
+        pass
+    return None
 
 
-async def _count_articles(db: AsyncSession, case: Case) -> int:
-    """Count articles matching a case."""
-    stmt = select(func.count()).select_from(Article).where(_case_article_filter(case))
-    return await db.scalar(stmt) or 0
+def _case_article_filter(case: Case):
+    """Return a SQLAlchemy filter using the pre-computed case_articles junction table."""
+    from app.models.case import CaseArticle
+    return Article.id.in_(select(CaseArticle.article_id).where(CaseArticle.case_id == case.id))
 
 
-async def _count_alerts(db: AsyncSession, case: Case) -> int:
-    """Count high/critical threat articles matching a case."""
-    stmt = (
-        select(func.count())
-        .select_from(Article)
-        .where(
-            _case_article_filter(case),
-            Article.threat_level.in_(["critical", "high"]),
-        )
-    )
-    return await db.scalar(stmt) or 0
+async def _count_articles_and_alerts(db: AsyncSession, case: Case) -> tuple[int, int]:
+    """Count articles + alerts via indexed JOIN on case_articles."""
+    from sqlalchemy import text
+    result = await db.execute(text(
+        "SELECT count(*), sum(CASE WHEN a.threat_level IN ('critical','high') THEN 1 ELSE 0 END) "
+        "FROM articles a JOIN case_articles ca ON ca.article_id = a.id "
+        "WHERE ca.case_id = :cid"
+    ), {"cid": case.id.hex})
+    row = result.one()
+    return row[0] or 0, int(row[1] or 0)
 
 
 def _serialize_case(case: Case, article_count: int = 0, alert_count: int = 0) -> dict:
@@ -297,6 +262,7 @@ def _serialize_case(case: Case, article_count: int = 0, alert_count: int = 0) ->
         "name": case.name,
         "type": case.type,
         "search_keywords": case.search_keywords,
+        "query": json.loads(case.query_json) if case.query_json else None,
         "identity_card": json.loads(case.identity_card) if case.identity_card else None,
         "status": case.status,
         "article_count": article_count,
@@ -304,6 +270,22 @@ def _serialize_case(case: Case, article_count: int = 0, alert_count: int = 0) ->
         "created_at": case.created_at.isoformat() if case.created_at else None,
         "updated_at": case.updated_at.isoformat() if case.updated_at else None,
     }
+
+
+async def _background_refresh_case(case_id_str: str):
+    """Rebuild case_articles junction in background (non-blocking for the API response)."""
+    try:
+        import uuid
+        from app.db import async_session
+        from app.domains.cases.matching import refresh_case_articles
+
+        async with async_session() as db:
+            case = await db.scalar(select(Case).where(Case.id == uuid.UUID(case_id_str)))
+            if case:
+                await refresh_case_articles(db, case)
+                await db.commit()
+    except Exception:
+        logger.warning("Background refresh failed for case %s", case_id_str, exc_info=True)
 
 
 async def _background_ingest(case_name: str):
@@ -400,8 +382,7 @@ async def create_case(
     # Trigger background ingestion
     background_tasks.add_task(_background_ingest, body.name)
 
-    article_count = await _count_articles(db, case)
-    alert_count = await _count_alerts(db, case)
+    article_count, alert_count = await _count_articles_and_alerts(db, case)
 
     return _serialize_case(case, article_count, alert_count)
 
@@ -423,8 +404,7 @@ async def list_cases(
 
     out = []
     for c in cases:
-        article_count = await _count_articles(db, c)
-        alert_count = await _count_alerts(db, c)
+        article_count, alert_count = await _count_articles_and_alerts(db, c)
         out.append(_serialize_case(c, article_count, alert_count))
 
     return {"cases": out}
@@ -444,8 +424,7 @@ async def get_case(
     if not case:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
 
-    article_count = await _count_articles(db, case)
-    alert_count = await _count_alerts(db, case)
+    article_count, alert_count = await _count_articles_and_alerts(db, case)
 
     return _serialize_case(case, article_count, alert_count)
 
@@ -489,12 +468,23 @@ async def update_case(
         if body.identity_card is not None:
             case.identity_card = json.dumps(body.identity_card)
 
+    query_changed = False
+    if body.query is not None:
+        case.query_json = json.dumps(body.query)
+        query_changed = True
+
     case.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(case)
 
-    article_count = await _count_articles(db, case)
-    alert_count = await _count_alerts(db, case)
+    # Re-populate case_articles junction synchronously so the response has fresh counts
+    if query_changed:
+        from app.domains.cases.matching import refresh_case_articles
+        count = await refresh_case_articles(db, case)
+        await db.commit()
+        logger.info("update_case(%s): query_changed, refresh matched %d articles, query_json=%s", case.name, count, (case.query_json or '')[:200])
+
+    article_count, alert_count = await _count_articles_and_alerts(db, case)
 
     return _serialize_case(case, article_count, alert_count)
 
@@ -530,7 +520,9 @@ async def case_articles(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get articles matching this case, within retention window (default 7 days)."""
+    """Get articles matching this case via indexed JOIN, within retention window."""
+    from app.models.case import CaseArticle
+
     case = await db.scalar(
         select(Case).where(Case.id == case_id, Case.org_id == user.org_id)
     )
@@ -538,10 +530,12 @@ async def case_articles(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
 
     cutoff = datetime.now(timezone.utc) - __import__('datetime').timedelta(days=days)
-    stmt = select(Article).where(
-        _case_article_filter(case),
-        Article.pub_date >= cutoff,
-    ).order_by(desc(Article.pub_date))
+    stmt = (
+        select(Article)
+        .join(CaseArticle, CaseArticle.article_id == Article.id)
+        .where(CaseArticle.case_id == case_id, Article.pub_date >= cutoff)
+        .order_by(desc(Article.pub_date))
+    )
 
     if threat:
         stmt = stmt.where(Article.threat_level == threat)
@@ -568,46 +562,48 @@ async def case_stats(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get aggregated stats for articles matching this case."""
+    """Get aggregated stats for articles matching this case.
+
+    Uses case_articles junction (indexed JOIN) + CTE for single-scan aggregation.
+    """
     case = await db.scalar(
         select(Case).where(Case.id == case_id, Case.org_id == user.org_id)
     )
     if not case:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
 
-    base_filter = _case_article_filter(case)
+    from sqlalchemy import text
+    raw = """
+        WITH matched AS (
+            SELECT a.threat_level, a.theme, a.source_id
+            FROM articles a
+            JOIN case_articles ca ON ca.article_id = a.id
+            WHERE ca.case_id = :cid
+        )
+        SELECT 'total' AS stat, '_' AS key, count(*) AS n FROM matched
+        UNION ALL
+        SELECT 'threat', COALESCE(threat_level, 'info'), count(*) FROM matched GROUP BY threat_level
+        UNION ALL
+        SELECT 'theme', COALESCE(theme, 'unknown'), count(*) FROM matched GROUP BY theme
+        UNION ALL
+        SELECT 'source', COALESCE(source_id, 'unknown'), count(*) FROM matched GROUP BY source_id
+    """
+    result = await db.execute(text(raw), {"cid": case_id.hex})
+    rows = result.all()
 
-    # Total
-    total = await db.scalar(
-        select(func.count()).select_from(Article).where(base_filter)
-    ) or 0
-
-    # By threat
-    threat_rows = await db.execute(
-        select(Article.threat_level, func.count())
-        .where(base_filter)
-        .group_by(Article.threat_level)
-        .order_by(desc(func.count()))
-    )
-    by_threat = {row[0] or "info": row[1] for row in threat_rows}
-
-    # By theme
-    theme_rows = await db.execute(
-        select(Article.theme, func.count())
-        .where(base_filter)
-        .group_by(Article.theme)
-        .order_by(desc(func.count()))
-    )
-    by_theme = {row[0] or "unknown": row[1] for row in theme_rows}
-
-    # By source
-    source_rows = await db.execute(
-        select(Article.source_id, func.count())
-        .where(base_filter)
-        .group_by(Article.source_id)
-        .order_by(desc(func.count()))
-    )
-    by_source = {row[0] or "unknown": row[1] for row in source_rows}
+    total = 0
+    by_threat: dict[str, int] = {}
+    by_theme: dict[str, int] = {}
+    by_source: dict[str, int] = {}
+    for stat, key, n in rows:
+        if stat == "total":
+            total = n
+        elif stat == "threat":
+            by_threat[key] = n
+        elif stat == "theme":
+            by_theme[key] = n
+        elif stat == "source":
+            by_source[key] = n
 
     return {
         "total": total,

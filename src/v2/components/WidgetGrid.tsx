@@ -1,13 +1,18 @@
 /**
  * WidgetGrid — Free positioning with react-grid-layout.
  * Drag anywhere, resize from corners/edges, auto-compact.
+ *
+ * Widget content is rendered via React portals to bypass
+ * react-grid-layout's shouldComponentUpdate which only compares
+ * children keys, not content.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 // @ts-ignore — CJS module, default import for Vite compat
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { X, Plus, RefreshCw } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 
 const ACCENT = '#42d3a5';
 const ReactGridLayout = RGL.WidthProvider ? RGL.WidthProvider(RGL) : RGL;
@@ -39,8 +44,6 @@ interface Props {
   storageKey: string;
   defaultWidgets: WidgetState[];
   renderContent: (id: string) => React.ReactNode;
-  onRefresh?: () => void;
-  loading?: boolean;
 }
 
 /* ═══ Persistence ═══ */
@@ -67,8 +70,22 @@ function saveLayout(key: string, layout: LayoutItem[]) {
   localStorage.setItem(key, JSON.stringify(layout));
 }
 
+/* ═══ Portal-based widget content ═══ */
+function WidgetPortal({ id, renderContent }: { id: string; renderContent: (id: string) => React.ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    // Find the portal target div inside the grid item
+    const el = document.getElementById(`wg-content-${id}`);
+    if (el) setTarget(el);
+  });
+
+  if (!target) return null;
+  return createPortal(renderContent(id), target);
+}
+
 /* ═══ Component ═══ */
-export default function WidgetGrid({ catalog, storageKey, defaultWidgets, renderContent, onRefresh, loading }: Props) {
+export default function WidgetGrid({ catalog, storageKey, defaultWidgets, renderContent }: Props) {
   const catalogMap = Object.fromEntries(catalog.map(w => [w.id, w]));
   const [layout, setLayout] = useState<LayoutItem[]>(() => loadLayout(storageKey, defaultWidgets, catalogMap));
   const [showCatalog, setShowCatalog] = useState(false);
@@ -95,7 +112,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
       i: id, x: 0, y: maxY, w: def.defaultW, h: def.defaultH,
       minW: def.minW ?? 2, minH: def.minH ?? 2,
     }];
-    setLayout(next); saveLayout(storageKey, next); setShowCatalog(false);
+    setLayout(next); saveLayout(storageKey, next);
   }
 
   function removeWidget(id: string) {
@@ -112,23 +129,15 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
   const available = catalog.filter(w => !activeSet.has(w.id));
   const categories = [...new Set(available.map(w => w.category))];
 
+  const activeItems = layout.filter(item => catalogMap[item.i]);
+
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {loading && <RefreshCw size={14} className="animate-spin text-slate-400" />}
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowCatalog(!showCatalog)} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-[#42d3a5] hover:border-[#42d3a5]/30 transition-all">
-            <Plus size={14} /> Widget
-          </button>
-          {onRefresh && (
-            <button onClick={onRefresh} className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-[#42d3a5] transition-colors">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-          )}
-        </div>
+      <div className="flex items-center justify-end">
+        <button onClick={() => setShowCatalog(!showCatalog)} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-[#42d3a5] hover:border-[#42d3a5]/30 transition-all">
+          <Plus size={14} /> Widget
+        </button>
       </div>
 
       {/* Catalog */}
@@ -160,47 +169,51 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
       )}
 
       {/* Grid */}
-      {layout.length > 0 ? (
-        <ReactGridLayout
-          layout={layout.filter(item => catalogMap[item.i])}
-          cols={12}
-          rowHeight={50}
-          onLayoutChange={onLayoutChange}
-          draggableHandle=".wg-drag"
-          compactType="vertical"
-          isResizable
-          isDraggable
-          margin={[12, 12]}
-          containerPadding={[0, 0]}
-          useCSSTransforms
-        >
-          {layout.filter(item => catalogMap[item.i]).map(item => {
-            const def = catalogMap[item.i];
-            const Icon = def.icon;
-            return (
-              <div key={item.i} className="bg-white rounded-xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden">
-                {/* Header — drag handle */}
-                <div className="wg-drag px-3 py-1.5 border-b border-slate-100 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none">
-                  <div className="flex items-center gap-2">
-                    <Icon size={13} style={{ color: ACCENT }} />
-                    <span className="text-[12px] font-bold text-slate-900">{def.title}</span>
+      {activeItems.length > 0 ? (
+        <>
+          <ReactGridLayout
+            layout={activeItems}
+            cols={12}
+            rowHeight={50}
+            onLayoutChange={onLayoutChange}
+            draggableHandle=".wg-drag"
+            compactType="vertical"
+            isResizable
+            isDraggable
+            margin={[12, 12]}
+            containerPadding={[0, 0]}
+            useCSSTransforms
+          >
+            {activeItems.map(item => {
+              const def = catalogMap[item.i];
+              const Icon = def.icon;
+              return (
+                <div key={item.i} className="bg-white rounded-xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden">
+                  {/* Header — drag handle */}
+                  <div className="wg-drag px-3 py-1.5 border-b border-slate-100 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none">
+                    <div className="flex items-center gap-2">
+                      <Icon size={13} style={{ color: ACCENT }} />
+                      <span className="text-[12px] font-bold text-slate-900">{def.title}</span>
+                    </div>
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={() => removeWidget(item.i)}
+                      className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
-                  <button
-                    onMouseDown={e => e.stopPropagation()}
-                    onClick={() => removeWidget(item.i)}
-                    className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                  >
-                    <X size={12} />
-                  </button>
+                  {/* Portal target — content rendered outside RGL's tree */}
+                  <div id={`wg-content-${item.i}`} className="flex-1 min-h-0 overflow-hidden" />
                 </div>
-                {/* Content */}
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  {renderContent(item.i)}
-                </div>
-              </div>
-            );
-          })}
-        </ReactGridLayout>
+              );
+            })}
+          </ReactGridLayout>
+          {/* Portals: render widget content independently of RGL's SCU */}
+          {activeItems.map(item => (
+            <WidgetPortal key={item.i} id={item.i} renderContent={renderContent} />
+          ))}
+        </>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200/60 p-12 text-center">
           <p className="text-sm text-slate-500 mb-4">Aucun widget.</p>

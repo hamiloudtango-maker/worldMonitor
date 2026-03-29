@@ -2,7 +2,7 @@
  * CaseBoard — investigation board per case.
  * Identity card fixed at top, everything else is a free WidgetGrid.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, RefreshCw, Loader2,
   Building, Users, Flag, Hash
@@ -11,6 +11,8 @@ import type { CaseData, CaseStats } from '@/v2/lib/api';
 import { getCaseArticles, getCaseStats, forceIngestCase, updateCase } from '@/v2/lib/api';
 import type { Article } from '@/v2/lib/constants';
 import IdentityCard from './IdentityCard';
+import ChipQueryBuilder from './ai-feeds/ChipQueryBuilder';
+import type { FeedQuery } from '@/v2/lib/ai-feeds-api';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
 import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 
@@ -46,6 +48,14 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const [regenerating, setRegenerating] = useState(false);
   const [currentCase, setCurrentCase] = useState(caseData);
   const [catalog, setCatalog] = useState<WidgetDef[]>(FULL_CATALOG);
+  const [caseQuery, _setCaseQuery] = useState<FeedQuery>(caseData.query?.layers?.length ? caseData.query : { layers: [] });
+  const caseQueryRef = useRef(caseQuery);
+  // Wrapper: update ref IMMEDIATELY (synchronous), then schedule React state update
+  const setCaseQuery = useCallback((q: FeedQuery) => {
+    caseQueryRef.current = q;
+    _setCaseQuery(q);
+  }, []);
+  const [intelTree, setIntelTree] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,14 +64,37 @@ export default function CaseBoard({ caseData, onBack }: Props) {
         getCaseArticles(caseData.id, { limit: 200 }),
         getCaseStats(caseData.id),
       ]);
+      console.log('[CaseBoard.load]', a.articles.length, 'articles, total:', s.total);
       setArticles(a.articles);
       setStats(s);
-    } catch { /* silent */ }
+    } catch (err) { console.error('[CaseBoard.load] FAILED', err); }
     setLoading(false);
   }, [caseData.id]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { buildCatalogWithFeeds().then(setCatalog); }, []);
+  useEffect(() => {
+    import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
+      fetchIntelTree().then(r => setIntelTree(r.families || [])).catch(() => {})
+    );
+  }, []);
+
+  const [saving, setSaving] = useState(false);
+
+  async function handleSaveQuery() {
+    if (saving) return;
+    const q = caseQueryRef.current;
+    setSaving(true);
+    try {
+      await updateCase(currentCase.id, { query: q });
+      // SQLite WAL: small delay for new connections to see committed junction data
+      await new Promise(r => setTimeout(r, 300));
+      await load();
+    } catch (err) {
+      console.error('[CaseBoard] save failed', err);
+    }
+    setSaving(false);
+  }
 
   async function handleIngest() {
     setIngesting(true);
@@ -136,27 +169,25 @@ export default function CaseBoard({ caseData, onBack }: Props) {
                 </div>
               </div>
             ) : (
-              <div>
+              <div className="space-y-3">
                 <p className="text-[12px] text-slate-600 leading-relaxed">{currentCase.identity_card?.description || 'Aucune description.'}</p>
-                {currentCase.search_keywords && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {currentCase.search_keywords.split('|').map((kw, i) => (
-                      <span key={i} className="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">{kw}</span>
-                    ))}
-                  </div>
-                )}
+                <ChipQueryBuilder query={caseQuery} onChange={setCaseQuery} tree={intelTree} />
+                <div className="flex items-center gap-2 mt-2">
+                  <button onClick={handleSaveQuery} disabled={saving}
+                    className="px-4 py-1.5 text-[11px] font-semibold text-white rounded-lg disabled:opacity-50" style={{ background: '#42d3a5' }}>
+                    {saving ? 'Sauvegarde...' : 'Sauvegarder'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Widget grid — all widgets, fully customizable */}
+        {/* Widget grid */}
         <WidgetGrid
           catalog={catalog}
           storageKey={`wm-case-${currentCase.id}-v3`}
           defaultWidgets={CASE_DEFAULTS}
-          onRefresh={load}
-          loading={loading}
           renderContent={id => {
             const shared = renderSharedWidget(id, articles, caseStats, 'cb');
             return shared || <div className="flex items-center justify-center h-full text-sm text-slate-400">Widget</div>;

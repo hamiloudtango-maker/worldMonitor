@@ -59,14 +59,14 @@ export async function api<T>(path: string, opts?: RequestInit): Promise<T> {
     headers['Content-Type'] = 'application/json';
   }
 
-  let r = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+  let r = await fetch(`${API_BASE}${path}`, { ...opts, headers, cache: 'no-store' as RequestCache });
 
   // Auto-refresh on 401
   if (r.status === 401 && token) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       headers['Authorization'] = `Bearer ${getAccessToken()}`;
-      r = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+      r = await fetch(`${API_BASE}${path}`, { ...opts, headers, cache: 'no-store' as RequestCache });
     }
   }
 
@@ -101,13 +101,13 @@ export async function getMe(): Promise<{ email: string; org_name: string }> {
 }
 
 // ── Fetch all articles (paginated) ───────────────────────────
-export async function fetchAllArticles(params: string = ''): Promise<import('@/v2/lib/constants').Article[]> {
+export async function fetchAllArticles(params: string = '', maxArticles: number = 2000): Promise<import('@/v2/lib/constants').Article[]> {
   const PAGE = 500;
   const first = await api<{ articles: import('@/v2/lib/constants').Article[]; total: number }>(
     `/articles/v1/search?limit=${PAGE}&offset=0${params ? `&${params}` : ''}`
   );
   const all = [...first.articles];
-  const total = first.total;
+  const total = Math.min(first.total, maxArticles);
   // Fetch remaining pages in parallel
   if (total > PAGE) {
     const pages = Math.ceil(total / PAGE) - 1;
@@ -139,6 +139,7 @@ export interface CaseData {
   name: string;
   type: string;
   search_keywords: string;
+  query: { layers: any[] } | null;
   identity_card: Record<string, any> | null;
   status: string;
   article_count: number;

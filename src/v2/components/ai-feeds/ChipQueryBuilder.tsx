@@ -28,7 +28,12 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
   const [intelFamilies, setIntelFamilies] = useState<any[]>([]);
   const [intelLevel, setIntelLevel] = useState<{ depth: 0 } | { depth: 1; fi: number } | { depth: 2; fi: number; si: number }>({ depth: 0 });
   const [intelLoaded, setIntelLoaded] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const addBarRef = useRef<HTMLDivElement>(null);
+
+  // Ref to always read the latest query in async callbacks (avoids stale closures)
+  const queryRef = useRef(query);
+  queryRef.current = query;
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -67,19 +72,34 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
   }
 
   async function addOrPartFromText(layerIdx: number, value: string) {
-    if (!value.trim()) return;
+    if (!value.trim() || resolving) return;
+    setResolving(true);
     try {
       const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
       const { model } = await resolveIntelModel(value.trim());
-      addOrPartFromModel(layerIdx, { name: model.name, aliases: model.aliases });
+      // Read from ref after await to avoid stale closure
+      const current = queryRef.current;
+      const layer = current.layers[layerIdx];
+      if (!layer) return;
+      const updated = [...current.layers];
+      updated[layerIdx] = { ...layer, parts: [...layer.parts, { type: 'entity', value: model.name, aliases: model.aliases, scope: 'title_and_content' }] };
+      onChange({ layers: updated });
+      setAddingOrTo(null);
+      resetAddBar();
     } catch {
-      const layer = query.layers[layerIdx]!;
+      // Read from ref to avoid stale closure
+      const current = queryRef.current;
+      const layer = current.layers[layerIdx];
+      if (!layer) return;
       const newPartIdx = layer.parts.length;
-      updateLayer(layerIdx, { ...layer, parts: [...layer.parts, { type: 'keyword', value: value.trim(), scope: 'title_and_content' }] });
+      const updated = [...current.layers];
+      updated[layerIdx] = { ...layer, parts: [...layer.parts, { type: 'keyword', value: value.trim(), scope: 'title_and_content' }] };
+      onChange({ layers: updated });
       setAddingOrTo(null);
       resetAddBar();
       _autoGenerateAliases(layerIdx, newPartIdx, value.trim(), 'keyword');
     }
+    setResolving(false);
   }
 
   function updateAliases(layerIdx: number, partIdx: number, aliasText: string) {
@@ -96,23 +116,26 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
   }
 
   async function addNewLayer(value: string, isNot: boolean) {
-    if (!value.trim()) return;
-    const op = isNot ? 'NOT' : (query.layers.length === 0 ? 'OR' : 'AND');
-    // Resolve via intel models — exact match or LLM creates
+    if (!value.trim() || resolving) return;
+    setResolving(true);
     try {
       const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
       const { model } = await resolveIntelModel(value.trim());
+      const current = queryRef.current;
+      const op = isNot ? 'NOT' : (current.layers.length === 0 ? 'OR' : 'AND');
       onChange({
-        layers: [...query.layers, { operator: op, parts: [{ type: 'entity', value: model.name, aliases: model.aliases, scope: 'title_and_content' }] }],
+        layers: [...current.layers, { operator: op, parts: [{ type: 'entity', value: model.name, aliases: model.aliases, scope: 'title_and_content' }] }],
       });
     } catch {
-      // Fallback: add as keyword with auto-aliases
-      const newIdx = query.layers.length;
+      const current = queryRef.current;
+      const op = isNot ? 'NOT' : (current.layers.length === 0 ? 'OR' : 'AND');
+      const newIdx = current.layers.length;
       onChange({
-        layers: [...query.layers, { operator: op, parts: [{ type: 'keyword', value: value.trim(), scope: 'title_and_content' }] }],
+        layers: [...current.layers, { operator: op, parts: [{ type: 'keyword', value: value.trim(), scope: 'title_and_content' }] }],
       });
       _autoGenerateAliases(newIdx, 0, value.trim(), 'keyword');
     }
+    setResolving(false);
     resetAddBar();
   }
 
@@ -128,7 +151,16 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
   function _autoGenerateAliases(layerIdx: number, partIdx: number, term: string, type: string) {
     import('@/v2/lib/ai-feeds-api').then(({ generateAliases }) =>
       generateAliases(term, type).then(({ aliases }) => {
-        if (aliases.length > 0) updateAliases(layerIdx, partIdx, aliases.join(', '));
+        if (aliases.length === 0) return;
+        // Read from ref to get the CURRENT query (not the stale closure)
+        const current = queryRef.current;
+        const layer = current.layers[layerIdx];
+        if (!layer || !layer.parts[partIdx]) return;
+        const parts = [...layer.parts];
+        parts[partIdx] = { ...parts[partIdx]!, aliases };
+        const updated = [...current.layers];
+        updated[layerIdx] = { ...layer, parts };
+        onChange({ layers: updated });
       })
     ).catch(() => {});
   }
@@ -161,7 +193,7 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
               className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 text-left">
               <Filter size={13} className="text-[#42d3a5]" />
               <span className="text-[12px] font-medium text-slate-700 flex-1">{l1.label}</span>
-              <span className="text-[9px] text-slate-400">{l1.children.length}</span>
+              <span className="text-[9px] text-slate-400">{(l1.children || []).length}</span>
               <ChevronRight size={13} className="text-slate-300" />
             </button>
           ))}
@@ -172,7 +204,7 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
             <ChevronLeft size={13} className="text-slate-400" />
             <span className="text-[12px] font-semibold text-slate-600">{drill.l1.label}</span>
           </button>
-          {drill.l1.children.filter(c => !addSearch || c.label.toLowerCase().includes(addSearch.toLowerCase())).map((l2, i) => (
+          {(drill.l1.children || []).filter(c => !addSearch || c.label.toLowerCase().includes(addSearch.toLowerCase())).map((l2, i) => (
             <button key={i} onClick={() => setDrill({ depth: 2, l1: drill.l1, l2 })}
               className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 text-left">
               <Filter size={13} className="text-slate-400" />
@@ -190,7 +222,7 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
             <ChevronLeft size={13} className="text-slate-400" />
             <span className="text-[12px] font-semibold text-slate-600 truncate">{drill.l1.label} &gt; {drill.l2.label}</span>
           </button>
-          {drill.l2.children.filter(c => !addSearch || c.label.toLowerCase().includes(addSearch.toLowerCase())).map((leaf, i) => (
+          {(drill.l2.children || []).filter(c => !addSearch || c.label.toLowerCase().includes(addSearch.toLowerCase())).map((leaf, i) => (
             <button key={i} onClick={() => addLayerFromLeaf(leaf)}
               className="w-full flex items-start gap-3 px-3 py-2 hover:bg-slate-50 text-left">
               <Sparkles size={13} className="text-[#42d3a5] shrink-0 mt-0.5" />
@@ -255,16 +287,20 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
                   {/* Aliases editor */}
                   {editingAliases === `${li}-${pi}` && (
                     <div className="mt-1 p-2 bg-blue-50 border border-blue-100 rounded-lg max-w-sm">
-                      <label className="text-[9px] font-bold text-blue-600 block mb-1">Synonymes / traductions</label>
+                      <label className="text-[9px] font-bold text-blue-600 block mb-1">Synonymes / traductions (separes par des virgules)</label>
                       <textarea
                         autoFocus
-                        value={(part.aliases || []).join(', ')}
-                        onChange={e => updateAliases(li, pi, e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Escape') setEditingAliases(null); }}
+                        defaultValue={(part.aliases || []).join(', ')}
+                        onBlur={e => updateAliases(li, pi, e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); }
+                          if (e.key === 'Escape') setEditingAliases(null);
+                        }}
                         placeholder="war, guerre, война..."
-                        rows={2}
-                        className="w-full text-[10px] px-2 py-1 border border-blue-200 rounded bg-white focus:outline-none resize-none"
+                        rows={3}
+                        className="w-full text-[10px] px-2 py-1 border border-blue-200 rounded bg-white focus:outline-none resize-y"
                       />
+                      <div className="text-[8px] text-blue-400 mt-1">Entree pour valider, Echap pour annuler</div>
                     </div>
                   )}
                 </div>
@@ -304,8 +340,11 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
           </div>
           {/* Search bar */}
           <div className="relative mb-2">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            {resolving
+              ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 text-[#42d3a5] animate-spin" size={14} />
+              : <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />}
             <input autoFocus value={addSearch}
+              disabled={resolving}
               onChange={e => setAddSearch(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
@@ -314,22 +353,16 @@ export default function ChipQueryBuilder({ query, onChange, tree = [], treeLoadi
                 }
                 if (e.key === 'Escape') resetAddBar();
               }}
-              placeholder="Tapez un terme et Entree, ou choisissez ci-dessous..."
-              className="w-full pl-9 pr-4 py-2.5 text-[12px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] bg-white" />
+              placeholder={resolving ? 'Resolution en cours...' : 'Tapez un terme et Entree, ou choisissez ci-dessous...'}
+              className={`w-full pl-9 pr-4 py-2.5 text-[12px] border rounded-xl focus:outline-none bg-white ${resolving ? 'border-[#42d3a5] text-slate-400' : 'border-slate-200 focus:border-[#42d3a5]'}`} />
           </div>
           {/* Intel Models drill-down */}
           <IntelModelPicker
-            families={intelFamilies}
-            loaded={intelLoaded}
+            families={tree}
+            loaded={tree.length > 0}
             level={intelLevel}
             setLevel={setIntelLevel}
-            onLoad={() => {
-              if (!intelLoaded) {
-                import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
-                  fetchIntelTree().then(d => { setIntelFamilies(d.families); setIntelLoaded(true); })
-                ).catch(() => setIntelLoaded(true));
-              }
-            }}
+            onLoad={() => {}}
             onSelect={m => {
               if (addingOrTo !== null) {
                 // OR mode: add to existing layer
@@ -377,8 +410,10 @@ function IntelModelPicker({ families, loaded, level, setLevel, onLoad, onSelect,
   selectedValues: Set<string>;
   filter: string;
 }) {
-  // Trigger load on first render
-  if (!loaded && families.length === 0) onLoad();
+  // Trigger load on first mount only
+  useEffect(() => {
+    if (!loaded && families.length === 0) onLoad();
+  }, []); // eslint-disable-line
 
   if (!loaded) {
     return <div className="flex items-center gap-2 py-4 justify-center"><Loader2 size={14} className="animate-spin text-[#42d3a5]" /><span className="text-[11px] text-slate-400">Chargement...</span></div>;
