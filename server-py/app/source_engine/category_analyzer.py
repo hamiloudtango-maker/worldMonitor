@@ -275,17 +275,23 @@ async def _enrich_intel_models(db: AsyncSession, result: dict) -> int:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     for m in models:
         terms = [m.name] + (m.aliases or [])
-        or_clauses = []
+        or_likes = []
+        params: dict[str, str] = {"cutoff": cutoff}
+        pidx = 0
+        field = "LOWER(title || ' ' || COALESCE(description, ''))"
         for t in terms[:20]:  # limit to avoid huge queries
             safe = t.lower().replace("'", "")
             if len(safe) >= 3:
-                or_clauses.append(f"LOWER(title || ' ' || COALESCE(description, '')) LIKE '%{safe}%'")
-        if not or_clauses:
+                pname = f"t{pidx}"
+                pidx += 1
+                params[pname] = f"%{safe}%"
+                or_likes.append(f"{field} LIKE :{pname}")
+        if not or_likes:
             continue
-        where = " OR ".join(or_clauses)
+        where = " OR ".join(or_likes)
         count_result = await db.execute(
             text(f"SELECT COUNT(*) FROM articles WHERE created_at > :cutoff AND ({where})"),
-            {"cutoff": cutoff},
+            params,
         )
         count = count_result.scalar() or 0
         if count != m.article_count:

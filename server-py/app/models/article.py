@@ -25,8 +25,11 @@ class Article(Base):
     theme: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
 
-    # NER entities (JSON string: ["Putin", "NATO", "Ukraine"])
+    # NER entities (JSON string: ["Putin", "NATO", "Ukraine"]) — legacy combined
     entities_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Separated entity types
+    persons_json: Mapped[str | None] = mapped_column(Text, nullable=True)   # ["Macron", "Biden"]
+    orgs_json: Mapped[str | None] = mapped_column(Text, nullable=True)      # ["NATO", "OPEC", "Total"]
     # Country codes (JSON string: ["UA", "RU"])
     country_codes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 

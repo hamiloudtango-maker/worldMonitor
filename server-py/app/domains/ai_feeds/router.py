@@ -56,71 +56,25 @@ def _serialize_source(s: AIFeedSource) -> dict:
     }
 
 
-def _build_feed_where(query_data: dict) -> str | None:
-    """Build SQL WHERE clause from a feed query dict. Returns None if no valid clause."""
-    layers = query_data.get("layers", [])
-    if not layers:
-        return None
-
-    field = "LOWER(title || ' ' || COALESCE(description, ''))"
-    clauses = []
-
-    for layer in layers:
-        op = layer.get("operator", "AND")
-        parts = layer.get("parts", [])
-        if not parts:
-            continue
-
-        or_likes = []
-        for part in parts:
-            value = part.get("value", "").strip()
-            aliases = part.get("aliases", [])
-            for t in [value] + [a for a in aliases if a]:
-                safe = t.lower().replace("'", "")
-                if len(safe) < 3:
-                    continue
-                words = [w for w in safe.split() if len(w) >= 3]
-                if len(words) > 2:
-                    word_likes = " AND ".join(f"{field} LIKE '%{w}%'" for w in words)
-                    or_likes.append(f"({word_likes})")
-                elif words:
-                    or_likes.append(f"{field} LIKE '%{safe}%'")
-
-        if not or_likes:
-            continue
-        clause = "(" + " OR ".join(or_likes) + ")"
-        clauses.append((op, clause))
-
-    if not clauses:
-        return None
-
-    where = clauses[0][1]
-    for op, clause in clauses[1:]:
-        if op == "NOT":
-            where = f"({where}) AND NOT {clause}"
-        elif op == "OR":
-            where = f"({where}) OR {clause}"
-        else:
-            where = f"({where}) AND {clause}"
-    return where
-
-
 async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
     """Run feed query against articles table and populate ai_feed_results. Returns count inserted."""
-    from sqlalchemy import text
-    from datetime import datetime, timezone
+    from sqlalchemy import text as sa_text
+    from app.domains._shared.query_compiler import compile_query
 
-    where = _build_feed_where(query_data)
-    if not where:
+    layers = query_data.get("layers", [])
+    compiled = compile_query(layers) if layers else None
+    if compiled is None:
         return 0
 
-    # Get matching articles
-    raw_sql = f"""
-        SELECT title, link, source_id, pub_date, description, threat_level, theme
-        FROM articles WHERE {where}
-        ORDER BY pub_date DESC LIMIT 500
-    """
-    result = await db.execute(text(raw_sql))
+    where_clause, params = compiled
+    result = await db.execute(
+        sa_text(
+            "SELECT title, link, source_id, pub_date, description, threat_level, theme "
+            f"FROM articles WHERE {where_clause} "
+            "ORDER BY pub_date DESC LIMIT 500"
+        ),
+        params,
+    )
     rows = result.fetchall()
     if not rows:
         return 0
@@ -244,6 +198,7 @@ def _serialize_catalog(s) -> dict:
         "description": s.description, "origin": s.origin,
         "last_fetched_at": s.last_fetched_at.isoformat() if s.last_fetched_at else None,
         "fetch_error_count": s.fetch_error_count,
+        "last_error": getattr(s, 'last_error', None),
         "status": _source_status(s),
     }
 
@@ -1015,58 +970,16 @@ async def preview_query(
 ):
     """Preview articles matching query keywords from the already-ingested articles table."""
     from sqlalchemy import text
+    from app.domains._shared.query_filter import build_query_where
 
     query = body.get("query", {})
     layers = query.get("layers", [])
     if not layers:
         return {"articles": [], "total": 0}
 
-    # Strategy: respect each layer's operator (AND/OR/NOT)
-    # - Layer 1: always included
-    # - Layer N operator: how it combines with all previous layers
-    # - Within a layer: OR between parts + aliases
-    field = "LOWER(title || ' ' || COALESCE(description, ''))"
-    clauses = []  # list of (operator, sql_clause)
-
-    for layer in layers:
-        op = layer.get("operator", "AND")
-        parts = layer.get("parts", [])
-        if not parts:
-            continue
-
-        or_likes = []
-        for part in parts:
-            value = part.get("value", "").strip()
-            aliases = part.get("aliases", [])
-            for t in [value] + [a for a in aliases if a]:
-                safe = t.lower().replace("'", "")
-                if len(safe) < 3:
-                    continue
-                words = [w for w in safe.split() if len(w) >= 3]
-                if len(words) > 2:
-                    word_likes = " AND ".join(f"{field} LIKE '%{w}%'" for w in words)
-                    or_likes.append(f"({word_likes})")
-                elif words:
-                    or_likes.append(f"{field} LIKE '%{safe}%'")
-
-        if not or_likes:
-            continue
-
-        clause = "(" + " OR ".join(or_likes) + ")"
-        clauses.append((op, clause))
-
-    if not clauses:
+    where = build_query_where(layers)
+    if not where:
         return {"articles": [], "total": 0}
-
-    # Build WHERE: first clause standalone, then combine with operators
-    where = clauses[0][1]
-    for op, clause in clauses[1:]:
-        if op == "NOT":
-            where = f"({where}) AND NOT {clause}"
-        elif op == "OR":
-            where = f"({where}) OR {clause}"
-        else:  # AND
-            where = f"({where}) AND {clause}"
 
     raw_sql = f"""
         SELECT id, title, link, source_id, pub_date, description, threat_level, theme

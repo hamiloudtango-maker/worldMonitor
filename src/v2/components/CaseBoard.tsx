@@ -87,8 +87,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
     setSaving(true);
     try {
       await updateCase(currentCase.id, { query: q });
-      // SQLite WAL: small delay for new connections to see committed junction data
-      await new Promise(r => setTimeout(r, 300));
+      // Backend refreshes junction table synchronously before responding — no sleep needed
       await load();
     } catch (err) {
       console.error('[CaseBoard] save failed', err);

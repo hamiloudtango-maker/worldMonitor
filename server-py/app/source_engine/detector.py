@@ -66,25 +66,48 @@ def _get_token() -> str:
     return _cached_creds.token
 
 
-async def _call_gemini(prompt: str) -> str:
-    token = _get_token()
-    base_url = (
+async def get_gemini_token() -> str:
+    """Get a valid GCP token (async-safe, cached)."""
+    import asyncio
+    return await asyncio.to_thread(_get_token)
+
+
+def get_gemini_url() -> str:
+    return (
         f"https://{settings.gcp_location}-aiplatform.googleapis.com/v1/"
         f"projects/{settings.gcp_project}/locations/{settings.gcp_location}/endpoints/openapi"
+        f"/chat/completions"
     )
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
-            f"{base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {token}"},
-            json={
-                "model": settings.gemini_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 8192,
-                "temperature": 0.1,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+
+
+async def call_gemini(prompt: str, *, client: httpx.AsyncClient | None = None, token: str | None = None) -> str:
+    """Call Gemini. Accepts optional shared client+token for batch efficiency."""
+    if token is None:
+        token = await get_gemini_token()
+
+    url = get_gemini_url()
+    body = {
+        "model": settings.gemini_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 8192,
+        "temperature": 0.1,
+        "thinking": {"type": "disabled"},
+    }
+    headers = {"Authorization": f"Bearer {token}"}
+
+    if client:
+        resp = await client.post(url, headers=headers, json=body)
+    else:
+        async with httpx.AsyncClient(timeout=30) as c:
+            resp = await c.post(url, headers=headers, json=body)
+
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
+# Legacy alias
+async def _call_gemini(prompt: str) -> str:
+    return await call_gemini(prompt)
 
 
 async def fetch_raw(url: str, truncate: int = 0) -> tuple[str, str]:

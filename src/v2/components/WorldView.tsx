@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Globe, BarChart2, Newspaper, AlertTriangle, TrendingUp,
   Shield, DollarSign, Swords, Radio, Activity, Scale,
@@ -9,14 +9,16 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
-import { api, fetchAllArticles, listCases } from '@/v2/lib/api';
+import { api, listCases } from '@/v2/lib/api';
 import type { CaseData } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo, FLAGS } from '@/v2/lib/constants';
+import { useGlobalData } from '@/v2/hooks/useData';
 import LiveMap from './LiveMap';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
-import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
+import { renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
+import { useFacetModels, articleText, matchesFacet } from '@/v2/hooks/useFacetModels';
 
 const COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#eab308'];
 
@@ -68,51 +70,45 @@ const DEFAULTS: WidgetState[] = [
 interface RssSource { name: string; url: string; category: string; lang: string; }
 
 export default function WorldView() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { articles, stats, refresh } = useGlobalData();
   const [rssSources, setRssSources] = useState<RssSource[]>([]);
   const [fullCatalog, setFullCatalog] = useState<WidgetDef[]>(CATALOG);
   const [filters, setFilters] = useState<ActiveFilters>(EMPTY_FILTERS);
   const [cases, setCases] = useState<CaseData[]>([]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [s, allArticles] = await Promise.all([
-        api<Stats>('/articles/v1/stats'),
-        fetchAllArticles(),
-      ]);
-      setStats(s); setArticles(allArticles);
-    } catch {/**/}
-    setLoading(false);
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  // Auto-refresh every 30s to pick up newly ingested articles
-  useEffect(() => { const id = setInterval(load, 30_000); return () => clearInterval(id); }, [load]);
-
   // Load cases for filter dropdown
   useEffect(() => { listCases().then(setCases).catch(() => {}); }, []);
 
-  // Filtered articles + recomputed stats
-  const caseKw = filters.cases.length > 0
+  const { choices } = useFacetModels();
+
+  // Filtered articles — models facet uses keyword+alias matching
+  const caseKw = useMemo(() => filters.cases.length > 0
     ? cases.filter(c => filters.cases.includes(c.name))
         .flatMap(c => (c.search_keywords || c.name).split('|').map(k => k.trim().toLowerCase()).filter(k => k.length >= 3))
-    : [];
-  const filteredArticles = articles.filter(a => {
+    : []
+  , [filters.cases, cases]);
+
+  const selectedModels = useMemo(() =>
+    choices.filter(c => filters.models.includes(c.id))
+  , [choices, filters.models]);
+
+  const filteredArticles = useMemo(() => articles.filter(a => {
     if (filters.q && !a.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
-    if (filters.countries.length && !a.country_codes.some(c => filters.countries.includes(c))) return false;
-    if (filters.themes.length && !filters.themes.includes(a.theme)) return false;
-    if (filters.threats.length && !filters.threats.includes(a.threat_level)) return false;
+    // Intel Models: match if article text contains ANY keyword from ANY selected model
+    if (selectedModels.length > 0) {
+      const text = articleText(a);
+      if (!selectedModels.some(m => matchesFacet(text, m))) return false;
+    }
     if (caseKw.length && !caseKw.some(kw =>
       a.title.toLowerCase().includes(kw) ||
       a.entities.some(e => e.toLowerCase().includes(kw)) ||
       a.source_id.toLowerCase().includes(kw)
     )) return false;
     return true;
-  });
-  const hasFilters = filters.q || filters.countries.length || filters.themes.length || filters.threats.length || filters.cases.length;
-  const filteredStats = hasFilters ? (() => {
+  }), [articles, filters, caseKw, selectedModels]);
+
+  const hasFilters = filters.q || filters.models.length || filters.cases.length;
+  const filteredStats = useMemo(() => hasFilters ? (() => {
     const by_theme: Record<string, number> = {};
     const by_threat: Record<string, number> = {};
     const by_source: Record<string, number> = {};
@@ -122,7 +118,7 @@ export default function WorldView() {
       by_source[a.source_id] = (by_source[a.source_id] || 0) + 1;
     }
     return { total: filteredArticles.length, by_theme, by_threat, by_source, by_lang: {} };
-  })() : stats;
+  })() : stats, [filteredArticles, hasFilters, stats]);
 
   // Load RSS catalog + AI Feed widgets
   useEffect(() => {
@@ -152,9 +148,7 @@ export default function WorldView() {
         catalog={fullCatalog}
         storageKey="wm-world-v7"
         defaultWidgets={DEFAULTS}
-        onRefresh={load}
-        loading={loading}
-        renderContent={id => <WContent id={id} stats={filteredStats} articles={filteredArticles} rssSources={rssSources} onRefresh={load} />}
+        renderContent={id => <WContent id={id} stats={filteredStats} articles={filteredArticles} rssSources={rssSources} onRefresh={refresh} />}
       />
     </div>
   );
@@ -223,7 +217,7 @@ function RssFeedWidget({ url, name, onIngest }: { url: string; name: string; onI
     <div className="overflow-y-auto h-full p-2 space-y-1.5">
       <div className="text-[9px] text-slate-400 font-semibold">{items.length} articles</div>
       {items.map((a: any, i: number) => (
-        <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+        <a key={a.id || a.link || i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
           <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{a.title}</p>
           <div className="flex items-center gap-2 mt-0.5">
             {a.theme && <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.theme}</span>}
@@ -261,8 +255,8 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
     case 'alerts':
       return (
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
-          {alerts.slice(0, 15).map((a, i) => (
-            <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-2 rounded-lg border border-slate-100 hover:border-red-200 transition-colors">
+          {alerts.slice(0, 15).map(a => (
+            <a key={a.id} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-2 rounded-lg border border-slate-100 hover:border-red-200 transition-colors">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${a.threat_level === 'critical' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{a.threat_level}</span>
                 <span className="text-[9px] text-slate-400 ml-auto">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
@@ -276,8 +270,8 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
     case 'news':
       return (
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
-          {articles.slice(0, 20).map((a, i) => (
-            <a key={i} href={a.link} target="_blank" rel="noopener noreferrer" className="block pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors">
+          {articles.slice(0, 20).map(a => (
+            <a key={a.id} href={a.link} target="_blank" rel="noopener noreferrer" className="block pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors">
               <p className="text-[10px] text-slate-600 line-clamp-1 font-medium">{a.title}</p>
               <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.theme}</span>
               <span className="text-[8px] text-slate-400 ml-2">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
@@ -501,6 +495,9 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
       )} />;
 
     default: {
+      // Try shared renderer (covers AI Feed widgets + other shared widgets)
+      const shared = renderSharedWidget(id, articles, stats, 'world');
+      if (shared) return shared;
       // Check if it's an RSS source widget (id starts with rss_)
       if (id.startsWith('rss_')) {
         const source = rssSources.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '_') === id.replace('rss_', ''));

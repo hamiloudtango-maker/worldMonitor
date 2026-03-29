@@ -2,8 +2,10 @@
 Article ingestion pipeline:
   fetch RSS → detect lang → classify (keywords) → translate if needed → NER → store indexed.
 
-Inspired by marifa entity extraction (Gemini Flash one-shot JSON)
-and WM v1 keyword classifier.
+Two modes:
+  - ingest_articles(): full pipeline per-source (used by individual feed ingest)
+  - dedup_and_prepare() + enrich_and_store(): split pipeline for batch catalog ingest
+    (dedup+classify locally, then one big LLM batch across all feeds)
 """
 
 import hashlib
@@ -12,15 +14,19 @@ import logging
 import re
 from datetime import datetime, timezone
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.article import Article
 from app.source_engine.classifier import classify
-from app.source_engine.detector import _call_gemini
+from app.source_engine.detector import _call_gemini, call_gemini, get_gemini_token
 from app.source_engine.schemas import ParsedRow
 
 logger = logging.getLogger(__name__)
+
+# Max headlines per LLM call — Gemini Flash outputs ~200 tokens/article,
+# with max_tokens=8192 we can safely fit ~35 articles per call.
+LLM_BATCH_SIZE = 15
 
 # ── Language detection (heuristic, no LLM) ──────────────────────
 
@@ -59,36 +65,6 @@ def detect_lang(text: str) -> str:
     scores = {"fr": fr, "en": en, "de": de, "es": es}
     best = max(scores, key=scores.get)  # type: ignore
     return best if scores[best] >= 2 else "en"
-
-
-# ── Translation (Gemini Flash batch) ────────────────────────────
-
-TRANSLATE_PROMPT = """Translate the following news headlines to English.
-Return ONLY a JSON array of translated strings, same order as input.
-Do not add explanations.
-
-Headlines:
-{headlines}"""
-
-
-async def translate_batch(texts: list[str], source_lang: str) -> list[str]:
-    """Translate a batch of texts to English using Gemini Flash."""
-    if not texts:
-        return []
-    numbered = "\n".join(f"{i+1}. {t}" for i, t in enumerate(texts))
-    try:
-        raw = await _call_gemini(TRANSLATE_PROMPT.format(headlines=numbered))
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1]
-        if cleaned.endswith("```"):
-            cleaned = cleaned.rsplit("```", 1)[0]
-        result = json.loads(cleaned.strip())
-        if isinstance(result, list) and len(result) == len(texts):
-            return result
-    except Exception as e:
-        logger.warning(f"Translation failed: {e}")
-    return texts  # Fallback: return originals
 
 
 # ── Unified enrichment (single LLM call: NER + sentiment + summary + tags + countries) ──
@@ -136,13 +112,13 @@ _EMPTY_ENRICHMENT = {
 }
 
 
-async def enrich_batch(titles: list[str]) -> list[dict]:
+async def enrich_batch(titles: list[str], *, client=None, token=None) -> list[dict]:
     """Enrich a batch of headlines in a single LLM call."""
     if not titles:
         return []
     numbered = "\n".join(f"{i}. {t}" for i, t in enumerate(titles))
     try:
-        raw = await _call_gemini(ENRICH_PROMPT.format(headlines=numbered))
+        raw = await call_gemini(ENRICH_PROMPT.format(headlines=numbered), client=client, token=token)
         cleaned = raw.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[1]
@@ -160,11 +136,62 @@ async def enrich_batch(titles: list[str]) -> list[dict]:
     return [dict(_EMPTY_ENRICHMENT) for _ in titles]
 
 
-# ── Full pipeline ───────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────
 
 def _hash_article(link: str) -> str:
     return hashlib.sha256(link.encode()).hexdigest()
 
+
+def _parse_pub_date(r: dict) -> datetime | None:
+    raw_date = r.get("pubDate") or r.get("pub_date") or r.get("date")
+    if not raw_date:
+        return None
+    try:
+        if isinstance(raw_date, (int, float)):
+            return datetime.fromtimestamp(raw_date / 1000, tz=timezone.utc)
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(str(raw_date))
+    except Exception:
+        return None
+
+
+def _build_article(
+    source_id: str, row: dict, h: str, link: str,
+    title: str, lang: str, cls: dict, enriched: dict,
+) -> Article:
+    theme = cls["theme"] if cls["theme"] != "general" else enriched.get("theme", "general")
+    persons = enriched.get("persons", [])
+    organizations = enriched.get("organizations", [])
+    entities = persons + organizations
+    country_codes = enriched.get("country_codes", [])
+    countries_mentioned = enriched.get("countries_mentioned", [])
+    title_en = enriched.get("title_en", "")
+    translated = title_en if (title_en and title_en != title) else None
+
+    return Article(
+        hash=h,
+        source_id=source_id,
+        title=title,
+        title_translated=translated,
+        description=str(row.get("description", "") or "")[:500],
+        link=link,
+        pub_date=_parse_pub_date(row),
+        lang=lang,
+        threat_level=cls["threat_level"],
+        theme=theme,
+        confidence=cls["confidence"],
+        entities_json=json.dumps(entities) if entities else None,
+        persons_json=json.dumps(persons) if persons else None,
+        orgs_json=json.dumps(organizations) if organizations else None,
+        country_codes_json=json.dumps(country_codes) if country_codes else None,
+        sentiment=enriched.get("sentiment"),
+        summary=enriched.get("summary"),
+        tags_json=json.dumps(enriched.get("tags", [])) if enriched.get("tags") else None,
+        countries_mentioned_json=json.dumps(countries_mentioned) if countries_mentioned else None,
+    )
+
+
+# ── Full pipeline (single source) ───────────────────────────────
 
 async def ingest_articles(
     db: AsyncSession,
@@ -178,14 +205,13 @@ async def ingest_articles(
     if not rows:
         return 0
 
-    # Step 0: Dedup — skip articles already in DB
+    # Step 0: Dedup — skip articles already in DB (batch query)
     links = [str(r.get("link", "") or r.get("url", "")) for r in rows]
     hashes = [_hash_article(link) for link in links]
-    existing = set()
-    for h in hashes:
-        result = await db.scalar(select(Article.hash).where(Article.hash == h))
-        if result:
-            existing.add(h)
+    existing_result = await db.scalars(
+        select(Article.hash).where(Article.hash.in_(hashes))
+    )
+    existing = set(existing_result.all())
 
     new_rows = [(r, h, link) for r, h, link in zip(rows, hashes, links) if h not in existing]
     if not new_rows:
@@ -202,66 +228,173 @@ async def ingest_articles(
     titles = [str(r.get("title", "")) for r, _, _ in new_rows]
     langs = [detect_lang(t) for t in titles]
 
-    # Step 3: Unified enrichment (single LLM call: translate + NER + sentiment + summary + tags)
+    # Step 3: Unified enrichment (LLM batch: translate + NER + sentiment + summary + tags)
     all_enriched: list[dict] = []
-    for batch_start in range(0, len(titles), 10):
-        batch = titles[batch_start:batch_start + 10]
+    for batch_start in range(0, len(titles), LLM_BATCH_SIZE):
+        batch = titles[batch_start:batch_start + LLM_BATCH_SIZE]
         enriched = await enrich_batch(batch)
         all_enriched.extend(enriched)
 
     # Step 4: Store
-    inserted = 0
+    new_articles: list[Article] = []
     for i, (r, h, link) in enumerate(new_rows):
-        title = titles[i]
         enriched = all_enriched[i] if i < len(all_enriched) else dict(_EMPTY_ENRICHMENT)
-        cls = classifications[i]
-
-        # Merge keyword theme with LLM theme (keyword wins if not "general")
-        theme = cls["theme"] if cls["theme"] != "general" else enriched.get("theme", "general")
-
-        # Combine entities
-        entities = enriched.get("persons", []) + enriched.get("organizations", [])
-        country_codes = enriched.get("country_codes", [])
-        countries_mentioned = enriched.get("countries_mentioned", [])
-
-        # Translation from enrichment
-        title_en = enriched.get("title_en", "")
-        translated = title_en if (title_en and title_en != title) else None
-
-        # Parse pub_date
-        pub_date = None
-        raw_date = r.get("pubDate") or r.get("pub_date") or r.get("date")
-        if raw_date:
-            try:
-                if isinstance(raw_date, (int, float)):
-                    pub_date = datetime.fromtimestamp(raw_date / 1000, tz=timezone.utc)
-                else:
-                    from email.utils import parsedate_to_datetime
-                    pub_date = parsedate_to_datetime(str(raw_date))
-            except Exception:
-                pass
-
-        article = Article(
-            hash=h,
-            source_id=source_id,
-            title=title,
-            title_translated=translated,
-            description=str(r.get("description", "") or "")[:500],
-            link=link,
-            pub_date=pub_date,
-            lang=langs[i],
-            threat_level=cls["threat_level"],
-            theme=theme,
-            confidence=cls["confidence"],
-            entities_json=json.dumps(entities) if entities else None,
-            country_codes_json=json.dumps(country_codes) if country_codes else None,
-            sentiment=enriched.get("sentiment"),
-            summary=enriched.get("summary"),
-            tags_json=json.dumps(enriched.get("tags", [])) if enriched.get("tags") else None,
-            countries_mentioned_json=json.dumps(countries_mentioned) if countries_mentioned else None,
-        )
-        db.add(article)
-        inserted += 1
+        art = _build_article(source_id, r, h, link, titles[i], langs[i], classifications[i], enriched)
+        db.add(art)
+        new_articles.append(art)
 
     await db.commit()
-    return inserted
+
+    # Delta-match new articles against all active cases
+    if new_articles:
+        try:
+            from app.domains.cases.matching import match_new_articles
+            await match_new_articles(db, [a.id for a in new_articles])
+            await db.commit()
+        except Exception:
+            logger.debug("case matching after ingest_articles skipped", exc_info=True)
+
+    return len(new_articles)
+
+
+# ── Split pipeline for catalog batch ingest ──────────────────────
+
+class PreparedArticle:
+    """Article that passed dedup + classify, ready for LLM enrichment."""
+    __slots__ = ("source_id", "row", "hash", "link", "title", "lang", "classification")
+
+    def __init__(self, source_id: str, row: dict, h: str, link: str, title: str, lang: str, cls: dict):
+        self.source_id = source_id
+        self.row = row
+        self.hash = h
+        self.link = link
+        self.title = title
+        self.lang = lang
+        self.classification = cls
+
+
+async def dedup_and_prepare(
+    db: AsyncSession,
+    source_id: str,
+    rows: list[ParsedRow],
+) -> list[PreparedArticle]:
+    """Dedup + classify locally (no LLM). Returns prepared articles ready for enrichment."""
+    if not rows:
+        return []
+
+    links = [str(r.get("link", "") or r.get("url", "")) for r in rows]
+    hashes = [_hash_article(link) for link in links]
+    existing_result = await db.scalars(
+        select(Article.hash).where(Article.hash.in_(hashes))
+    )
+    existing = set(existing_result.all())
+
+    prepared = []
+    for r, h, link in zip(rows, hashes, links):
+        if h in existing:
+            continue
+        title = str(r.get("title", ""))
+        desc = str(r.get("description", "") or "")
+        cls = classify(title, desc)
+        lang = detect_lang(title)
+        prepared.append(PreparedArticle(source_id, r, h, link, title, lang, cls))
+
+    return prepared
+
+
+async def dedup_and_prepare_bulk(
+    db: AsyncSession,
+    feed_rows: list[tuple[str, list[ParsedRow]]],
+) -> list[PreparedArticle]:
+    """Dedup + classify ALL feeds in one DB query. Much faster than per-feed dedup."""
+    if not feed_rows:
+        return []
+
+    # Collect all hashes across all feeds
+    all_items: list[tuple[str, dict, str, str]] = []  # (source_id, row, hash, link)
+    for source_id, rows in feed_rows:
+        for r in rows:
+            link = str(r.get("link", "") or r.get("url", ""))
+            h = _hash_article(link)
+            all_items.append((source_id, r, h, link))
+
+    if not all_items:
+        return []
+
+    # One big dedup query
+    all_hashes = [item[2] for item in all_items]
+    # Query in chunks of 500 (SQLite variable limit)
+    existing: set[str] = set()
+    for i in range(0, len(all_hashes), 500):
+        chunk = all_hashes[i:i + 500]
+        result = await db.scalars(select(Article.hash).where(Article.hash.in_(chunk)))
+        existing.update(result.all())
+
+    # Classify only new articles
+    prepared = []
+    seen: set[str] = set()  # dedup within batch
+    for source_id, r, h, link in all_items:
+        if h in existing or h in seen:
+            continue
+        seen.add(h)
+        title = str(r.get("title", ""))
+        desc = str(r.get("description", "") or "")
+        cls = classify(title, desc)
+        lang = detect_lang(title)
+        prepared.append(PreparedArticle(source_id, r, h, link, title, lang, cls))
+
+    return prepared
+
+
+async def enrich_and_store(
+    db: AsyncSession,
+    articles: list[PreparedArticle],
+) -> int:
+    """Enrich a batch of prepared articles via LLM, then store. Returns insert count."""
+    if not articles:
+        return 0
+
+    # Dedup within batch (multiple feeds may have the same article)
+    seen: set[str] = set()
+    unique = []
+    for a in articles:
+        if a.hash not in seen:
+            seen.add(a.hash)
+            unique.append(a)
+    articles = unique
+
+    import httpx
+    titles = [a.title for a in articles]
+
+    # One token, one client for all LLM calls
+    token = await get_gemini_token()
+    all_enriched: list[dict] = []
+    async with httpx.AsyncClient(timeout=30) as client:
+        for batch_start in range(0, len(titles), LLM_BATCH_SIZE):
+            batch = titles[batch_start:batch_start + LLM_BATCH_SIZE]
+            enriched = await enrich_batch(batch, client=client, token=token)
+            all_enriched.extend(enriched)
+
+    new_articles: list[Article] = []
+    for i, a in enumerate(articles):
+        enriched = all_enriched[i] if i < len(all_enriched) else dict(_EMPTY_ENRICHMENT)
+        art = _build_article(a.source_id, a.row, a.hash, a.link, a.title, a.lang, a.classification, enriched)
+        db.add(art)
+        new_articles.append(art)
+
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        return 0
+
+    # Delta-match new articles against all active cases
+    if new_articles:
+        try:
+            from app.domains.cases.matching import match_new_articles
+            await match_new_articles(db, [a.id for a in new_articles])
+            await db.commit()
+        except Exception:
+            logger.debug("case matching after enrich_and_store skipped", exc_info=True)
+
+    return len(new_articles)

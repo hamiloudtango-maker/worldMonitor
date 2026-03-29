@@ -1,24 +1,24 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext, useMemo } from 'react';
 import {
   LayoutDashboard, FolderOpen, FileBarChart, Settings, Bell, Search,
   AlertTriangle, Globe, TrendingUp, Building,
   Newspaper, Activity, BarChart2,
-  RefreshCw, LogOut, ExternalLink, Rss
+  RefreshCw, LogOut, ExternalLink, Rss, Clock
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell
 } from 'recharts';
-import { api, fetchAllArticles } from '@/v2/lib/api';
 import type { CaseData } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo } from '@/v2/lib/constants';
 import { useCases } from '@/v2/hooks/useCases';
+import { DataProvider, useGlobalData } from '@/v2/hooks/useData';
+import { useFacetModels, articleText, matchesFacet } from '@/v2/hooks/useFacetModels';
 import LiveMap from './LiveMap';
 import CasesView from './CasesView';
 import WorldView from './WorldView';
 import AIFeedsView from './AIFeedsView';
-import CaseBoard from './CaseBoard';
 import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './WidgetGrid';
 import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import NotificationPanel from './shared/NotificationPanel';
@@ -64,7 +64,15 @@ function getNavFromHash(): NavKey {
   return valid.includes(hash as NavKey) ? (hash as NavKey) : 'dashboard';
 }
 
-export default function Dashboard({ user, onLogout }: Props) {
+export default function Dashboard(props: Props) {
+  return (
+    <DataProvider>
+      <DashboardInner {...props} />
+    </DataProvider>
+  );
+}
+
+function DashboardInner({ user, onLogout }: Props) {
   const [nav, _setNav]              = useState<NavKey>(getNavFromHash);
   const setNav = useCallback((key: NavKey) => {
     if (window.location.hash !== `#${key}`) window.history.pushState(null, '', `#${key}`);
@@ -76,14 +84,8 @@ export default function Dashboard({ user, onLogout }: Props) {
     window.addEventListener('popstate', onHash);
     return () => window.removeEventListener('popstate', onHash);
   }, []);
-  const [stats, setStats]           = useState<Stats | null>(null);
-  const [articles, setArticles]     = useState<Article[]>([]);
-  const [entities, setEntities]     = useState<[string, number][]>([]);
-  const [countries, setCountries]   = useState<[string, number][]>([]);
-  const [loading, setLoading]       = useState(true);
+  const { articles, stats, entities, countries, loading, refresh: load } = useGlobalData();
   const [filters, setFilters]       = useState<ActiveFilters>(EMPTY_FILTERS);
-  const [boardCase, setBoardCase]   = useState<CaseData | null>(null);
-  const [_selectedCase, setSelectedCase] = useState<CaseData | null>(null);
   const [catalog, setCatalog]       = useState(FULL_CATALOG);
   const [readingArticleId, setReadingArticleId] = useState<string | null>(null);
 
@@ -94,46 +96,39 @@ export default function Dashboard({ user, onLogout }: Props) {
     buildCatalogWithFeeds().then(setCatalog);
   }, [nav]); // Refresh when switching tabs (in case feeds were created)
 
-  /* ── Data loading ── */
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [s, allArticles, e, c] = await Promise.all([
-        api<Stats>('/articles/v1/stats'),
-        fetchAllArticles(),
-        api<{ entities: [string, number][] }>('/articles/v1/entities?limit=30'),
-        api<{ countries: [string, number][] }>('/articles/v1/countries'),
-      ]);
-      setStats(s); setArticles(allArticles); setEntities(e.entities); setCountries(c.countries);
-    } catch { /* silent */ }
-    setLoading(false);
-  }, []);
+  const { choices } = useFacetModels();
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const id = setInterval(load, 5 * 60_000); return () => clearInterval(id); }, [load]);
-
-  /* ── Filtered articles ── */
-  const caseKw = filters.cases.length > 0
+  /* ── Filtered articles (memoized) ── */
+  const caseKw = useMemo(() => filters.cases.length > 0
     ? cases.filter(c => filters.cases.includes(c.name))
         .flatMap(c => (c.search_keywords || c.name).split('|').map(k => k.trim().toLowerCase()).filter(k => k.length >= 3))
-    : [];
-  const filteredArticles = articles.filter(a => {
+    : []
+  , [filters.cases, cases]);
+
+  const selectedModels = useMemo(() =>
+    choices.filter(c => filters.models.includes(c.id))
+  , [choices, filters.models]);
+
+  const filteredArticles = useMemo(() => articles.filter(a => {
     if (filters.q && !a.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
-    if (filters.countries.length && !a.country_codes.some(c => filters.countries.includes(c))) return false;
-    if (filters.themes.length && !filters.themes.includes(a.theme)) return false;
-    if (filters.threats.length && !filters.threats.includes(a.threat_level)) return false;
+    if (selectedModels.length > 0) {
+      const text = articleText(a);
+      if (!selectedModels.some(m => matchesFacet(text, m))) return false;
+    }
     if (caseKw.length && !caseKw.some(kw =>
       a.title.toLowerCase().includes(kw) ||
       a.entities.some(e => e.toLowerCase().includes(kw)) ||
       a.source_id.toLowerCase().includes(kw)
     )) return false;
     return true;
-  });
-  const alertArticles = filteredArticles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high');
+  }), [articles, filters, caseKw, selectedModels]);
 
-  // Recompute stats from filtered articles so all widgets react to filters
-  const hasFilters = filters.q || filters.countries.length || filters.themes.length || filters.threats.length || filters.cases.length;
-  const filteredStats = hasFilters ? (() => {
+  const alertArticles = useMemo(() =>
+    filteredArticles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high')
+  , [filteredArticles]);
+
+  const hasFilters = filters.q || filters.models.length || filters.cases.length;
+  const filteredStats = useMemo(() => hasFilters ? (() => {
     const by_theme: Record<string, number> = {};
     const by_threat: Record<string, number> = {};
     const by_source: Record<string, number> = {};
@@ -143,32 +138,35 @@ export default function Dashboard({ user, onLogout }: Props) {
       by_source[a.source_id] = (by_source[a.source_id] || 0) + 1;
     }
     return { total: filteredArticles.length, by_theme, by_threat, by_source, by_lang: {} };
-  })() : stats;
+  })() : stats, [filteredArticles, hasFilters, stats]);
 
-  const sentimentData = (() => {
+  const sentimentData = useMemo(() => {
     const neg = (stats?.by_threat['critical'] || 0) + (stats?.by_threat['high'] || 0);
     const pos = stats?.by_threat['low'] || 0;
     const neu = stats?.by_threat['info'] || 0;
-    return ['06', '09', '12', '15', '18', '21'].map(h => ({
+    const seed = neg + pos + neu; // deterministic instead of random
+    return ['06', '09', '12', '15', '18', '21'].map((h, i) => ({
       time: `${h}:00`,
-      positive: Math.round(pos * (0.5 + Math.random() * 0.6)),
-      negative: Math.round(neg * (0.3 + Math.random() * 0.9)),
-      neutral:  Math.round(neu * (0.5 + Math.random() * 0.5)),
+      positive: Math.round(pos * (0.5 + ((seed * (i + 1) * 7) % 60) / 100)),
+      negative: Math.round(neg * (0.3 + ((seed * (i + 1) * 13) % 90) / 100)),
+      neutral:  Math.round(neu * (0.5 + ((seed * (i + 1) * 3) % 50) / 100)),
     }));
-  })();
+  }, [stats]);
 
-  const thematicData = Object.entries(stats?.by_theme || {})
+  const thematicData = useMemo(() => Object.entries(stats?.by_theme || {})
     .sort((a, b) => b[1] - a[1]).slice(0, 7)
-    .map(([n, v]) => ({ name: capitalize(n), value: v }));
+    .map(([n, v]) => ({ name: capitalize(n), value: v }))
+  , [stats]);
+
+  const dashRenderContent = useCallback((id: string) => {
+    const shared = renderSharedWidget(id, filteredArticles, filteredStats, 'dash');
+    if (shared) return shared;
+    return <DashContent id={id} stats={stats} articles={articles} cases={cases} alertArticles={alertArticles} sentimentData={sentimentData} thematicData={thematicData} />;
+  }, [filteredArticles, filteredStats, stats, articles, cases, alertArticles, sentimentData, thematicData]);
 
   /* ═══════════════════════════════════════════════════════════════
      RENDER
      ═══════════════════════════════════════════════════════════════ */
-
-  /* CaseBoard overlay */
-  if (boardCase) {
-    return <CaseBoard caseData={boardCase} onBack={() => setBoardCase(null)} />;
-  }
 
   return (
     <ArticleReaderContext.Provider value={setReadingArticleId}>
@@ -252,6 +250,11 @@ export default function Dashboard({ user, onLogout }: Props) {
                 <RefreshCw size={10} className="animate-spin" /> Chargement...
               </div>
             )}
+            {stats?.last_ingest_at && (
+              <div className="flex items-center gap-1 px-2 py-1 text-[10px] text-slate-400" title={`Dernière ingestion : ${new Date(stats.last_ingest_at).toLocaleString('fr-FR')}`}>
+                <Clock size={10} /> Ingestion {timeAgo(stats.last_ingest_at)}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={load} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors" title="Actualiser">
@@ -274,15 +277,7 @@ export default function Dashboard({ user, onLogout }: Props) {
               catalog={catalog}
               storageKey="wm-dash-v3"
               defaultWidgets={DASH_DEFAULTS}
-              onRefresh={load}
-              loading={loading}
-              renderContent={id => {
-                // Try shared renderer first (covers all 45+ widgets)
-                const shared = renderSharedWidget(id, filteredArticles, filteredStats, 'dash');
-                if (shared) return shared;
-                // Fallback: original dashboard-specific widgets
-                return <DashContent id={id} stats={stats} articles={articles} cases={cases} alertArticles={alertArticles} sentimentData={sentimentData} thematicData={thematicData} />;
-              }}
+              renderContent={dashRenderContent}
             />
           )}
 
@@ -293,8 +288,6 @@ export default function Dashboard({ user, onLogout }: Props) {
               loading={casesLoading}
               onAdd={addCase}
               onRemove={removeCase}
-              onSelect={setSelectedCase}
-              onOpenBoard={setBoardCase}
             />
           )}
 
@@ -398,8 +391,8 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
     case 'alerts':
       return (
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
-          {alertArticles.slice(0, 10).map((a, i) => (
-            <button key={i} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left p-2 rounded-lg border border-slate-100 hover:border-red-200 transition-colors cursor-pointer">
+          {alertArticles.slice(0, 10).map(a => (
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left p-2 rounded-lg border border-slate-100 hover:border-red-200 transition-colors cursor-pointer">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${a.threat_level === 'critical' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{a.threat_level}</span>
                 <span className="text-[9px] text-slate-400 ml-auto">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
@@ -413,8 +406,8 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
     case 'news':
       return (
         <div className="overflow-y-auto h-full p-2 space-y-1.5">
-          {articles.slice(0, 15).map((a, i) => (
-            <button key={i} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors cursor-pointer">
+          {articles.slice(0, 15).map(a => (
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors cursor-pointer">
               <p className="text-[10px] text-slate-600 line-clamp-1 font-medium">{a.title}</p>
               <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.theme}</span>
               <span className="text-[8px] text-slate-400 ml-2">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>

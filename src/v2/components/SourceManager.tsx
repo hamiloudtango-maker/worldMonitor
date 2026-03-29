@@ -260,8 +260,8 @@ export default function SourceManager() {
       </td>
       <td className="px-2 py-2 text-xs text-slate-500 whitespace-nowrap">{timeAgo(s.last_fetched_at)}</td>
       <td className="px-2 py-2 text-xs">
-        <span className={s.fetch_error_count > 0 ? 'text-red-600 font-semibold' : 'text-slate-400'}>
-          {s.fetch_error_count}
+        <span className={s.fetch_error_count > 0 ? 'text-red-600 font-semibold' : 'text-slate-400'} title={s.last_error || ''}>
+          {s.fetch_error_count > 0 ? `${s.fetch_error_count} — ${s.last_error || 'Erreur'}` : '0'}
         </span>
       </td>
       <td className="px-2 py-2">
@@ -592,7 +592,7 @@ function EditModal({ source, onClose, onSave }: {
             <div><span className="font-medium text-slate-600">URL:</span> <span className="break-all">{source.url}</span></div>
             <div><span className="font-medium text-slate-600">Origine:</span> {source.origin}</div>
             <div><span className="font-medium text-slate-600">Dernier fetch:</span> {timeAgo(source.last_fetched_at)}</div>
-            <div><span className="font-medium text-slate-600">Erreurs:</span> {source.fetch_error_count}</div>
+            <div><span className="font-medium text-slate-600">Erreurs:</span> {source.fetch_error_count}{source.last_error && <span className="text-red-500 ml-1">— {source.last_error}</span>}</div>
           </div>
 
           {/* Name */}

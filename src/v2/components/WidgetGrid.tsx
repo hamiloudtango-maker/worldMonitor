@@ -6,13 +6,14 @@
  * react-grid-layout's shouldComponentUpdate which only compares
  * children keys, not content.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 // @ts-ignore — CJS module, default import for Vite compat
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { X, Plus } from 'lucide-react';
+import ErrorBoundary from './shared/ErrorBoundary';
 
 const ACCENT = '#42d3a5';
 const ReactGridLayout = RGL.WidthProvider ? RGL.WidthProvider(RGL) : RGL;
@@ -75,13 +76,15 @@ function WidgetPortal({ id, renderContent }: { id: string; renderContent: (id: s
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    // Find the portal target div inside the grid item
     const el = document.getElementById(`wg-content-${id}`);
     if (el) setTarget(el);
-  });
+  }, [id]);
 
   if (!target) return null;
-  return createPortal(renderContent(id), target);
+  return createPortal(
+    <ErrorBoundary label={id}>{renderContent(id)}</ErrorBoundary>,
+    target,
+  );
 }
 
 /* ═══ Component ═══ */

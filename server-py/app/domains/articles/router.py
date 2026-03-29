@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import CurrentUser, get_current_user
@@ -87,6 +87,8 @@ async def search_articles(
                 "theme": a.theme,
                 "confidence": a.confidence,
                 "entities": json.loads(a.entities_json) if a.entities_json else [],
+                "persons": json.loads(a.persons_json) if a.persons_json else [],
+                "organizations": json.loads(a.orgs_json) if a.orgs_json else [],
                 "country_codes": json.loads(a.country_codes_json) if a.country_codes_json else [],
             }
             for a in articles
@@ -118,12 +120,11 @@ async def article_stats(db: AsyncSession = Depends(get_db)):
     )
     threats = {row[0] or "info": row[1] for row in threat_rows}
 
-    # By source
+    # By source (all sources, no limit)
     source_rows = await db.execute(
         select(Article.source_id, func.count())
         .group_by(Article.source_id)
         .order_by(desc(func.count()))
-        .limit(20)
     )
     sources = {row[0]: row[1] for row in source_rows}
 
@@ -135,12 +136,56 @@ async def article_stats(db: AsyncSession = Depends(get_db)):
     )
     langs = {row[0]: row[1] for row in lang_rows}
 
+    # Last completed ingestion cycle timestamp (fallback: max last_fetched_at from DB)
+    from app.source_engine.catalog_ingest import last_cycle_completed_at
+    if last_cycle_completed_at:
+        last_ingest_str = last_cycle_completed_at.isoformat()
+    else:
+        from app.models.ai_feed import RssCatalogEntry
+        db_max = await db.scalar(select(func.max(RssCatalogEntry.last_fetched_at)))
+        if db_max is not None:
+            last_ingest_str = db_max.isoformat() if hasattr(db_max, 'isoformat') else str(db_max)
+        else:
+            last_ingest_str = None
+
     return {
         "total": total,
         "by_theme": themes,
         "by_threat": threats,
         "by_source": sources,
         "by_lang": langs,
+        "last_ingest_at": last_ingest_str,
+    }
+
+
+@router.get("/alert-velocity")
+async def alert_velocity(
+    days: int = Query(15, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+):
+    """Alert velocity: daily counts by threat level over N days."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    day_col = func.date(Article.pub_date)
+
+    rows = await db.execute(
+        select(day_col, Article.threat_level, func.count())
+        .where(Article.pub_date >= cutoff)
+        .group_by(day_col, Article.threat_level)
+        .order_by(day_col)
+    )
+
+    from collections import defaultdict
+    by_day: dict[str, dict] = defaultdict(lambda: {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0})
+    for d, tl, c in rows:
+        if d:
+            by_day[str(d)][tl or "info"] = c
+
+    return {
+        "days": [
+            {"date": d, **by_day[d], "total": sum(by_day[d].values())}
+            for d in sorted(by_day.keys())
+        ]
     }
 
 

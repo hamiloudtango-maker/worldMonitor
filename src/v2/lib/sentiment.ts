@@ -30,6 +30,7 @@ export interface CountryRow {
 
 export interface EntityRow {
   name: string;
+  type: 'person' | 'org' | 'country' | 'theme';
   count: number;
   themes: string[];
   threatAvg: number; // 0-1 weighted threat
@@ -60,7 +61,7 @@ function rollingAvg(values: number[], window: number): number[] {
 
 import { FLAGS } from './constants';
 
-const COUNTRY_NAMES: Record<string, string> = {
+export const COUNTRY_NAMES: Record<string, string> = {
   US: 'Etats-Unis', FR: 'France', UA: 'Ukraine', RU: 'Russie', CN: 'Chine',
   IR: 'Iran', IL: 'Israel', DE: 'Allemagne', GB: 'Royaume-Uni', JP: 'Japon',
   IN: 'Inde', BR: 'Bresil', TR: 'Turquie', SA: 'Arabie Saoudite', KR: 'Coree du Sud',
@@ -87,8 +88,8 @@ export function computeSentimentByDay(articles: Article[]): SentimentBucket[] {
 
     const tl = a.threat_level;
     if (tl === 'critical' || tl === 'high') buckets[key].negative++;
-    else if (tl === 'low' || tl === 'info') buckets[key].positive++;
-    else buckets[key].neutral++;
+    else if (tl === 'low') buckets[key].positive++;
+    else buckets[key].neutral++; // info + medium = neutral
   }
 
   const sorted = Object.entries(buckets)
@@ -120,22 +121,28 @@ export function computeSentimentByDay(articles: Article[]): SentimentBucket[] {
 // ── Overall sentiment score ─────────────────────────────────────
 
 /**
- * Overall sentiment score 0..100.
- * 0 = all negative, 50 = balanced, 100 = all positive.
+ * Overall sentiment score 0..100 (only threat articles, ignoring neutral).
+ * 0 = all critical, 50 = balanced, 100 = all calm.
+ * Only considers: critical (-1), high (-0.5), low (+0.5).
+ * Medium/info excluded — they are noise, not signal.
  */
 export function overallSentimentScore(byThreat: Record<string, number>): number {
-  const neg = (byThreat['critical'] || 0) + (byThreat['high'] || 0);
-  const pos = (byThreat['low'] || 0) + (byThreat['info'] || 0);
-  const total = neg + pos + (byThreat['medium'] || 0);
+  const critical = byThreat['critical'] || 0;
+  const high = byThreat['high'] || 0;
+  const low = byThreat['low'] || 0;
+  const total = critical + high + low;
   if (total === 0) return 50;
-  return Math.round(((pos - neg) / total + 1) * 50); // map [-1,1] to [0,100]
+  const weighted = critical * -1 + high * -0.5 + low * 0.5;
+  // weighted/total is in [-1, +0.5], map to [0, 100]
+  return Math.round(((weighted / total + 1) / 1.5) * 100);
 }
 
 // ── Country stability matrix ────────────────────────────────────
 
 export function computeCountryMatrix(articles: Article[]): CountryRow[] {
   const now = Date.now();
-  const recentCutoff = now - 3 * 24 * 3600 * 1000; // 3 days
+  const recentCutoff = now - 3 * 24 * 3600 * 1000; // last 3 days = "recent"
+  const olderCutoff = now - 7 * 24 * 3600 * 1000; // 3-7 days ago = "older"
 
   const countries = new Map<string, {
     total: number; recent: number; older: number;
@@ -175,7 +182,11 @@ export function computeCountryMatrix(articles: Article[]): CountryRow[] {
       military: c.total > 0 ? Math.round((c.military / c.total) * 100) : 0,
       social: c.total > 0 ? Math.round((c.social / c.total) * 100) : 0,
       geopolitical: c.total > 0 ? Math.round((c.threatSum / c.total) * 100) : 0,
-      trend: c.older > 0 ? Math.round(((c.recent - c.older) / c.older) * 100) : (c.recent > 0 ? 100 : 0),
+      // Trend: % change in volume (recent 3d vs older 4d), clamped to [-100, +100]
+      // Positive = increasing activity, negative = calming down
+      trend: c.older > 0
+        ? Math.max(-100, Math.min(100, Math.round(((c.recent / 3 - c.older / 4) / (c.older / 4)) * 100)))
+        : (c.recent > 0 ? 50 : 0), // no older data = moderate, not 100%
     }))
     .sort((a, b) => b.total - a.total);
 }
@@ -187,23 +198,44 @@ export function computeTopEntities(articles: Article[]): EntityRow[] {
   const recentCutoff = now - 3 * 24 * 3600 * 1000;
 
   const entities = new Map<string, {
+    type: 'person' | 'org';
     count: number; recent: number; older: number;
     themes: Set<string>; threatSum: number;
   }>();
 
   for (const a of articles) {
-    for (const e of a.entities) {
-      if (!e || e.length < 2) continue;
-      if (!entities.has(e)) {
-        entities.set(e, { count: 0, recent: 0, older: 0, themes: new Set(), threatSum: 0 });
-      }
-      const row = entities.get(e)!;
-      row.count++;
-      if (a.theme) row.themes.add(a.theme);
-      row.threatSum += THREAT_WEIGHT[a.threat_level] || 0.2;
+    const isRecent = a.pub_date ? new Date(a.pub_date).getTime() > recentCutoff : false;
 
-      const isRecent = a.pub_date ? new Date(a.pub_date).getTime() > recentCutoff : false;
+    // Persons
+    for (const p of (a.persons || [])) {
+      if (!p || p.length < 2) continue;
+      if (!entities.has(p)) entities.set(p, { type: 'person', count: 0, recent: 0, older: 0, themes: new Set(), threatSum: 0 });
+      const row = entities.get(p)!;
+      row.count++; if (a.theme) row.themes.add(a.theme);
+      row.threatSum += THREAT_WEIGHT[a.threat_level] || 0.2;
       if (isRecent) row.recent++; else row.older++;
+    }
+
+    // Organizations
+    for (const o of (a.organizations || [])) {
+      if (!o || o.length < 2) continue;
+      if (!entities.has(o)) entities.set(o, { type: 'org', count: 0, recent: 0, older: 0, themes: new Set(), threatSum: 0 });
+      const row = entities.get(o)!;
+      row.count++; if (a.theme) row.themes.add(a.theme);
+      row.threatSum += THREAT_WEIGHT[a.threat_level] || 0.2;
+      if (isRecent) row.recent++; else row.older++;
+    }
+
+    // Fallback: if persons/orgs are empty, use legacy entities
+    if (!(a.persons?.length) && !(a.organizations?.length)) {
+      for (const e of (a.entities || [])) {
+        if (!e || e.length < 2) continue;
+        if (!entities.has(e)) entities.set(e, { type: 'org', count: 0, recent: 0, older: 0, themes: new Set(), threatSum: 0 });
+        const row = entities.get(e)!;
+        row.count++; if (a.theme) row.themes.add(a.theme);
+        row.threatSum += THREAT_WEIGHT[a.threat_level] || 0.2;
+        if (isRecent) row.recent++; else row.older++;
+      }
     }
   }
 
@@ -211,10 +243,13 @@ export function computeTopEntities(articles: Article[]): EntityRow[] {
     .filter(([, e]) => e.count >= 2)
     .map(([name, e]) => ({
       name,
+      type: e.type,
       count: e.count,
       themes: Array.from(e.themes).slice(0, 3),
       threatAvg: e.count > 0 ? Math.round((e.threatSum / e.count) * 100) / 100 : 0,
-      trend: e.older > 0 ? Math.round(((e.recent - e.older) / e.older) * 100) : (e.recent > 0 ? 100 : 0),
+      trend: e.older > 0
+        ? Math.max(-100, Math.min(100, Math.round(((e.recent / 3 - e.older / 4) / (e.older / 4)) * 100)))
+        : (e.recent > 0 ? 50 : 0),
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 30);

@@ -7,7 +7,7 @@ import logging
 
 from lxml import etree
 
-from app.domains._shared.http import fetch_xml
+from app.domains._shared.http import fetch_xml, fetch_xml_conditional
 from app.source_engine.schemas import ParsedRow
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,32 @@ async def fetch_rss_feed(url: str, max_items: int = 50, timeout: int = 15) -> li
     except Exception as e:
         logger.warning(f"RSS fetch failed ({url[:60]}): {e}")
         return []
+
+
+async def fetch_rss_feed_conditional(
+    url: str,
+    *,
+    etag: str | None = None,
+    last_modified: str | None = None,
+    max_items: int = 30,
+    timeout: int = 6,
+) -> tuple[list[ParsedRow] | None, str | None, str | None]:
+    """Fetch RSS with conditional request. Returns (rows, new_etag, new_last_modified).
+    rows is None on 304 Not Modified (feed unchanged)."""
+    try:
+        content, new_etag, new_lm = await fetch_xml_conditional(
+            url, etag=etag, last_modified=last_modified, timeout=timeout,
+        )
+        if content is None:
+            return None, new_etag, new_lm
+        root = etree.fromstring(content)
+    except Exception as e:
+        logger.warning(f"RSS fetch failed ({url[:60]}): {e}")
+        raise
+
+    tag = root.tag.lower().split("}")[-1] if "}" in root.tag else root.tag.lower()
+    rows = _parse_atom(root, max_items) if tag == "feed" else _parse_rss(root, max_items)
+    return rows, new_etag, new_lm
 
     # Detect format: RSS 2.0 vs Atom
     tag = root.tag.lower().split("}")[-1] if "}" in root.tag else root.tag.lower()

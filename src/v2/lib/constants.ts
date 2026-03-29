@@ -16,6 +16,8 @@ export interface Article {
   theme: string;
   confidence: number;
   entities: string[];
+  persons: string[];
+  organizations: string[];
   country_codes: string[];
 }
 
@@ -25,6 +27,7 @@ export interface Stats {
   by_threat: Record<string, number>;
   by_source: Record<string, number>;
   by_lang: Record<string, number>;
+  last_ingest_at?: string | null;
 }
 
 export interface Filters {
@@ -108,13 +111,13 @@ export function timeAgo(d: string | null): string {
   if (!d) return '';
   const ms = Date.now() - new Date(d).getTime();
   const m = Math.floor(ms / 60000);
-  if (m < 1) return 'Just now';
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return 'à l\u2019instant';
+  if (m < 60) return `il y a ${m} min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return `il y a ${h}h`;
   const days = Math.floor(h / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (days < 7) return `il y a ${days}j`;
+  return new Date(d).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
 }
 
 export function formatSource(sourceId: string): string {

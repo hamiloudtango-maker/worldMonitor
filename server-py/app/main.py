@@ -14,6 +14,8 @@ ROUTERS = [
     "app.auth.router",
     "app.source_engine.router",
     "app.dashboards.router",
+    # Jobs (background task tracking)
+    "app.domains.jobs.router",
     # Article intelligence pipeline
     "app.domains.articles.router",
     # Domains with live implementations
@@ -43,24 +45,59 @@ ROUTERS = [
 ]
 
 
+_db_ready = None  # asyncio.Event — set after lifespan init completes
+
+
 async def _auto_ingest_catalog():
-    """Background task: ingest all RSS catalog sources every 30 min."""
+    """Background task: ingest all RSS catalog sources every 10 min.
+    On startup, checks if data is stale (>1h) and ingests immediately if so."""
     import asyncio
     import logging
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select, func
     from app.db import async_session
+    from app.models.ai_feed import RssCatalogEntry
     from app.source_engine.catalog_ingest import ingest_full_catalog
 
     logger = logging.getLogger("catalog-ingest")
-    await asyncio.sleep(10)  # wait for startup
+    await _db_ready.wait()  # wait for DB init + seed to complete
+
+    # Check if data is stale (>1h since last fetch)
+    try:
+        async with async_session() as db:
+            last = await db.scalar(select(func.max(RssCatalogEntry.last_fetched_at)))
+            if last is not None:
+                if isinstance(last, str):
+                    from datetime import datetime as dt
+                    last = dt.fromisoformat(last)
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+                age = datetime.now(timezone.utc) - last
+                if age < timedelta(hours=1):
+                    wait = int((timedelta(minutes=10) - (age % timedelta(minutes=10))).total_seconds())
+                    print(f"[INGEST] Data is fresh ({age.total_seconds()/60:.0f}min old), next cycle in {wait}s")
+                    await asyncio.sleep(wait)
+                else:
+                    print(f"[INGEST] Data is stale ({age.total_seconds()/3600:.1f}h old), ingesting now")
+    except Exception:
+        pass  # If check fails, just start normally
+
+    from app.domains.jobs.helpers import start_job, finish_job
 
     while True:
+        job_id = await start_job("catalog_ingest")
         try:
             async with async_session() as db:
-                await ingest_full_catalog(db)
+                await ingest_full_catalog(db, db_session_factory=async_session)
+            await finish_job(job_id)
         except Exception as e:
-            logger.warning(f"Catalog ingest cycle failed: {e}")
+            await finish_job(job_id, error=str(e)[:500])
+            try:
+                print(f"[INGEST] Cycle failed: {e}")
+            except Exception:
+                pass  # UnicodeEncodeError on Windows terminal
 
-        await asyncio.sleep(30 * 60)  # every 30 min
+        await asyncio.sleep(10 * 60)  # every 10 min
 
 
 async def _auto_refresh_cases():
@@ -76,9 +113,13 @@ async def _auto_refresh_cases():
     from app.source_engine.article_pipeline import ingest_articles
 
     logger = logging.getLogger("case-refresh")
-    await asyncio.sleep(60)  # wait for catalog first pass
+    await _db_ready.wait()  # wait for DB init + seed to complete
+    await asyncio.sleep(30)  # small grace period for first catalog ingest
+
+    from app.domains.jobs.helpers import start_job, finish_job
 
     while True:
+        job_id = await start_job("case_refresh")
         try:
             async with async_session() as db:
                 cases = (await db.scalars(select(Case).where(Case.status == "active"))).all()
@@ -116,7 +157,9 @@ async def _auto_refresh_cases():
                             logger.warning(f"Case ingest '{case.name}': {e}")
 
                     await asyncio.sleep(2)  # rate limit between cases
+            await finish_job(job_id)
         except Exception as e:
+            await finish_job(job_id, error=str(e)[:500])
             logger.warning(f"Case auto-refresh cycle failed: {e}")
 
         await asyncio.sleep(4 * 3600)  # every 4 hours
@@ -130,14 +173,20 @@ async def _auto_analyze_categories():
     from app.source_engine.category_analyzer import run_weekly_analysis
 
     logger = logging.getLogger("category-analyzer")
+    await _db_ready.wait()  # wait for DB init + seed to complete
     await asyncio.sleep(5 * 60)  # wait 5min for initial ingestion
 
+    from app.domains.jobs.helpers import start_job, finish_job
+
     while True:
+        job_id = await start_job("category_analysis")
         try:
             async with async_session() as db:
                 result = await run_weekly_analysis(db)
                 logger.info(f"Category analysis: {result['total_articles']} articles, {len(result['categories'])} categories")
+            await finish_job(job_id)
         except Exception as e:
+            await finish_job(job_id, error=str(e)[:500])
             logger.warning(f"Category analysis failed: {e}")
 
         await asyncio.sleep(7 * 24 * 3600)  # every 7 days
@@ -148,6 +197,7 @@ async def lifespan(app: FastAPI):
     if settings.database_url.startswith("sqlite"):
         from app.db import create_all_tables
         import app.models.intel_model  # noqa: F401 — register model before create_all
+        import app.models.job  # noqa: F401 — register model before create_all
 
         await create_all_tables()
 
@@ -171,8 +221,20 @@ async def lifespan(app: FastAPI):
         async with async_session() as db:
             await run_weekly_analysis(db)
 
-    # Start background ingestion tasks
+    # Populate case_articles junction table (safety net — ensures consistency on boot)
+    from app.domains.cases.matching import refresh_all_cases
+    async with async_session() as db:
+        counts = await refresh_all_cases(db)
+        if counts:
+            _log.info("case_articles refreshed: %s", {k: v for k, v in counts.items() if v})
+
+    # Signal background tasks that DB is ready
     import asyncio
+    global _db_ready
+    _db_ready = asyncio.Event()
+    _db_ready.set()
+
+    # Start background ingestion tasks
     catalog_task = asyncio.create_task(_auto_ingest_catalog())
     refresh_task = asyncio.create_task(_auto_refresh_cases())
     category_task = asyncio.create_task(_auto_analyze_categories())

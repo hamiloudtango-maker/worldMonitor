@@ -16,6 +16,7 @@ export interface CatalogSource {
   origin: string;
   last_fetched_at: string | null;
   fetch_error_count: number;
+  last_error: string | null;
   status: 'active' | 'degraded' | 'error' | 'disabled';
 }
 

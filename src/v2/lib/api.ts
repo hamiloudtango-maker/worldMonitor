@@ -31,7 +31,17 @@ export function isAuthenticated(): boolean {
 }
 
 // ── Typed fetch wrapper ───────────────────────────────────────
+// Token refresh lock: ensures only one refresh happens at a time.
+// Concurrent 401s share the same refresh promise instead of racing.
+let _refreshPromise: Promise<boolean> | null = null;
+
 async function refreshAccessToken(): Promise<boolean> {
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = _doRefresh();
+  try { return await _refreshPromise; } finally { _refreshPromise = null; }
+}
+
+async function _doRefresh(): Promise<boolean> {
   const rt = getRefreshToken();
   if (!rt) return false;
   try {

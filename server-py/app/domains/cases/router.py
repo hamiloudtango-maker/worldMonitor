@@ -620,12 +620,15 @@ async def ingest_case(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Force article ingestion for a case name."""
+    """Force article ingestion for a case name. Tracked as a job for frontend polling."""
     case = await db.scalar(
         select(Case).where(Case.id == case_id, Case.org_id == user.org_id)
     )
     if not case:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
+
+    from app.domains.jobs.helpers import start_job, finish_job
+    job_id = await start_job("case_ingest", target_id=str(case_id))
 
     try:
         from app.source_engine.google_news import fetch_google_news
@@ -690,16 +693,20 @@ async def ingest_case(
 
         inserted = await ingest_articles(db, source_id, unique_rows)
 
+        await finish_job(job_id)
         return {
             "case_id": str(case_id),
+            "job_id": job_id,
             "fetched": len(unique_rows),
             "inserted": inserted,
             "catalog_inserted": catalog_inserted,
         }
     except Exception:
+        await finish_job(job_id, error="Ingestion pipeline unavailable")
         logger.warning("Ingestion failed for case '%s'", case.name, exc_info=True)
         return {
             "case_id": str(case_id),
+            "job_id": job_id,
             "fetched": 0,
             "inserted": 0,
             "warning": "Ingestion pipeline unavailable",

@@ -1,25 +1,30 @@
 /**
  * FilterBar — faceted filter with chips, autocomplete dropdowns.
- * Replaces the basic search bar in the Dashboard header.
- * Filters: country, theme, threat level, source, free text.
+ *
+ * The "Theme" facet uses Intel Models with aliases:
+ * selecting "Mergers & Acquisitions" searches for ["M&A", "merger", "acquisition", "rachat"]
+ * in article text, instead of just matching a.theme === 'economic'.
  */
-import { useState, useRef, useEffect } from 'react';
-import { Search, X, Filter, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, X, ChevronDown } from 'lucide-react';
 import type { Article, Stats } from '@/v2/lib/constants';
-import { capitalize, FLAGS } from '@/v2/lib/constants';
 import type { CaseData } from '@/v2/lib/api';
+import { useFacetModels, articleText, matchesFacet, type FacetChoice } from '@/v2/hooks/useFacetModels';
 
 // ── Types ───────────────────────────────────────────────────────
 
 export interface ActiveFilters {
   q: string;
-  countries: string[];
-  themes: string[];
-  threats: string[];
-  cases: string[]; // case names
+  /** Intel Model IDs — matched via keywords+aliases */
+  models: string[];
+  cases: string[];
 }
 
-export const EMPTY_FILTERS: ActiveFilters = { q: '', countries: [], themes: [], threats: [], cases: [] };
+export const EMPTY_FILTERS: ActiveFilters = { q: '', models: [], cases: [] };
+
+// Backward compat — some components still use 'themes'
+/** @deprecated use models */
+export type { ActiveFilters as ActiveFiltersCompat };
 
 interface Props {
   filters: ActiveFilters;
@@ -32,19 +37,15 @@ interface Props {
 // ── Chip colors ─────────────────────────────────────────────────
 
 const FACET_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  country: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  theme:   { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  threat:  { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+  model:   { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
   case_:   { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
-
-const THREAT_LEVELS = ['critical', 'high', 'medium', 'low', 'info'];
 
 // ── Dropdown ────────────────────────────────────────────────────
 
 function Dropdown({ label, items, selected, onToggle, color, icon }: {
   label: string;
-  items: { value: string; label: string; count?: number }[];
+  items: { value: string; label: string; count?: number; group?: string }[];
   selected: string[];
   onToggle: (value: string) => void;
   color: { bg: string; text: string; border: string };
@@ -67,6 +68,17 @@ function Dropdown({ label, items, selected, onToggle, color, icon }: {
     i.label.toLowerCase().includes(search.toLowerCase()) || i.value.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Group items by their group field (if present)
+  const groups = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const item of filtered) {
+      const g = item.group || '';
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(item);
+    }
+    return map;
+  }, [filtered]);
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -77,12 +89,12 @@ function Dropdown({ label, items, selected, onToggle, color, icon }: {
       >
         {icon && <span className="text-[10px]">{icon}</span>}
         {label}
+        {selected.length > 0 && <span className="ml-0.5 text-[9px] font-bold opacity-60">{selected.length}</span>}
         <ChevronDown size={10} className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
       </button>
 
       {open && (
-        <div className="absolute top-8 left-0 w-56 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
-          {/* Search */}
+        <div className="absolute top-8 left-0 w-64 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
           <div className="p-2 border-b border-slate-100">
             <div className="relative">
               <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -96,33 +108,39 @@ function Dropdown({ label, items, selected, onToggle, color, icon }: {
             </div>
           </div>
 
-          {/* Items */}
-          <div className="max-h-52 overflow-y-auto p-1">
+          <div className="max-h-64 overflow-y-auto p-1">
             {filtered.length === 0 && (
               <div className="py-3 text-center text-[10px] text-slate-400">Aucun resultat</div>
             )}
-            {filtered.map(item => {
-              const active = selected.includes(item.value);
-              return (
-                <button
-                  key={item.value}
-                  onClick={() => onToggle(item.value)}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[11px] transition-colors ${
-                    active ? `${color.bg} ${color.text} font-semibold` : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                    active ? `${color.border} ${color.bg}` : 'border-slate-300'
-                  }`}>
-                    {active && <span className="text-[8px]">&#10003;</span>}
-                  </span>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.count !== undefined && (
-                    <span className="text-[9px] text-slate-400 font-mono">{item.count}</span>
-                  )}
-                </button>
-              );
-            })}
+            {[...groups.entries()].map(([group, groupItems]) => (
+              <div key={group}>
+                {group && (
+                  <div className="px-2 pt-2 pb-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider">{group}</div>
+                )}
+                {groupItems.map(item => {
+                  const active = selected.includes(item.value);
+                  return (
+                    <button
+                      key={item.value}
+                      onClick={() => onToggle(item.value)}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[11px] transition-colors ${
+                        active ? `${color.bg} ${color.text} font-semibold` : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                        active ? `${color.border} ${color.bg}` : 'border-slate-300'
+                      }`}>
+                        {active && <span className="text-[8px]">&#10003;</span>}
+                      </span>
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {item.count !== undefined && item.count > 0 && (
+                        <span className="text-[9px] text-slate-400 font-mono">{item.count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -133,36 +151,25 @@ function Dropdown({ label, items, selected, onToggle, color, icon }: {
 // ── Main FilterBar ──────────────────────────────────────────────
 
 export default function FilterBar({ filters, onChange, stats, articles, cases }: Props) {
-  // Compute available options from data
-  const countryOptions = (() => {
-    const counts: Record<string, number> = {};
-    for (const a of articles) {
-      for (const c of a.country_codes) counts[c] = (counts[c] || 0) + 1;
+  const { choices, byFamily, countMatches } = useFacetModels();
+
+  // Compute article match counts for Intel Models (cached per articles)
+  const modelCounts = useMemo(() => countMatches(articles), [articles, countMatches]);
+
+  // Intel Model options — grouped by family
+  const modelOptions = useMemo(() => {
+    const items: { value: string; label: string; count?: number; group?: string }[] = [];
+    for (const [, { label: famLabel, choices: famChoices }] of byFamily) {
+      const sorted = [...famChoices].sort((a, b) => (modelCounts.get(b.id) || 0) - (modelCounts.get(a.id) || 0));
+      for (const c of sorted) {
+        const count = modelCounts.get(c.id) || 0;
+        items.push({ value: c.id, label: c.label, count, group: famLabel });
+      }
     }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([code, count]) => ({
-        value: code,
-        label: `${FLAGS[code] || ''} ${code}`,
-        count,
-      }));
-  })();
+    return items;
+  }, [byFamily, modelCounts]);
 
-  const themeOptions = Object.entries(stats?.by_theme || {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([t, c]) => ({ value: t, label: capitalize(t), count: c }));
-
-  const caseOptions = cases.map(c => ({
-    value: c.name,
-    label: c.name,
-    count: c.article_count,
-  }));
-
-  const threatOptions = THREAT_LEVELS.map(t => ({
-    value: t,
-    label: capitalize(t),
-    count: stats?.by_threat[t] || 0,
-  }));
+  const caseOptions = cases.map(c => ({ value: c.name, label: c.name, count: c.article_count }));
 
   function toggle(key: keyof ActiveFilters, value: string) {
     const arr = filters[key] as string[];
@@ -174,7 +181,14 @@ export default function FilterBar({ filters, onChange, stats, articles, cases }:
     onChange({ ...filters, [key]: (filters[key] as string[]).filter(v => v !== value) });
   }
 
-  const hasFilters = filters.q || filters.countries.length || filters.themes.length || filters.threats.length || filters.cases.length;
+  // Lookup for model ID → label (for chips)
+  const modelLabelMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of choices) m.set(c.id, c.label);
+    return m;
+  }, [choices]);
+
+  const hasFilters = filters.q || filters.models.length || filters.cases.length;
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -190,28 +204,14 @@ export default function FilterBar({ filters, onChange, stats, articles, cases }:
       </div>
 
       {/* Facet dropdowns */}
-      <Dropdown label="Pays" items={countryOptions} selected={filters.countries} onToggle={v => toggle('countries', v)} color={FACET_COLORS.country!} />
-      <Dropdown label="Theme" items={themeOptions} selected={filters.themes} onToggle={v => toggle('themes', v)} color={FACET_COLORS.theme!} />
-      <Dropdown label="Menace" items={threatOptions} selected={filters.threats} onToggle={v => toggle('threats', v)} color={FACET_COLORS.threat!} />
+      <Dropdown label="Intel Models" items={modelOptions} selected={filters.models} onToggle={v => toggle('models', v)} color={FACET_COLORS.model!} />
       <Dropdown label="Case" items={caseOptions} selected={filters.cases} onToggle={v => toggle('cases', v)} color={FACET_COLORS.case_!} />
 
       {/* Active chips */}
-      {filters.countries.map(c => (
-        <span key={`c-${c}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-          {FLAGS[c] || ''} {c}
-          <button onClick={() => removeChip('countries', c)} className="hover:text-blue-900"><X size={10} /></button>
-        </span>
-      ))}
-      {filters.themes.map(t => (
-        <span key={`t-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-          {capitalize(t)}
-          <button onClick={() => removeChip('themes', t)} className="hover:text-purple-900"><X size={10} /></button>
-        </span>
-      ))}
-      {filters.threats.map(t => (
-        <span key={`th-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-red-50 text-red-700 border border-red-200">
-          {capitalize(t)}
-          <button onClick={() => removeChip('threats', t)} className="hover:text-red-900"><X size={10} /></button>
+      {filters.models.map(id => (
+        <span key={`m-${id}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+          {modelLabelMap.get(id) || id}
+          <button onClick={() => removeChip('models', id)} className="hover:text-purple-900"><X size={10} /></button>
         </span>
       ))}
       {filters.cases.map(c => (

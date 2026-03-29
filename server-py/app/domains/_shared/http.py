@@ -31,6 +31,29 @@ async def fetch_xml(url: str, *, timeout: int = DEFAULT_TIMEOUT) -> bytes:
         return resp.content
 
 
+async def fetch_xml_conditional(
+    url: str,
+    *,
+    etag: str | None = None,
+    last_modified: str | None = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> tuple[bytes | None, str | None, str | None]:
+    """Fetch XML with ETag/Last-Modified conditional request.
+    Returns (content, new_etag, new_last_modified).
+    content is None on 304 Not Modified."""
+    headers = {"User-Agent": USER_AGENT}
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        resp = await client.get(url, headers=headers)
+        if resp.status_code == 304:
+            return None, etag, last_modified
+        resp.raise_for_status()
+        return resp.content, resp.headers.get("etag"), resp.headers.get("last-modified")
+
+
 async def fetch_text(url: str, *, params: dict | None = None, timeout: int = DEFAULT_TIMEOUT) -> str:
     """Fetch raw text from a URL."""
     async with httpx.AsyncClient(timeout=timeout) as client:
