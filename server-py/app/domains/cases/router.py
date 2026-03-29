@@ -309,7 +309,7 @@ Return ONLY valid JSON (no markdown):
 
 Each layer can have:
 - existing_ids: 12-char IDs from the catalog above
-- new_models: [{{"name": "...", "family": "{default_fam}", "section": "{default_sec}", "aliases": ["8-15 aliases, multilingual, min 3 chars"]}}]
+- new_models: [{{"name": "...", "family": "{default_fam}", "section": "{default_sec}", "aliases": ["8-15 SPECIFIC aliases, multilingual, min 5 chars. NEVER use common words that appear in normal text (e.g. 'Total', 'Global', 'National', 'Energy'). Only use unique identifiers for this entity."]}}]
 
 Rules:
 - Companies → foundation/Companies, Countries → foundation/Countries, Industries → foundation/Industries

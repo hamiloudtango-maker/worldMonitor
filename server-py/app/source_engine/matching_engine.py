@@ -27,8 +27,8 @@ _model_meta: dict[str, dict] = {}             # model_id_hex → {family, sectio
 _search_choices: list[str] = []               # flat list for search bar
 _search_to_model: dict[str, str] = {}         # choice → model_id_hex
 
-EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-MIN_COSINE_SCORE = 0.60
+EMBED_MODEL = "google/embeddinggemma-300m"
+MIN_COSINE_SCORE = 0.35  # validated: Gemma vrais > 0.43, faux < 0.21
 
 
 def _get_encoder():
@@ -36,7 +36,7 @@ def _get_encoder():
     if _encoder is None:
         from sentence_transformers import SentenceTransformer
         logger.info("Loading MiniLM encoder...")
-        _encoder = SentenceTransformer(EMBED_MODEL)
+        _encoder = SentenceTransformer(EMBED_MODEL, trust_remote_code=True)
         logger.info("MiniLM encoder loaded")
     return _encoder
 
@@ -81,9 +81,9 @@ def load_models(models: list) -> None:
     if texts:
         vecs = encoder.encode(texts, normalize_embeddings=True, batch_size=64)
         _model_vectors = {ids[i]: vecs[i] for i in range(len(ids))}
-        logger.info(f"Loaded {len(ids)} Intel Models ({n_keywords} FlashText keywords, {len(_search_choices)} search terms)")
     else:
         _model_vectors = {}
+    logger.info(f"Loaded {len(ids)} Intel Models ({n_keywords} FlashText keywords, {len(_search_choices)} search terms)")
 
 
 def _article_full_text(article) -> str:
@@ -105,8 +105,8 @@ def _article_full_text(article) -> str:
 
 
 def _article_metadata_text(article) -> str:
-    """Full text for MiniLM encoding — same as FlashText for consistency."""
-    return _article_full_text(article)
+    """Title + description for EmbeddingGemma (best signal for entity matching)."""
+    return (article.title or '') + ' ' + (article.description or '')
 
 
 def match_articles(articles: list) -> list[tuple[str, str, float, str]]:
@@ -133,7 +133,7 @@ def match_articles(articles: list) -> list[tuple[str, str, float, str]]:
                 flash_matches.add(pair)
                 results.append((aid, mid, 1.0, "flash"))
 
-    # ── Phase 2: MiniLM match (semantic on full text) ──
+    # ── Phase 2: EmbeddingGemma semantic match on title+description ──
     if _model_vectors:
         full_texts = []
         art_ids = []

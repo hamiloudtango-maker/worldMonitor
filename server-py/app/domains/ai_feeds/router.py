@@ -604,6 +604,27 @@ async def refresh_dynamic_categories(
     return await run_weekly_analysis(db)
 
 
+# ── Intel Models resolve by IDs (lightweight) ───────────────
+@router.post("/intel-models/resolve-ids")
+async def resolve_model_ids(body: dict, db: AsyncSession = Depends(get_db)):
+    """Resolve a list of model IDs to their names/family/section. Fast, no tree."""
+    from app.models.intel_model import IntelModel
+    import uuid as _uuid
+    ids = body.get("ids", [])
+    if not ids:
+        return {"models": {}}
+    models_out = {}
+    for mid_str in ids:
+        mid_hex = mid_str.replace("-", "")
+        try:
+            m = await db.get(IntelModel, _uuid.UUID(mid_hex))
+            if m:
+                models_out[mid_hex] = {"name": m.name, "family": m.family, "section": m.section}
+        except Exception:
+            pass
+    return {"models": models_out}
+
+
 # ── Intel Models search (fuzzy, for search bar) ─────────────
 @router.get("/intel-models/search")
 async def search_intel_models(q: str = Query("", min_length=2), limit: int = Query(10, le=50)):

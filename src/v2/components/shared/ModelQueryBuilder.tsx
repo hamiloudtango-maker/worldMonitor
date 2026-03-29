@@ -61,24 +61,21 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Resolve model names for IDs in layers (lightweight — one API call)
+  // Resolve model names — single lightweight POST with just the IDs needed
   useEffect(() => {
     const allIds = layers.flatMap(l => l.model_ids);
     const missing = allIds.filter(id => !modelCache.has(id));
     if (!missing.length) return;
-    api<{ sections: Record<string, { id: string; name: string; family: string; section: string }[]> }>('/ai-feeds/intel-models')
-      .then(res => {
-        const cache = new Map(modelCache);
-        for (const models of Object.values(res.sections)) {
-          for (const m of models) {
-            const idNoDash = m.id.replace(/-/g, '');
-            cache.set(m.id, { model_id: m.id, model_name: m.name, family: m.family, section: m.section });
-            cache.set(idNoDash, { model_id: idNoDash, model_name: m.name, family: m.family, section: m.section });
-          }
-        }
-        setModelCache(cache);
-      })
-      .catch(() => {});
+    api<{ models: Record<string, { name: string; family: string; section: string }> }>(
+      '/ai-feeds/intel-models/resolve-ids',
+      { method: 'POST', body: JSON.stringify({ ids: missing }) }
+    ).then(res => {
+      const cache = new Map(modelCache);
+      for (const [mid, info] of Object.entries(res.models)) {
+        cache.set(mid, { model_id: mid, model_name: info.name, family: info.family, section: info.section });
+      }
+      setModelCache(cache);
+    }).catch(() => {});
   }, [layers]);
 
   // Fuzzy search
