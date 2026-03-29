@@ -4,7 +4,7 @@ import { useAIFeeds } from '@/v2/hooks/useAIFeeds';
 import type { AIFeedData, FeedQuery } from '@/v2/lib/ai-feeds-api';
 import { bootstrapFeed, addFeedSource, refreshFeed } from '@/v2/lib/ai-feeds-api';
 import FeedList from './ai-feeds/FeedList';
-import ChipQueryBuilder from './ai-feeds/ChipQueryBuilder';
+import ModelQueryBuilder, { type ModelLayer } from './shared/ModelQueryBuilder';
 import SourceSelector from './ai-feeds/SourceSelector';
 import FeedPreview from './ai-feeds/FeedPreview';
 import FeedCreator from './ai-feeds/FeedCreator';
@@ -14,6 +14,7 @@ export default function AIFeedsView() {
   const { feeds, add, remove, update } = useAIFeeds();
   const [selected, setSelected] = useState<AIFeedData | null>(null);
   const [localQuery, setLocalQuery] = useState<FeedQuery>({ layers: [] });
+  const [localModelLayers, setLocalModelLayers] = useState<ModelLayer[]>([]);
   const [dirty, setDirty] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [sourceKey, setSourceKey] = useState(0);
@@ -25,12 +26,18 @@ export default function AIFeedsView() {
   function handleSelect(feed: AIFeedData) {
     setSelected(feed);
     setLocalQuery(feed.query || { layers: [] });
+    setLocalModelLayers((feed.query as any)?.model_layers || []);
     setDirty(false);
     setCreating(false);
   }
 
   function handleQueryChange(query: FeedQuery) {
     setLocalQuery(query);
+    setDirty(true);
+  }
+
+  function handleModelLayersChange(layers: ModelLayer[]) {
+    setLocalModelLayers(layers);
     setDirty(true);
   }
 
@@ -85,7 +92,7 @@ export default function AIFeedsView() {
 
   async function handleSave() {
     if (!selected || !dirty) return;
-    const updated = await update(selected.id, { query: localQuery });
+    const updated = await update(selected.id, { query: { ...localQuery, model_layers: localModelLayers } });
     setSelected(updated);
     setDirty(false);
   }
@@ -177,7 +184,7 @@ export default function AIFeedsView() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              <ChipQueryBuilder query={localQuery} onChange={handleQueryChange} />
+              <ModelQueryBuilder layers={localModelLayers} onChange={handleModelLayersChange} />
               <div className="border-t border-slate-100 pt-4">
                 <FeedPreview feedId={selected.id} query={localQuery} onCountChange={setPreviewCount} />
               </div>

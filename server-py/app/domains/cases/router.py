@@ -288,33 +288,22 @@ Sector: {sector}
 Here is the catalog of existing Intel Models (id|family/section|name):
 {catalog_text}
 
-Your job: compose a FOCUSED intelligence query using LAYERS.
+Your job: compose a STARTING intelligence query.
 
-LAYER LOGIC (sequential, top-down):
-- Line 1 (OR): base set — the main entity. Articles matching any model in this line.
-- Line 2 (AND): narrows — its industry/sector. Keeps only articles that ALSO match this line.
-- Line 3 (AND): narrows more — its country. Keeps only articles that ALSO match this line.
-- Line N (NOT): excludes — removes articles matching this line from the result above.
+IMPORTANT: Start with just ONE layer (OR) containing ONLY the main entity.
+The user will add AND/NOT layers manually to refine.
 
-Each line can have multiple models joined by OR (union within the line).
+For a COMPANY: Line 1 (OR) = the company itself only
+For a COUNTRY: Line 1 (OR) = the country itself only
+For a PERSON: Line 1 (OR) = the person only
+For a THEMATIC: Line 1 (OR) = the main topic only
 
-For a COMPANY like "{name}":
-  Line 1 (OR): the company itself
-  Line 2 (AND): its core industry
-  Line 3 (AND): its country of headquarters
-
-For a COUNTRY:
-  Line 1 (OR): the country itself
-  Line 2 (AND): 1-2 key topics for this country
-
-If a model doesn't exist in the catalog, include it as NEW.
+If the entity doesn't exist in the catalog, include it as NEW.
 
 Return ONLY valid JSON (no markdown):
 {{
   "layers": [
-    {{"operator": "OR", "existing_ids": ["id1"], "new_models": []}},
-    {{"operator": "AND", "existing_ids": ["id2", "id3"], "new_models": []}},
-    {{"operator": "AND", "existing_ids": ["id4"], "new_models": []}}
+    {{"operator": "OR", "existing_ids": ["id1"], "new_models": []}}
   ]
 }}
 
@@ -324,7 +313,7 @@ Each layer can have:
 
 Rules:
 - Companies → foundation/Companies, Countries → foundation/Countries, Industries → foundation/Industries
-- 3 layers MAX. No generic themes (ESG, Sustainability). Be specific."""
+- 1 layer ONLY. The user adds more manually."""
 
         raw = await _call_gemini(prompt)
         cleaned = _re.sub(r"^```(?:json)?\s*", "", raw.strip())
@@ -767,15 +756,10 @@ async def case_articles(
             else:
                 inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
 
-        # Wrap in ORM-compatible query
-        stmt = (
-            select(Article)
-            .where(Article.id.in_(sa_text(inner_sql)))
-            .order_by(desc(Article.pub_date))
-        )
-        # We need to pass params via execution_options or raw — use raw approach
+        # Execute raw SQL to get matched IDs, then ORM select
+        import uuid as _uuid
         result_ids = await db.execute(sa_text(inner_sql), params)
-        matched_ids = [row[0] for row in result_ids.fetchall()]
+        matched_ids = [_uuid.UUID(row[0]) for row in result_ids.fetchall()]
         stmt = (
             select(Article)
             .where(Article.id.in_(matched_ids))
@@ -827,22 +811,58 @@ async def case_stats(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
 
     from sqlalchemy import text
-    raw = """
-        WITH matched AS (
-            SELECT a.threat_level, a.theme, a.source_id
-            FROM articles a
-            JOIN case_articles ca ON ca.article_id = a.id
-            WHERE ca.case_id = :cid
-        )
-        SELECT 'total' AS stat, '_' AS key, count(*) AS n FROM matched
-        UNION ALL
-        SELECT 'threat', COALESCE(threat_level, 'info'), count(*) FROM matched GROUP BY threat_level
-        UNION ALL
-        SELECT 'theme', COALESCE(theme, 'unknown'), count(*) FROM matched GROUP BY theme
-        UNION ALL
-        SELECT 'source', COALESCE(source_id, 'unknown'), count(*) FROM matched GROUP BY source_id
-    """
-    result = await db.execute(text(raw), {"cid": case_id.hex})
+
+    # Build article ID set using model_layers logic
+    model_layers = _get_model_layers(case)
+    if model_layers:
+        params = {}
+        pidx = 0
+        inner_sql = "SELECT id FROM articles"
+        for layer in model_layers:
+            mids = layer["model_ids"]
+            placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
+            for i, mid in enumerate(mids):
+                params[f"p{pidx + i}"] = mid
+            pidx += len(mids)
+            layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+            if layer["operator"] == "NOT":
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+            else:
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
+        raw = f"""
+            WITH matched AS (
+                SELECT a.threat_level, a.theme, a.source_id
+                FROM articles a
+                WHERE a.id IN ({inner_sql})
+            )
+            SELECT 'total' AS stat, '_' AS key, count(*) AS n FROM matched
+            UNION ALL
+            SELECT 'threat', COALESCE(threat_level, 'info'), count(*) FROM matched GROUP BY threat_level
+            UNION ALL
+            SELECT 'theme', COALESCE(theme, 'unknown'), count(*) FROM matched GROUP BY theme
+            UNION ALL
+            SELECT 'source', COALESCE(source_id, 'unknown'), count(*) FROM matched GROUP BY source_id
+        """
+        result = await db.execute(text(raw), params)
+    else:
+        # Legacy fallback
+        raw = """
+            WITH matched AS (
+                SELECT a.threat_level, a.theme, a.source_id
+                FROM articles a
+                JOIN case_articles ca ON ca.article_id = a.id
+                WHERE ca.case_id = :cid
+            )
+            SELECT 'total' AS stat, '_' AS key, count(*) AS n FROM matched
+            UNION ALL
+            SELECT 'threat', COALESCE(threat_level, 'info'), count(*) FROM matched GROUP BY threat_level
+            UNION ALL
+            SELECT 'theme', COALESCE(theme, 'unknown'), count(*) FROM matched GROUP BY theme
+            UNION ALL
+            SELECT 'source', COALESCE(source_id, 'unknown'), count(*) FROM matched GROUP BY source_id
+        """
+        result = await db.execute(text(raw), {"cid": case_id.hex})
     rows = result.all()
 
     total = 0

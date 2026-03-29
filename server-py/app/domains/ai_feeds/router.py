@@ -61,17 +61,35 @@ async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
     Supports new format (models: []) via article_models JOIN, and legacy (layers: []) via LIKE."""
     from sqlalchemy import text as sa_text
 
-    # New format: query via article_models
-    model_ids = query_data.get("models", [])
-    if model_ids:
-        placeholders = ",".join(f":m{i}" for i in range(len(model_ids)))
-        params = {f"m{i}": mid for i, mid in enumerate(model_ids)}
+    # New format: model_layers with sequential AND/OR/NOT
+    model_layers = query_data.get("model_layers", [])
+    # Also support flat "models" format
+    if not model_layers and query_data.get("models"):
+        model_layers = [{"operator": "OR", "model_ids": query_data["models"]}]
+
+    if model_layers:
+        params = {}
+        pidx = 0
+        inner_sql = "SELECT id FROM articles"
+        for layer in model_layers:
+            mids = [m.replace("-", "") for m in layer.get("model_ids", []) if m]
+            if not mids:
+                continue
+            placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
+            for i, mid in enumerate(mids):
+                params[f"p{pidx + i}"] = mid
+            pidx += len(mids)
+            layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+            if layer.get("operator") == "NOT":
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+            else:
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
         result = await db.execute(
             sa_text(
                 "SELECT a.title, a.link, a.source_id, a.pub_date, a.description, a.threat_level, a.theme "
-                "FROM articles a JOIN article_models am ON am.article_id = a.id "
-                f"WHERE am.model_id IN ({placeholders}) "
-                "GROUP BY a.id ORDER BY a.pub_date DESC LIMIT 500"
+                f"FROM articles a WHERE a.id IN ({inner_sql}) "
+                "ORDER BY a.pub_date DESC LIMIT 500"
             ),
             params,
         )

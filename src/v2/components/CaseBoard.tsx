@@ -11,8 +11,7 @@ import type { CaseData, CaseStats } from '@/v2/lib/api';
 import { getCaseArticles, getCaseStats, forceIngestCase, updateCase } from '@/v2/lib/api';
 import type { Article } from '@/v2/lib/constants';
 import IdentityCard from './IdentityCard';
-import ChipQueryBuilder from './ai-feeds/ChipQueryBuilder';
-import type { FeedQuery } from '@/v2/lib/ai-feeds-api';
+import ModelQueryBuilder, { type ModelLayer } from './shared/ModelQueryBuilder';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
 import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 
@@ -48,52 +47,13 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const [regenerating, setRegenerating] = useState(false);
   const [currentCase, setCurrentCase] = useState(caseData);
   const [catalog, setCatalog] = useState<WidgetDef[]>(FULL_CATALOG);
-  const [caseQuery, _setCaseQuery] = useState<FeedQuery>(
-    caseData.query?.layers?.length ? { layers: caseData.query.layers } : { layers: [] }
+  // model_layers: the single source of truth for the query
+  const [queryLayers, setQueryLayers] = useState<ModelLayer[]>(
+    (caseData.query?.model_layers || []).map(l => ({
+      operator: l.operator as ModelLayer['operator'],
+      model_ids: l.model_ids || [],
+    }))
   );
-  // Auto-convert model_layers into visible ChipQueryBuilder layers
-  const modelLayers: { operator: string; model_ids: string[] }[] = caseData.query?.model_layers || [];
-  const [modelsResolved, setModelsResolved] = useState(false);
-  useEffect(() => {
-    if (!modelLayers.length || modelsResolved) return;
-    import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
-      fetchIntelTree().then(({ families }) => {
-        // Build ID → model lookup (with and without dashes)
-        const modelMap = new Map<string, { name: string; aliases: string[] }>();
-        for (const fam of families) {
-          for (const sec of fam.sections) {
-            for (const m of sec.models) {
-              modelMap.set(m.id, { name: m.name, aliases: m.aliases || [] });
-              modelMap.set(m.id.replace(/-/g, ''), { name: m.name, aliases: m.aliases || [] });
-            }
-          }
-        }
-        // Convert each model_layer to a ChipQueryBuilder layer
-        const layers: FeedQuery['layers'] = [];
-        for (const ml of modelLayers) {
-          const parts = ml.model_ids
-            .map(mid => modelMap.get(mid) || modelMap.get(mid.replace(/-/g, '')))
-            .filter(Boolean)
-            .map(m => ({ type: 'topic' as const, value: m!.name, aliases: m!.aliases, scope: 'title_and_content' as const }));
-          if (parts.length) {
-            layers.push({ operator: ml.operator as 'OR' | 'AND' | 'NOT', parts });
-          }
-        }
-        if (layers.length) {
-          _setCaseQuery({ layers });
-          caseQueryRef.current = { layers };
-          setModelsResolved(true);
-        }
-      })
-    );
-  }, [modelLayers.length]);
-  const caseQueryRef = useRef(caseQuery);
-  // Wrapper: update ref IMMEDIATELY (synchronous), then schedule React state update
-  const setCaseQuery = useCallback((q: FeedQuery) => {
-    caseQueryRef.current = q;
-    _setCaseQuery(q);
-  }, []);
-  const [intelTree, setIntelTree] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,31 +71,14 @@ export default function CaseBoard({ caseData, onBack }: Props) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { buildCatalogWithFeeds().then(setCatalog); }, []);
-  useEffect(() => {
-    import('@/v2/lib/ai-feeds-api').then(({ fetchIntelTree }) =>
-      fetchIntelTree().then(r => setIntelTree(r.families || [])).catch(() => {})
-    );
-  }, []);
-
   const [saving, setSaving] = useState(false);
 
   async function handleSaveQuery() {
     if (saving) return;
-    const q = caseQueryRef.current;
     setSaving(true);
     try {
-      // Send both layers (for legacy/display) and resolve model_ids for article_models
-      const modelNames = q.layers.flatMap(l => l.parts.map(p => p.value)).filter(Boolean);
-      // Resolve each name to an Intel Model ID
-      const resolvedIds: string[] = [];
-      for (const name of modelNames) {
-        try {
-          const { resolveIntelModel } = await import('@/v2/lib/ai-feeds-api');
-          const res = await resolveIntelModel(name);
-          resolvedIds.push(res.model.id);
-        } catch { /* skip */ }
-      }
-      await updateCase(currentCase.id, { query: { ...q, models: resolvedIds } });
+      // Send model_layers directly — no conversion needed
+      await updateCase(currentCase.id, { query: { model_layers: queryLayers } });
       await load();
     } catch (err) {
       console.error('[CaseBoard] save failed', err);
@@ -218,7 +161,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
             ) : (
               <div className="space-y-3">
                 <p className="text-[12px] text-slate-600 leading-relaxed">{currentCase.identity_card?.description || 'Aucune description.'}</p>
-                <ChipQueryBuilder query={caseQuery} onChange={setCaseQuery} tree={intelTree} />
+                <ModelQueryBuilder layers={queryLayers} onChange={setQueryLayers} />
                 <div className="flex items-center gap-2 mt-2">
                   <button onClick={handleSaveQuery} disabled={saving}
                     className="px-4 py-1.5 text-[11px] font-semibold text-white rounded-lg disabled:opacity-50" style={{ background: '#42d3a5' }}>

@@ -28,7 +28,7 @@ _search_choices: list[str] = []               # flat list for search bar
 _search_to_model: dict[str, str] = {}         # choice → model_id_hex
 
 EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-MIN_COSINE_SCORE = 0.50
+MIN_COSINE_SCORE = 0.60
 
 
 def _get_encoder():
