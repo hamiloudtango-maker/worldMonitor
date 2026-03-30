@@ -1776,23 +1776,70 @@ async def toggle_feed_source(
 @router.get("/{feed_id}/articles")
 async def list_feed_articles(
     feed_id: uuid.UUID,
-    limit: int = Query(50, le=200),
+    limit: int = Query(200, ge=1, le=2000),
     offset: int = Query(0, ge=0),
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Get articles matching this feed — same logic as case_articles.
+    Reads model_layers, runs _ensure_matching, queries article_models directly."""
+    from sqlalchemy import text as sa_text
+    from app.models.article import Article as Art
+
     feed = await db.get(AIFeed, feed_id)
     if not feed or feed.org_id != user.org_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Feed not found")
-    total = await db.scalar(
-        select(func.count()).where(AIFeedResult.ai_feed_id == feed_id)
+
+    query_data = json.loads(feed.query) if isinstance(feed.query, str) else (feed.query or {})
+    model_layers = query_data.get("model_layers", [])
+    if not model_layers:
+        return {"articles": [], "total": 0}
+
+    await _ensure_matching(db, model_layers)
+
+    # Build SQL with OR/AND/NOT layer logic (same as case)
+    params = {}
+    pidx = 0
+    inner_sql = "SELECT id FROM articles"
+    for layer in model_layers:
+        mids = [m.replace("-", "") for m in layer.get("model_ids", []) if m]
+        if not mids:
+            continue
+        placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
+        for i, mid in enumerate(mids):
+            params[f"p{pidx + i}"] = mid
+        pidx += len(mids)
+        layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+        if layer.get("operator") == "NOT":
+            inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+        else:
+            inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
+    # Count
+    count_result = await db.execute(sa_text(f"SELECT COUNT(*) FROM ({inner_sql}) c"), params)
+    total = count_result.scalar() or 0
+
+    # Fetch articles
+    import uuid as _uuid
+    result_ids = await db.execute(
+        sa_text(f"{inner_sql} ORDER BY (SELECT pub_date FROM articles WHERE id = id) DESC LIMIT :lim OFFSET :off"),
+        {**params, "lim": limit, "off": offset},
     )
-    stmt = (
-        select(AIFeedResult)
-        .where(AIFeedResult.ai_feed_id == feed_id)
-        .order_by(desc(AIFeedResult.relevance_score), desc(AIFeedResult.published_at))
-        .offset(offset)
-        .limit(limit)
-    )
-    results = (await db.scalars(stmt)).all()
-    return {"articles": [_serialize_result(r) for r in results], "total": total or 0}
+    matched_ids = [_uuid.UUID(row[0]) for row in result_ids.fetchall()]
+
+    if not matched_ids:
+        return {"articles": [], "total": total}
+
+    articles = (await db.execute(
+        select(Art).where(Art.id.in_(matched_ids)).order_by(desc(Art.pub_date))
+    )).scalars().all()
+
+    def serialize(a: Art) -> dict:
+        return {
+            "id": str(a.id), "article_url": a.link, "title": a.title,
+            "source_name": a.source_id, "published_at": a.pub_date.isoformat() if a.pub_date else None,
+            "relevance_score": 1.0, "summary": a.summary, "threat_level": a.threat_level,
+            "category": a.theme, "fetched_at": a.created_at.isoformat() if a.created_at else None,
+        }
+
+    return {"articles": [serialize(a) for a in articles], "total": total}
