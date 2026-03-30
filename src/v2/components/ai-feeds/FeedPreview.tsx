@@ -10,6 +10,7 @@ interface Props {
   feedId: string | null;
   query?: FeedQuery;
   onCountChange?: (count: number) => void;
+  refreshKey?: number;
 }
 
 const THREAT_COLORS: Record<string, string> = {
@@ -19,7 +20,7 @@ const THREAT_COLORS: Record<string, string> = {
   low: 'bg-green-100 text-green-600',
 };
 
-export default function FeedPreview({ feedId, query, onCountChange }: Props) {
+export default function FeedPreview({ feedId, query, onCountChange, refreshKey }: Props) {
   const openArticle = useArticleReader();
   const [articles, setArticles] = useState<(AIFeedArticle | PreviewArticle)[]>([]);
   const [total, setTotal] = useState(0);
@@ -50,7 +51,7 @@ export default function FeedPreview({ feedId, query, onCountChange }: Props) {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [feedId, query]);
+  useEffect(() => { load(); }, [feedId, query, refreshKey]);
 
   if (!feedId && (!query || query.layers.length === 0)) {
     return (

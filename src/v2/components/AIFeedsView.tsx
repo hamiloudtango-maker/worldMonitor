@@ -18,6 +18,7 @@ export default function AIFeedsView() {
   const [dirty, setDirty] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [sourceKey, setSourceKey] = useState(0);
+  const [previewKey, setPreviewKey] = useState(0);
   const [creating, setCreating] = useState(false);
   const [previewCount, setPreviewCount] = useState(0);
   const [editingName, setEditingName] = useState(false);
@@ -103,6 +104,7 @@ export default function AIFeedsView() {
       const refreshed = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(updated.id));
       setSelected(refreshed);
       setSourceKey(k => k + 1);
+      setPreviewKey(k => k + 1);
     } catch {}
   }
 
@@ -176,6 +178,7 @@ export default function AIFeedsView() {
                     await refreshFeed(selected.id);
                     const updated = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(selected.id));
                     setSelected(updated);
+                    setPreviewKey(k => k + 1);
                   }}
                   className="px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
                 >
@@ -195,7 +198,7 @@ export default function AIFeedsView() {
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <ModelQueryBuilder layers={localModelLayers} onChange={handleModelLayersChange} />
               <div className="border-t border-slate-100 pt-4">
-                <FeedPreview feedId={selected.id} query={localQuery} onCountChange={setPreviewCount} />
+                <FeedPreview feedId={selected.id} query={localQuery} onCountChange={setPreviewCount} refreshKey={previewKey} />
               </div>
             </div>
           </div>
