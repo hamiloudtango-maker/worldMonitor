@@ -108,59 +108,44 @@ async def _ensure_matching(db, model_layers: list[dict]) -> None:
 
 async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
     """Run feed query against articles table and populate ai_feed_results.
-    Supports new format (models: []) via article_models JOIN, and legacy (layers: []) via LIKE."""
+    Uses model_layers format only — no legacy support."""
     from sqlalchemy import text as sa_text
 
-    # New format: model_layers with sequential AND/OR/NOT
     model_layers = query_data.get("model_layers", [])
-    # Also support flat "models" format
-    if not model_layers and query_data.get("models"):
-        model_layers = [{"operator": "OR", "model_ids": query_data["models"]}]
+    if not model_layers:
+        # Clear results if no filters
+        from sqlalchemy import delete
+        await db.execute(delete(AIFeedResult).where(AIFeedResult.ai_feed_id == feed_id))
+        await db.commit()
+        return 0
 
-    if model_layers:
-        # Ensure matching is up to date for these models
-        await _ensure_matching(db, model_layers)
-        params = {}
-        pidx = 0
-        inner_sql = "SELECT id FROM articles"
-        for layer in model_layers:
-            mids = [m.replace("-", "") for m in layer.get("model_ids", []) if m]
-            if not mids:
-                continue
-            placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
-            for i, mid in enumerate(mids):
-                params[f"p{pidx + i}"] = mid
-            pidx += len(mids)
-            layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
-            if layer.get("operator") == "NOT":
-                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
-            else:
-                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+    await _ensure_matching(db, model_layers)
 
-        result = await db.execute(
-            sa_text(
-                "SELECT a.title, a.link, a.source_id, a.pub_date, a.description, a.threat_level, a.theme "
-                f"FROM articles a WHERE a.id IN ({inner_sql}) "
-                "ORDER BY a.pub_date DESC LIMIT 2000"
-            ),
-            params,
-        )
-    else:
-        # Legacy format: LIKE
-        from app.domains._shared.query_compiler import compile_query
-        layers = query_data.get("layers", [])
-        compiled = compile_query(layers) if layers else None
-        if compiled is None:
-            return 0
-        where_clause, params = compiled
-        result = await db.execute(
-            sa_text(
-                "SELECT title, link, source_id, pub_date, description, threat_level, theme "
-                f"FROM articles WHERE {where_clause} "
-                "ORDER BY pub_date DESC LIMIT 2000"
-            ),
-            params,
-        )
+    params = {}
+    pidx = 0
+    inner_sql = "SELECT id FROM articles"
+    for layer in model_layers:
+        mids = [m.replace("-", "") for m in layer.get("model_ids", []) if m]
+        if not mids:
+            continue
+        placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
+        for i, mid in enumerate(mids):
+            params[f"p{pidx + i}"] = mid
+        pidx += len(mids)
+        layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+        if layer.get("operator") == "NOT":
+            inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+        else:
+            inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
+    result = await db.execute(
+        sa_text(
+            "SELECT a.title, a.link, a.source_id, a.pub_date, a.description, a.threat_level, a.theme "
+            f"FROM articles a WHERE a.id IN ({inner_sql}) "
+            "ORDER BY a.pub_date DESC LIMIT 2000"
+        ),
+        params,
+    )
     rows = result.fetchall()
 
     # Clear old results and rebuild — ensures removed filters take effect
