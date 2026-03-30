@@ -58,10 +58,9 @@ def _serialize_source(s: AIFeedSource) -> dict:
 
 async def _ensure_matching(db, model_layers: list[dict]) -> None:
     """Ensure articles are matched against the given models before querying.
-    3 phases, each on the REMAINDER of the previous:
+    2 phases, each on the REMAINDER of the previous:
       1. FlashText (exact) → fast, free
       2. Gemma 0.30 (semantic) → on what FlashText missed
-      3. Gemini Flash (LLM) → on what Gemma missed, best-effort
     Only matches against the models in this case/feed, not all 316.
     """
     from datetime import timedelta
@@ -77,7 +76,7 @@ async def _ensure_matching(db, model_layers: list[dict]) -> None:
 
     from app.models.article import Article
     from app.models.article_model import ArticleModel
-    from app.source_engine.matching_engine import flash_match_targeted, gemma_match_targeted, match_articles_gemini, store_matches
+    from app.source_engine.matching_engine import flash_match_targeted, gemma_match_targeted, store_matches
 
     already_matched = select(ArticleModel.article_id).where(
         ArticleModel.model_id.in_([uuid.UUID(m) if len(m) == 32 else uuid.UUID(m) for m in unique_mids])
@@ -101,20 +100,10 @@ async def _ensure_matching(db, model_layers: list[dict]) -> None:
 
     # Phase 2: Gemma on what FlashText missed
     if remaining:
-        gemma_results, remaining = gemma_match_targeted(remaining, unique_mids)
+        gemma_results, _ = gemma_match_targeted(remaining, unique_mids)
         if gemma_results:
             await store_matches(db, gemma_results)
             await db.commit()
-
-    # Phase 3: Gemini on what Gemma missed — best effort
-    if remaining:
-        try:
-            gemini_results = await match_articles_gemini(remaining[:200], unique_mids, db)
-            if gemini_results:
-                await store_matches(db, gemini_results)
-                await db.commit()
-        except Exception as e:
-            logger.warning(f"Gemini matching skipped: {e}")
 
 
 async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
