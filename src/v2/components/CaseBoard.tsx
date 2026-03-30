@@ -14,6 +14,7 @@ import IdentityCard from './IdentityCard';
 import ModelQueryBuilder, { type ModelLayer } from './shared/ModelQueryBuilder';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
 import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
+import { getLimit } from '@/v2/lib/display-settings';
 
 interface Props {
   caseData: CaseData;
@@ -59,7 +60,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
     setLoading(true);
     try {
       const [a, s] = await Promise.all([
-        getCaseArticles(caseData.id, { limit: 200 }),
+        getCaseArticles(caseData.id, { limit: getLimit('caseArticleLimit') }),
         getCaseStats(caseData.id),
       ]);
       console.log('[CaseBoard.load]', a.articles.length, 'articles, total:', s.total);

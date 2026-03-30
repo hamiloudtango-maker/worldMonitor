@@ -396,7 +396,8 @@ function AIFeedWidget({ feedId }: { feedId: string }) {
   useEffect(() => {
     import('@/v2/lib/ai-feeds-api').then(async ({ listFeedArticles, getFeed, previewQuery }) => {
       try {
-        const data = await listFeedArticles(feedId, { limit: 15 });
+        const { getLimit } = await import('@/v2/lib/display-settings');
+        const data = await listFeedArticles(feedId, { limit: getLimit('widgetArticleLimit') });
         if (data.total > 0) { setArticles(data.articles); setTotal(data.total); setLoading(false); return; }
         const feed = await getFeed(feedId);
         if (feed.query?.layers?.length) {

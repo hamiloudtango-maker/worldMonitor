@@ -447,7 +447,55 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
 
 
 /* ═══ Settings View with Tabs ═══ */
-type SettingsTab = 'sources' | 'intel-models' | 'apis' | 'account';
+type SettingsTab = 'sources' | 'intel-models' | 'apis' | 'display' | 'account';
+
+function DisplaySettings() {
+  const [config, setConfig] = useState(() => {
+    const { getDisplaySettings } = require('@/v2/lib/display-settings');
+    return getDisplaySettings();
+  });
+
+  function save(key: string, value: number) {
+    const { setDisplaySettings } = require('@/v2/lib/display-settings');
+    const updated = setDisplaySettings({ [key]: value });
+    setConfig(updated);
+  }
+
+  const fields: { key: string; label: string; desc: string; min: number; max: number }[] = [
+    { key: 'feedArticleLimit', label: 'Articles par Feed', desc: 'Nombre max d\'articles affichés dans un AI Feed', min: 10, max: 500 },
+    { key: 'caseArticleLimit', label: 'Articles par Case', desc: 'Nombre max d\'articles affichés dans un Case', min: 10, max: 1000 },
+    { key: 'widgetArticleLimit', label: 'Articles par Widget', desc: 'Nombre max d\'articles dans les widgets du dashboard', min: 5, max: 200 },
+    { key: 'dashboardArticleLimit', label: 'Articles Dashboard', desc: 'Nombre max d\'articles dans la vue principale', min: 20, max: 2000 },
+    { key: 'previewArticleLimit', label: 'Articles Preview', desc: 'Nombre d\'articles dans les previews de feeds', min: 5, max: 200 },
+  ];
+
+  return (
+    <div className="max-w-lg space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200/60 p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-4">Limites d'affichage</h3>
+        <div className="space-y-4">
+          {fields.map(f => (
+            <div key={f.key} className="flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-slate-700">{f.label}</div>
+                <div className="text-[10px] text-slate-400">{f.desc}</div>
+              </div>
+              <input
+                type="number"
+                value={(config as any)[f.key]}
+                min={f.min}
+                max={f.max}
+                onChange={e => save(f.key, Math.max(f.min, Math.min(f.max, parseInt(e.target.value) || f.min)))}
+                className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5]"
+              />
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-slate-400 mt-4">Les changements sont appliqués immédiatement et sauvegardés dans le navigateur.</p>
+      </div>
+    </div>
+  );
+}
 function SettingsView({ user, stats, cases, onLogout }: {
   user: { email: string; org_name: string };
   stats: Stats | null;
@@ -459,6 +507,7 @@ function SettingsView({ user, stats, cases, onLogout }: {
     { key: 'sources', label: 'Sources RSS' },
     { key: 'intel-models', label: 'Intel Models' },
     { key: 'apis', label: 'APIs & Services' },
+    { key: 'display', label: 'Affichage' },
     { key: 'account', label: 'Compte' },
   ];
   return (
@@ -480,6 +529,7 @@ function SettingsView({ user, stats, cases, onLogout }: {
       {tab === 'sources' && <SourceManager />}
       {tab === 'intel-models' && <IntelModelsManager />}
       {tab === 'apis' && <ApiServices />}
+      {tab === 'display' && <DisplaySettings />}
       {tab === 'account' && (
         <div className="max-w-lg space-y-4">
           <div className="bg-white rounded-xl border border-slate-200/60 p-5">

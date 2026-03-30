@@ -30,7 +30,8 @@ export default function FeedPreview({ feedId, query, onCountChange }: Props) {
     try {
       if (feedId) {
         // Try feed-specific articles first
-        const data = await listFeedArticles(feedId, { limit: 10 });
+        const { getLimit } = await import('@/v2/lib/display-settings');
+        const data = await listFeedArticles(feedId, { limit: getLimit('previewArticleLimit') });
         if (data.total > 0) {
           setArticles(data.articles);
           setTotal(data.total);

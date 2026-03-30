@@ -152,7 +152,7 @@ async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
             sa_text(
                 "SELECT a.title, a.link, a.source_id, a.pub_date, a.description, a.threat_level, a.theme "
                 f"FROM articles a WHERE a.id IN ({inner_sql}) "
-                "ORDER BY a.pub_date DESC LIMIT 500"
+                "ORDER BY a.pub_date DESC LIMIT 2000"
             ),
             params,
         )
@@ -168,7 +168,7 @@ async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
             sa_text(
                 "SELECT title, link, source_id, pub_date, description, threat_level, theme "
                 f"FROM articles WHERE {where_clause} "
-                "ORDER BY pub_date DESC LIMIT 500"
+                "ORDER BY pub_date DESC LIMIT 2000"
             ),
             params,
         )
