@@ -58,7 +58,7 @@ def _serialize_source(s: AIFeedSource) -> dict:
 
 async def _ensure_matching(db, model_layers: list[dict]) -> None:
     """Ensure articles are matched against the given models before querying.
-    2 phases, each on the REMAINDER of the previous:
+    For EACH model individually:
       1. FlashText (exact) → fast, free
       2. Gemma 0.30 (semantic) → on what FlashText missed
     Only matches against the models in this case/feed, not all 316.
@@ -78,32 +78,34 @@ async def _ensure_matching(db, model_layers: list[dict]) -> None:
     from app.models.article_model import ArticleModel
     from app.source_engine.matching_engine import flash_match_targeted, gemma_match_targeted, store_matches
 
-    already_matched = select(ArticleModel.article_id).where(
-        ArticleModel.model_id.in_([uuid.UUID(m) if len(m) == 32 else uuid.UUID(m) for m in unique_mids])
-    )
+    # Process each model separately — an article matched to model A
+    # should still be checked against model B
+    for mid in unique_mids:
+        mid_uuid = uuid.UUID(mid) if len(mid) == 32 else uuid.UUID(mid)
+        already_matched = select(ArticleModel.article_id).where(ArticleModel.model_id == mid_uuid)
 
-    all_unmatched = (await db.execute(
-        select(Article)
-        .where(Article.created_at > cutoff)
-        .where(Article.id.not_in(already_matched))
-        .limit(2000)
-    )).scalars().all()
+        unmatched = (await db.execute(
+            select(Article)
+            .where(Article.created_at > cutoff)
+            .where(Article.id.not_in(already_matched))
+            .limit(2000)
+        )).scalars().all()
 
-    if not all_unmatched:
-        return
+        if not unmatched:
+            continue
 
-    # Phase 1: FlashText
-    flash_results, remaining = flash_match_targeted(all_unmatched, unique_mids)
-    if flash_results:
-        await store_matches(db, flash_results)
-        await db.commit()
-
-    # Phase 2: Gemma on what FlashText missed
-    if remaining:
-        gemma_results, _ = gemma_match_targeted(remaining, unique_mids)
-        if gemma_results:
-            await store_matches(db, gemma_results)
+        # Phase 1: FlashText
+        flash_results, remaining = flash_match_targeted(unmatched, [mid])
+        if flash_results:
+            await store_matches(db, flash_results)
             await db.commit()
+
+        # Phase 2: Gemma on what FlashText missed
+        if remaining:
+            gemma_results, _ = gemma_match_targeted(remaining, [mid])
+            if gemma_results:
+                await store_matches(db, gemma_results)
+                await db.commit()
 
 
 async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
