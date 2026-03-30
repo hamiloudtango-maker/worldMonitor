@@ -1,14 +1,13 @@
 // src/v2/components/ai-feeds/FeedPreview.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { listFeedArticles, previewQuery } from '@/v2/lib/ai-feeds-api';
-import type { AIFeedArticle, FeedQuery, PreviewArticle } from '@/v2/lib/ai-feeds-api';
+import { listFeedArticles } from '@/v2/lib/ai-feeds-api';
+import type { AIFeedArticle, PreviewArticle } from '@/v2/lib/ai-feeds-api';
 import { timeAgo } from '@/v2/lib/constants';
 import { useArticleReader } from '@/v2/hooks/useArticleReader';
 
 interface Props {
   feedId: string | null;
-  query?: FeedQuery;
   onCountChange?: (count: number) => void;
   refreshKey?: number;
 }
@@ -20,29 +19,28 @@ const THREAT_COLORS: Record<string, string> = {
   low: 'bg-green-100 text-green-600',
 };
 
-export default function FeedPreview({ feedId, query, onCountChange, refreshKey }: Props) {
+export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props) {
   const openArticle = useArticleReader();
   const [articles, setArticles] = useState<(AIFeedArticle | PreviewArticle)[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
+    if (!feedId) return;
     setLoading(true);
     try {
-      if (feedId) {
-        const { getLimit } = await import('@/v2/lib/display-settings');
-        const data = await listFeedArticles(feedId, { limit: getLimit('feedArticleLimit') });
-        setArticles(data.articles);
-        setTotal(data.total);
-        onCountChange?.(data.total);
-      }
+      const { getLimit } = await import('@/v2/lib/display-settings');
+      const data = await listFeedArticles(feedId, { limit: getLimit('feedArticleLimit') });
+      setArticles(data.articles);
+      setTotal(data.total);
+      onCountChange?.(data.total);
     } catch { /* silent */ }
     setLoading(false);
-  }
+  }, [feedId, onCountChange]);
 
-  useEffect(() => { load(); }, [feedId, query, refreshKey]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
-  if (!feedId && (!query || query.layers.length === 0)) {
+  if (!feedId) {
     return (
       <div className="text-center py-4 text-xs text-slate-400">
         Ajoutez des filtres pour voir l'aperçu

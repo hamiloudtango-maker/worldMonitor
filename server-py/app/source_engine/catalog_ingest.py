@@ -66,18 +66,21 @@ async def _fetch_one(feed) -> tuple:
         return feed_id, name, source_id, None, False, etag, last_modified, error_count, _classify_error(e)
 
 
-async def ingest_full_catalog(db, db_session_factory=None) -> int:
-    """Ingest all active RSS catalog feeds. Returns total new articles inserted."""
+async def ingest_full_catalog(db, db_session_factory=None, priority: str | None = None) -> int:
+    """Ingest RSS catalog feeds. If priority is set, only fetch that tier.
+    Returns total new articles inserted."""
     now = datetime.now(timezone.utc)
 
-    result = await db.execute(
-        select(
-            RssCatalogEntry.id, RssCatalogEntry.url, RssCatalogEntry.name,
-            RssCatalogEntry.fetch_error_count, RssCatalogEntry.etag,
-            RssCatalogEntry.last_modified, RssCatalogEntry.last_fetched_at,
-        )
-        .where(RssCatalogEntry.active == True)
-    )
+    stmt = select(
+        RssCatalogEntry.id, RssCatalogEntry.url, RssCatalogEntry.name,
+        RssCatalogEntry.fetch_error_count, RssCatalogEntry.etag,
+        RssCatalogEntry.last_modified, RssCatalogEntry.last_fetched_at,
+    ).where(RssCatalogEntry.active == True)
+
+    if priority:
+        stmt = stmt.where(RssCatalogEntry.priority == priority)
+
+    result = await db.execute(stmt)
     all_feeds = result.all()
 
     # ── Phase 0: Filter out feeds in error backoff ──

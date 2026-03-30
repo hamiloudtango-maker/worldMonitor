@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Search } from 'lucide-react';
 import ErrorBoundary from './shared/ErrorBoundary';
 
 const ACCENT = '#42d3a5';
@@ -92,6 +92,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
   const catalogMap = Object.fromEntries(catalog.map(w => [w.id, w]));
   const [layout, setLayout] = useState<LayoutItem[]>(() => loadLayout(storageKey, defaultWidgets, catalogMap));
   const [showCatalog, setShowCatalog] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
 
   const onLayoutChange = useCallback((newLayout: LayoutItem[]) => {
     // Merge positions from react-grid-layout with our state to preserve
@@ -145,29 +146,70 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
 
       {/* Catalog */}
       {showCatalog && (
-        <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-lg">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-lg max-h-[60vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-2 sticky top-0 bg-white pb-2 z-10">
             <h3 className="text-sm font-bold text-slate-900">Ajouter un widget</h3>
-            <button onClick={() => setShowCatalog(false)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            <button onClick={() => { setShowCatalog(false); setCatalogSearch(''); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          </div>
+          <div className="relative mb-3 sticky top-8 bg-white z-10">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+            <input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Rechercher..."
+              className="w-full pl-8 pr-3 py-1.5 text-[12px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5]" autoFocus />
           </div>
           {available.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-4">Tous les widgets sont affichés</p>
-          ) : (
-            <div className="space-y-3">
-              {categories.map(cat => (
-                <div key={cat}>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">{cat}</div>
-                  <div className="flex flex-wrap gap-2">
-                    {available.filter(w => w.category === cat).map(w => (
-                      <button key={w.id} onClick={() => addWidget(w.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-100 hover:border-[#42d3a5]/30 hover:bg-[#42d3a5]/5 text-sm text-slate-600 hover:text-[#2a9d7e] transition-all">
-                        <w.icon size={14} /> {w.title}
-                      </button>
-                    ))}
-                  </div>
+          ) : (() => {
+            const q = catalogSearch.toLowerCase();
+            const filtered = q ? available.filter(w => w.title.toLowerCase().includes(q) || w.category.toLowerCase().includes(q)) : available;
+            const filteredCats = [...new Set(filtered.map(w => w.category))];
+            const coreCategories = filteredCats.filter(c => !c.startsWith('RSS'));
+            const rssCategories = filteredCats.filter(c => c.startsWith('RSS'));
+            if (filtered.length === 0) return <p className="text-sm text-slate-400 text-center py-4">Aucun widget trouve</p>;
+            return (
+              <>
+                {/* Core widgets */}
+                <div className="columns-2 md:columns-3 lg:columns-4 gap-4">
+                  {coreCategories.map(cat => (
+                    <div key={cat} className="break-inside-avoid mb-3">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{cat}</div>
+                      <div className="space-y-0.5">
+                        {filtered.filter(w => w.category === cat).map(w => (
+                          <button key={w.id} onClick={() => addWidget(w.id)} className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-[11px] text-slate-600 hover:bg-[#42d3a5]/5 hover:text-[#2a9d7e] transition-colors">
+                            <w.icon size={12} className="shrink-0" /> <span className="truncate">{w.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+
+                {/* RSS sources */}
+                {rssCategories.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 my-3">
+                      <div className="flex-1 border-t border-slate-200" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sources RSS</span>
+                      <div className="flex-1 border-t border-slate-200" />
+                    </div>
+                    <div className="columns-2 md:columns-3 lg:columns-4 gap-4">
+                      {rssCategories.map(cat => (
+                        <div key={cat} className="break-inside-avoid mb-3">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{cat.replace('RSS ', '')}</div>
+                          <div className="space-y-0.5">
+                            {filtered.filter(w => w.category === cat).map(w => (
+                              <button key={w.id} onClick={() => addWidget(w.id)} className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-[11px] text-slate-600 hover:bg-[#42d3a5]/5 hover:text-[#2a9d7e] transition-colors">
+                                <w.icon size={12} className="shrink-0" /> <span className="truncate">{w.title}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 

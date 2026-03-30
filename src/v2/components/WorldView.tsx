@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Globe, BarChart2, Newspaper, AlertTriangle, TrendingUp,
   Shield, DollarSign, Swords, Radio, Activity, Scale,
   Anchor, Zap, Cloud, FlaskConical, Plane,
-  Bitcoin, LineChart, Users, BookOpen
+  Bitcoin, LineChart, Users, BookOpen, X, ChevronDown
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -12,12 +12,11 @@ import {
 import { api } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
 import { capitalize, timeAgo, FLAGS } from '@/v2/lib/constants';
+import { COUNTRY_NAMES } from '@/v2/lib/sentiment';
 import { useGlobalData } from '@/v2/hooks/useData';
 import LiveMap from './LiveMap';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
 import { renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
-import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
-import { fetchArticlesByModels } from '@/v2/lib/api';
 
 const COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#eab308'];
 
@@ -65,29 +64,97 @@ const DEFAULTS: WidgetState[] = [
   { id: 'sentiment', w: 8, h: 5 },
 ];
 
-// RSS source info stored for rendering
-interface RssSource { name: string; url: string; category: string; lang: string; }
+
+// ── Facet dropdown component ──────────────────────────────────
+function FacetDropdown({ label, items, selected, onToggle }: {
+  label: string;
+  items: { key: string; label: string; count: number; dot?: string }[];
+  selected: string[];
+  onToggle: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(''); }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const filtered = search ? items.filter(i => i.label.toLowerCase().includes(search.toLowerCase())) : items;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-all ${
+          selected.length > 0 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+        }`}>
+        {label}
+        {selected.length > 0 && <span className="text-[9px] font-bold opacity-60 ml-0.5">{selected.length}</span>}
+        <ChevronDown size={10} className={open ? 'rotate-180' : ''} />
+      </button>
+
+      {open && (
+        <div className="absolute top-9 left-0 w-56 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
+          {items.length > 6 && (
+            <div className="p-1.5 border-b border-slate-100">
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrer..."
+                className="w-full px-2 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#42d3a5]" autoFocus />
+            </div>
+          )}
+          <div className="max-h-52 overflow-y-auto p-1">
+            {filtered.map(item => {
+              const active = selected.includes(item.key);
+              return (
+                <button key={item.key} onClick={() => onToggle(item.key)}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-left transition-colors ${
+                    active ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-600 hover:bg-slate-50'
+                  }`}>
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                    active ? 'border-[#42d3a5] bg-[#42d3a5]/10' : 'border-slate-300'
+                  }`}>{active && <span className="text-[8px] text-[#42d3a5]">&#10003;</span>}</span>
+                  {item.dot && <div className={`w-2 h-2 rounded-full shrink-0 ${item.dot}`} />}
+                  <span className="flex-1 truncate">{item.label}</span>
+                  <span className="text-[9px] text-slate-400">{item.count}</span>
+                </button>
+              );
+            })}
+            {filtered.length === 0 && <div className="py-2 text-center text-[10px] text-slate-400">Aucun resultat</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface FacetFilters {
+  themes: string[];
+  threats: string[];
+  countries: string[];
+}
+const EMPTY_FACETS: FacetFilters = { themes: [], threats: [], countries: [] };
 
 export default function WorldView() {
   const { articles, stats, refresh } = useGlobalData();
-  const [rssSources, setRssSources] = useState<RssSource[]>([]);
   const [fullCatalog, setFullCatalog] = useState<WidgetDef[]>(CATALOG);
-  const [filters, setFilters] = useState<ActiveFilters>(EMPTY_FILTERS);
-  const [modelArticles, setModelArticles] = useState<Article[] | null>(null);
+  const [facets, setFacets] = useState<FacetFilters>(EMPTY_FACETS);
 
-  useEffect(() => {
-    if (filters.models.length === 0) { setModelArticles(null); return; }
-    fetchArticlesByModels(filters.models).then(r => setModelArticles(r.articles)).catch(() => {});
-  }, [filters.models]);
+  const hasFilters = facets.themes.length || facets.threats.length || facets.countries.length;
 
-  const baseArticles = filters.models.length > 0 && modelArticles ? modelArticles : articles;
   const filteredArticles = useMemo(() => {
-    if (!filters.q) return baseArticles;
-    const q = filters.q.toLowerCase();
-    return baseArticles.filter(a => a.title.toLowerCase().includes(q));
-  }, [baseArticles, filters.q]);
+    if (!hasFilters) return articles;
+    return articles.filter(a => {
+      if (facets.themes.length && !facets.themes.includes(a.theme)) return false;
+      if (facets.threats.length && !facets.threats.includes(a.threat_level)) return false;
+      if (facets.countries.length && !a.country_codes.some(c => facets.countries.includes(c))) return false;
+      return true;
+    });
+  }, [articles, facets, hasFilters]);
 
-  const hasFilters = filters.q || filters.models.length;
   const filteredStats = useMemo(() => hasFilters ? (() => {
     const by_theme: Record<string, number> = {};
     const by_threat: Record<string, number> = {};
@@ -100,35 +167,77 @@ export default function WorldView() {
     return { total: filteredArticles.length, by_theme, by_threat, by_source, by_lang: {} };
   })() : stats, [filteredArticles, hasFilters, stats]);
 
-  // Load RSS catalog + AI Feed widgets
-  useEffect(() => {
-    // RSS sources
-    api<{ sources: RssSource[] }>('/news/v1/rss-catalog').then(res => {
-      const sources = res.sources || [];
-      setRssSources(sources);
-      const rssDefs: WidgetDef[] = sources.map(s => ({
-        id: `rss_${s.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-        title: s.name,
-        icon: Newspaper,
-        category: `RSS — ${capitalize(s.tags?.[0] || 'news')}`,
-        defaultW: 4, defaultH: 6, minH: 3, minW: 3,
-      }));
-      // AI Feed widgets
-      buildCatalogWithFeeds().then(feedCatalog => {
-        const feedOnly = feedCatalog.filter(w => w.id.startsWith('ai-feed-'));
-        setFullCatalog([...CATALOG, ...rssDefs, ...feedOnly]);
-      }).catch(() => setFullCatalog([...CATALOG, ...rssDefs]));
-    }).catch(() => {});
-  }, []);
+  useEffect(() => { buildCatalogWithFeeds().then(setFullCatalog); }, []);
+
+  // Build facet options from stats
+  const themeOptions = useMemo(() =>
+    Object.entries(stats?.by_theme || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ key: k, count: v }))
+  , [stats]);
+  const threatOptions = [
+    { key: 'critical', label: 'Critique', color: 'bg-red-500' },
+    { key: 'high', label: 'Eleve', color: 'bg-orange-500' },
+    { key: 'medium', label: 'Moyen', color: 'bg-yellow-500' },
+    { key: 'low', label: 'Faible', color: 'bg-green-500' },
+    { key: 'info', label: 'Info', color: 'bg-slate-400' },
+  ];
+
+  const countryOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of articles) {
+      for (const c of a.country_codes) counts[c] = (counts[c] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ key: k, label: `${FLAGS[k] || ''} ${COUNTRY_NAMES[k] || k}`, count: v }));
+  }, [articles]);
+
+  function toggleFacet(facet: keyof FacetFilters, value: string) {
+    setFacets(prev => ({
+      ...prev,
+      [facet]: prev[facet].includes(value) ? prev[facet].filter(v => v !== value) : [...prev[facet], value],
+    }));
+  }
 
   return (
     <div className="space-y-3">
-      <FilterBar filters={filters} onChange={setFilters} stats={stats} articles={articles} />
+      {/* Facet dropdowns */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <FacetDropdown label="Pays" items={countryOptions} selected={facets.countries} onToggle={v => toggleFacet('countries', v)} />
+        <FacetDropdown label="Thematique" items={themeOptions.map(t => ({ key: t.key, label: capitalize(t.key), count: t.count }))} selected={facets.themes} onToggle={v => toggleFacet('themes', v)} />
+        <FacetDropdown label="Menace" items={threatOptions.filter(t => (stats?.by_threat[t.key] || 0) > 0).map(t => ({ key: t.key, label: t.label, count: stats?.by_threat[t.key] || 0, dot: t.color }))} selected={facets.threats} onToggle={v => toggleFacet('threats', v)} />
+
+        {/* Active chips */}
+        {facets.countries.map(c => (
+          <span key={`c-${c}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            {FLAGS[c] || ''} {COUNTRY_NAMES[c] || c}
+            <button onClick={() => toggleFacet('countries', c)}><X size={9} /></button>
+          </span>
+        ))}
+        {facets.themes.map(t => (
+          <span key={`t-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {capitalize(t)}
+            <button onClick={() => toggleFacet('themes', t)}><X size={9} /></button>
+          </span>
+        ))}
+        {facets.threats.map(t => (
+          <span key={`th-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-red-50 text-red-700 border border-red-200">
+            {t}
+            <button onClick={() => toggleFacet('threats', t)}><X size={9} /></button>
+          </span>
+        ))}
+        {hasFilters ? (
+          <button onClick={() => setFacets(EMPTY_FACETS)} className="text-[10px] text-slate-400 hover:text-red-500 flex items-center gap-0.5">
+            <X size={10} /> Effacer
+          </button>
+        ) : null}
+      </div>
       <WidgetGrid
         catalog={fullCatalog}
         storageKey="wm-world-v7"
         defaultWidgets={DEFAULTS}
-        renderContent={id => <WContent id={id} stats={filteredStats} articles={filteredArticles} rssSources={rssSources} onRefresh={refresh} />}
+        renderContent={id => {
+          const shared = renderSharedWidget(id, filteredArticles, filteredStats, 'wv');
+          if (shared) return shared;
+          return <WContent id={id} stats={filteredStats} articles={filteredArticles} onRefresh={refresh} />;
+        }}
       />
     </div>
   );
@@ -168,50 +277,9 @@ function ApiList({ endpoint, renderItem, emptyMsg = 'Aucune donnée' }: {
   );
 }
 
-/* ═══ RSS Feed Widget ═══ */
-function RssFeedWidget({ url, name, onIngest }: { url: string; name: string; onIngest?: () => void }) {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Ingest into DB + fetch articles for this source
-    api<any>(`/news/v1/ingest-rss?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`, { method: 'POST' })
-      .then(() => {
-        const sourceId = `rss_${name.toLowerCase().replace(/\s+/g, '_')}`;
-        return api<{ articles: any[] }>(`/articles/v1/search?source_id=${encodeURIComponent(sourceId)}&limit=20`);
-      })
-      .then(res => { setItems(res.articles || []); onIngest?.(); })
-      .catch(() => {
-        // Fallback: just show from feed digest
-        api<any>('/news/v1/list-feed-digest').then(res => {
-          const cats = res.categories || {};
-          setItems(cats[name] || []);
-        }).catch(() => {});
-      })
-      .finally(() => setLoading(false));
-  }, [url, name]);
-
-  if (loading) return <div className="flex items-center justify-center h-full text-xs text-slate-400">Chargement {name}...</div>;
-
-  return (
-    <div className="overflow-y-auto h-full p-2 space-y-1.5">
-      <div className="text-[9px] text-slate-400 font-semibold">{items.length} articles</div>
-      {items.map((a: any, i: number) => (
-        <a key={a.id || a.link || i} href={a.link} target="_blank" rel="noopener noreferrer" className="block p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
-          <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{a.title}</p>
-          <div className="flex items-center gap-2 mt-0.5">
-            {a.theme && <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.theme}</span>}
-            <span className="text-[8px] text-slate-400 ml-auto">{a.pub_date ? timeAgo(a.pub_date) : a.pubDate || ''}</span>
-          </div>
-        </a>
-      ))}
-      {items.length === 0 && <div className="text-center text-xs text-slate-400 py-4">Aucun article</div>}
-    </div>
-  );
-}
 
 /* ═══ Widget content renderer ═══ */
-function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: string; stats: Stats | null; articles: Article[]; rssSources?: RssSource[]; onRefresh?: () => void }) {
+function WContent({ id, stats, articles, onRefresh }: { id: string; stats: Stats | null; articles: Article[]; onRefresh?: () => void }) {
   const alerts = articles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high');
 
   switch (id) {
@@ -474,18 +542,7 @@ function WContent({ id, stats, articles, rssSources = [], onRefresh }: { id: str
         </a>
       )} />;
 
-    default: {
-      // Try shared renderer (covers AI Feed widgets + other shared widgets)
-      const shared = renderSharedWidget(id, articles, stats, 'world');
-      if (shared) return shared;
-      // Check if it's an RSS source widget (id starts with rss_)
-      if (id.startsWith('rss_')) {
-        const source = rssSources.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '_') === id.replace('rss_', ''));
-        if (source) {
-          return <RssFeedWidget url={source.url} name={source.name} onIngest={onRefresh} />;
-        }
-      }
+    default:
       return <div className="flex items-center justify-center h-full text-sm text-slate-400">Widget inconnu</div>;
-    }
   }
 }

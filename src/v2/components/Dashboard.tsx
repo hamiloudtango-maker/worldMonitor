@@ -15,6 +15,7 @@ import { capitalize, timeAgo } from '@/v2/lib/constants';
 import { useCases } from '@/v2/hooks/useCases';
 import { DataProvider, useGlobalData } from '@/v2/hooks/useData';
 import { fetchArticlesByModels } from '@/v2/lib/api';
+import { getDisplaySettings as getDisplaySettingsFn, setDisplaySettings as setDisplaySettingsFn } from '@/v2/lib/display-settings';
 import LiveMap from './LiveMap';
 import CasesView from './CasesView';
 import WorldView from './WorldView';
@@ -26,6 +27,7 @@ import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar
 import SourceManager from './SourceManager';
 import ApiServices from './ApiServices';
 import IntelModelsManager from './IntelModelsManager';
+import ReportsView from './ReportsView';
 import ArticleReader from './ArticleReader';
 import { ArticleReaderContext } from '@/v2/hooks/useArticleReader';
 
@@ -287,19 +289,7 @@ function DashboardInner({ user, onLogout }: Props) {
           {nav === 'world' && <WorldView />}
 
           {/* ════════════════════ REPORTS VIEW ════════════════════ */}
-          {nav === 'reports' && (
-            <div className="bg-white rounded-xl border border-slate-200/60 p-8 text-center">
-              <FileBarChart size={40} className="mx-auto text-slate-300 mb-4" />
-              <h2 className="text-lg font-bold text-slate-900 mb-2">Rapports & Synthèses</h2>
-              <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
-                Générez des rapports de synthèse à partir des {stats?.total || 0} documents collectés,
-                couvrant {countries.length} pays et {entities.length} entités détectées.
-              </p>
-              <button className="inline-flex items-center gap-2 px-5 py-2.5 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors" style={{ background: ACCENT }}>
-                <ExternalLink size={16} /> Créer un rapport
-              </button>
-            </div>
-          )}
+          {nav === 'reports' && <ReportsView />}
 
           {/* ════════════════════ SETTINGS VIEW ════════════════════ */}
           {nav === 'settings' && <SettingsView user={user} stats={stats} cases={cases} onLogout={onLogout} />}
@@ -450,14 +440,10 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
 type SettingsTab = 'sources' | 'intel-models' | 'apis' | 'display' | 'account';
 
 function DisplaySettings() {
-  const [config, setConfig] = useState(() => {
-    const { getDisplaySettings } = require('@/v2/lib/display-settings');
-    return getDisplaySettings();
-  });
+  const [config, setConfig] = useState(() => getDisplaySettingsFn());
 
   function save(key: string, value: number) {
-    const { setDisplaySettings } = require('@/v2/lib/display-settings');
-    const updated = setDisplaySettings({ [key]: value });
+    const updated = setDisplaySettingsFn({ [key]: value });
     setConfig(updated);
   }
 

@@ -70,13 +70,17 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
       '/ai-feeds/intel-models/resolve-ids',
       { method: 'POST', body: JSON.stringify({ ids: missing }) }
     ).then(res => {
-      const cache = new Map(modelCache);
-      for (const [mid, info] of Object.entries(res.models)) {
-        cache.set(mid, { model_id: mid, model_name: info.name, family: info.family, section: info.section });
-      }
-      setModelCache(cache);
+      setModelCache(prev => {
+        const cache = new Map(prev);
+        for (const [mid, info] of Object.entries(res.models)) {
+          cache.set(mid, { model_id: mid, model_name: info.name, family: info.family, section: info.section });
+        }
+        return cache;
+      });
     }).catch(() => {});
   }, [layers]);
+
+  const [creating, setCreating] = useState(false);
 
   // Fuzzy search
   const fetchSuggestions = useCallback((q: string) => {
@@ -89,6 +93,25 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
         .catch(() => setSearching(false));
     }, 200);
   }, []);
+
+  // Create model via LLM if no match found
+  async function handleCreateModel() {
+    if (!searchInput.trim() || creating) return;
+    setCreating(true);
+    try {
+      const res = await api<{ model: { id: string; name: string; family: string; section: string; aliases: string[] }; created: boolean }>(
+        '/ai-feeds/intel-models/resolve',
+        { method: 'POST', body: JSON.stringify({ term: searchInput.trim() }) }
+      );
+      const m = res.model;
+      const result: SearchResult = {
+        model_id: m.id, model_name: m.name, family: m.family, section: m.section,
+        matched_term: m.name, score: 100,
+      };
+      selectSuggestion(result);
+    } catch {}
+    setCreating(false);
+  }
 
   // ── Mutations ──
 
@@ -170,12 +193,10 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
         return (
           <div key={li} className={`rounded-xl border p-2.5 ${style.bg} border-opacity-50`}>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className={`text-[10px] font-bold ${style.text} px-1.5 py-0.5 rounded`}>{style.label}</span>
-              {li > 0 && (
-                <button onClick={() => removeLayer(li)} className="ml-auto p-0.5 text-slate-400 hover:text-red-500">
-                  <X size={12} />
-                </button>
-              )}
+              {li > 0 && <span className={`text-[10px] font-bold ${style.text} px-1.5 py-0.5 rounded`}>{style.label}</span>}
+              <button onClick={() => removeLayer(li)} className="ml-auto p-0.5 text-slate-400 hover:text-red-500">
+                <X size={12} />
+              </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {layer.model_ids.map(mid => (
@@ -233,7 +254,17 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
             </div>
           )}
           {!searching && searchInput.length >= 2 && suggestions.length === 0 && (
-            <div className="py-3 text-center text-[11px] text-slate-400">Aucun modèle trouvé</div>
+            <div className="py-3 text-center">
+              <p className="text-[11px] text-slate-400 mb-2">Aucun modele existant pour "{searchInput}"</p>
+              <button
+                onClick={handleCreateModel}
+                disabled={creating}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg disabled:opacity-50"
+                style={{ background: '#42d3a5' }}
+              >
+                {creating ? <><Loader2 size={12} className="animate-spin" /> Creation...</> : <><Sparkles size={12} /> Creer "{searchInput}"</>}
+              </button>
+            </div>
           )}
           {suggestions.length > 0 && (
             <div className="border border-slate-200 rounded-xl mt-2 overflow-hidden max-h-48 overflow-y-auto">

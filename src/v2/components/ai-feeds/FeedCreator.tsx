@@ -1,10 +1,11 @@
 // src/v2/components/ai-feeds/FeedCreator.tsx
 // Wizard = browse taxonomy (family → section → models) + ModelQueryBuilder
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronLeft, Sparkles, Loader2, Search } from 'lucide-react';
 import type { FeedQuery } from '@/v2/lib/ai-feeds-api';
 import { fetchIntelTree } from '@/v2/lib/ai-feeds-api';
 import type { IntelFamily, IntelSection, IntelModelData } from '@/v2/lib/ai-feeds-api';
+import { api } from '@/v2/lib/api';
 import ModelQueryBuilder, { type ModelLayer } from '../shared/ModelQueryBuilder';
 
 interface Props {
@@ -26,12 +27,28 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     | { depth: 2; familyIdx: number; sectionIdx: number }
   >({ depth: 0 });
   const [search, setSearch] = useState('');
+  const [fuzzyResults, setFuzzyResults] = useState<{ model_id: string; model_name: string; family: string; section: string; score: number }[]>([]);
+  const [fuzzySearching, setFuzzySearching] = useState(false);
+  const fuzzyRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     fetchIntelTree()
       .then(d => { setFamilies(d.families); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  // Fuzzy search via API when typing
+  useEffect(() => {
+    if (search.length < 2) { setFuzzyResults([]); return; }
+    clearTimeout(fuzzyRef.current);
+    setFuzzySearching(true);
+    fuzzyRef.current = setTimeout(() => {
+      api<{ results: typeof fuzzyResults }>(`/ai-feeds/intel-models/search?q=${encodeURIComponent(search)}&limit=8`)
+        .then(r => { setFuzzyResults(r.results); setFuzzySearching(false); })
+        .catch(() => setFuzzySearching(false));
+    }, 250);
+    return () => clearTimeout(fuzzyRef.current);
+  }, [search]);
 
   function addModel(model: IntelModelData) {
     // Check if already added
@@ -199,6 +216,40 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
               className="w-full pl-9 pr-4 py-2 text-[12px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] bg-white"
             />
           </div>
+
+          {/* Fuzzy search results */}
+          {search.length >= 2 && (fuzzySearching || fuzzyResults.length > 0) && (
+            <div className="border border-[#42d3a5]/30 rounded-xl overflow-hidden bg-emerald-50/30">
+              <div className="px-3 py-1.5 text-[10px] font-bold text-[#42d3a5] uppercase tracking-wider border-b border-[#42d3a5]/10">
+                Recherche fuzzy
+              </div>
+              {fuzzySearching && (
+                <div className="flex items-center gap-2 px-4 py-3 justify-center">
+                  <Loader2 size={12} className="animate-spin text-[#42d3a5]" />
+                  <span className="text-[11px] text-slate-400">Recherche...</span>
+                </div>
+              )}
+              {fuzzyResults.map(r => {
+                const isSelected = allSelectedIds.has(r.model_id);
+                return (
+                  <button key={r.model_id}
+                    onClick={() => { if (!isSelected) addModel({ id: r.model_id, name: r.model_name, aliases: [], description: null, article_count: 0 }); }}
+                    disabled={isSelected}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-slate-100 last:border-b-0 ${isSelected ? 'opacity-40' : 'hover:bg-white'}`}>
+                    <Sparkles size={12} className="text-[#42d3a5]" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[12px] font-medium text-slate-700">{r.model_name}</span>
+                      <span className="text-[9px] text-slate-400 ml-1.5">{r.family}/{r.section}</span>
+                    </div>
+                    {isSelected && <span className="text-[9px] font-bold text-emerald-600">Ajout</span>}
+                  </button>
+                );
+              })}
+              {!fuzzySearching && fuzzyResults.length === 0 && (
+                <div className="px-4 py-2.5 text-[11px] text-slate-400">Aucun resultat</div>
+              )}
+            </div>
+          )}
 
           {renderBrowser()}
         </div>

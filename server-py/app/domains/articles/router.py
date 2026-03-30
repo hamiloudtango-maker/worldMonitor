@@ -30,9 +30,9 @@ async def search_articles(
     source_id: str = Query("", description="Source ID filter"),
     lang: str = Query("", description="Language filter (en, fr, de, es, ar, etc.)"),
     models: str = Query("", description="Comma-separated Intel Model IDs (UUID). AND between models."),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(200, ge=1, le=2000),
     offset: int = Query(0, ge=0),
-    days: int = Query(7, ge=1, le=90, description="Retention window in days (default 7)"),
+    days: int = Query(30, ge=1, le=90, description="Retention window in days (default 30)"),
     db: AsyncSession = Depends(get_db),
 ):
     """Search and filter articles with retention window (default 7 days)."""
@@ -108,6 +108,9 @@ async def search_articles(
                 "persons": json.loads(a.persons_json) if a.persons_json else [],
                 "organizations": json.loads(a.orgs_json) if a.orgs_json else [],
                 "country_codes": json.loads(a.country_codes_json) if a.country_codes_json else [],
+                "family": a.family or "",
+                "section": a.section or "",
+                "sentiment": a.sentiment or "",
             }
             for a in articles
         ],
@@ -387,3 +390,22 @@ async def get_article_content(
         "source_id": article.source_id,
         "cached": False,
     }
+
+
+@router.delete("/{article_id}/content")
+async def delete_article_content(
+    article_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete cached scraped content for an article."""
+    import uuid as _uuid
+    from app.source_engine.scraper import delete_scraped
+
+    article = await db.get(Article, _uuid.UUID(article_id))
+    if not article:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Article not found")
+
+    pub_str = str(article.pub_date) if article.pub_date else None
+    deleted = delete_scraped(article.source_id, pub_str, article.hash)
+    return {"deleted": deleted}

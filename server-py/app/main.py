@@ -48,57 +48,98 @@ ROUTERS = [
 _db_ready = None  # asyncio.Event — set after lifespan init completes
 
 
-async def _auto_ingest_catalog():
-    """Background task: ingest all RSS catalog sources every 10 min.
-    On startup, checks if data is stale (>1h) and ingests immediately if so."""
+async def _auto_ingest_by_priority(priority: str, interval_min: int):
+    """Background task: ingest RSS sources of a given priority at a fixed interval."""
     import asyncio
     import logging
-    from datetime import datetime, timezone, timedelta
-    from sqlalchemy import select, func
     from app.db import async_session
-    from app.models.ai_feed import RssCatalogEntry
     from app.source_engine.catalog_ingest import ingest_full_catalog
-
-    logger = logging.getLogger("catalog-ingest")
-    await _db_ready.wait()  # wait for DB init + seed to complete
-
-    # Check if data is stale (>1h since last fetch)
-    try:
-        async with async_session() as db:
-            last = await db.scalar(select(func.max(RssCatalogEntry.last_fetched_at)))
-            if last is not None:
-                if isinstance(last, str):
-                    from datetime import datetime as dt
-                    last = dt.fromisoformat(last)
-                if last.tzinfo is None:
-                    last = last.replace(tzinfo=timezone.utc)
-                age = datetime.now(timezone.utc) - last
-                if age < timedelta(hours=1):
-                    wait = int((timedelta(minutes=10) - (age % timedelta(minutes=10))).total_seconds())
-                    print(f"[INGEST] Data is fresh ({age.total_seconds()/60:.0f}min old), next cycle in {wait}s")
-                    await asyncio.sleep(wait)
-                else:
-                    print(f"[INGEST] Data is stale ({age.total_seconds()/3600:.1f}h old), ingesting now")
-    except Exception:
-        pass  # If check fails, just start normally
-
     from app.domains.jobs.helpers import start_job, finish_job
 
+    logger = logging.getLogger(f"ingest-{priority}")
+    await _db_ready.wait()
+
+    # Stagger start: high=0s, medium=30s, low=60s
+    stagger = {"high": 0, "medium": 30, "low": 60}
+    await asyncio.sleep(stagger.get(priority, 0))
+
     while True:
-        job_id = await start_job("catalog_ingest")
+        job_id = await start_job(f"catalog_ingest_{priority}")
         try:
             async with async_session() as db:
-                await ingest_full_catalog(db, db_session_factory=async_session)
-
+                n = await ingest_full_catalog(db, db_session_factory=async_session, priority=priority)
+            logger.info(f"[{priority.upper()}] {n} new articles")
             await finish_job(job_id)
         except Exception as e:
             await finish_job(job_id, error=str(e)[:500])
-            try:
-                print(f"[INGEST] Cycle failed: {e}")
-            except Exception:
-                pass  # UnicodeEncodeError on Windows terminal
+            logger.warning(f"[{priority.upper()}] failed: {e}")
 
-        await asyncio.sleep(10 * 60)  # every 10 min
+        await asyncio.sleep(interval_min * 60)
+
+
+async def _auto_fetch_feeds_gnews():
+    """Background task: fetch Google News for all active AI Feeds every 30 min."""
+    import asyncio
+    import logging
+    from app.db import async_session
+    from sqlalchemy import select
+
+    logger = logging.getLogger("feeds-gnews")
+    await _db_ready.wait()
+    await asyncio.sleep(2 * 60)  # let startup + first RSS ingest settle
+
+    while True:
+        try:
+            from app.models.ai_feed import AIFeed
+            from app.source_engine.google_news import fetch_google_news
+            from app.source_engine.article_pipeline import ingest_articles
+
+            async with async_session() as db:
+                feeds = (await db.scalars(
+                    select(AIFeed).where(AIFeed.status != "archived")
+                )).all()
+
+                total = 0
+                for feed in feeds:
+                    try:
+                        source_id = f"feed_{feed.name.lower().replace(' ', '_')}"
+                        rows = await fetch_google_news(query=feed.name, theme="", country="", lang="en", max_items=30)
+                        if rows:
+                            n = await ingest_articles(db, source_id, rows)
+                            total += n
+                    except Exception:
+                        pass
+                    await asyncio.sleep(10)  # rate limit between feeds
+
+                if total:
+                    await db.commit()
+                    logger.info(f"Google News: {total} new articles across {len(feeds)} feeds")
+        except Exception as e:
+            logger.warning(f"Feeds Google News failed: {e}")
+
+        await asyncio.sleep(30 * 60)  # every 30 min
+
+
+async def _auto_recompute_priorities():
+    """Recompute source priorities every 6 hours based on usage stats."""
+    import asyncio
+    import logging
+    from app.db import async_session
+    from app.source_engine.source_scorer import recompute_priorities
+
+    logger = logging.getLogger("priority-scorer")
+    await _db_ready.wait()
+    await asyncio.sleep(10)  # let first ingest finish
+
+    while True:
+        try:
+            async with async_session() as db:
+                result = await recompute_priorities(db)
+            logger.info(f"Priorities: {result}")
+        except Exception as e:
+            logger.warning(f"Priority recompute failed: {e}")
+
+        await asyncio.sleep(6 * 3600)  # every 6 hours
 
 
 async def _auto_classify_articles():
@@ -187,6 +228,48 @@ async def _auto_refresh_cases():
             logger.warning(f"Case auto-refresh cycle failed: {e}")
 
         await asyncio.sleep(4 * 3600)  # every 4 hours
+
+
+async def _auto_purge_old_articles():
+    """Background task: delete articles older than 7 days + their article_models rows."""
+    import asyncio
+    import logging
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import text, delete, select
+    from app.db import async_session
+    from app.models.article import Article
+    from app.models.article_model import ArticleModel
+
+    logger = logging.getLogger("article-purge")
+    await _db_ready.wait()
+    await asyncio.sleep(60)  # let startup settle
+
+    while True:
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+            async with async_session() as db:
+                # Find old article IDs
+                old_ids = (await db.execute(
+                    select(Article.id).where(Article.pub_date < cutoff)
+                )).scalars().all()
+
+                if old_ids:
+                    # Delete article_models rows first (FK)
+                    await db.execute(
+                        delete(ArticleModel).where(ArticleModel.article_id.in_(old_ids))
+                    )
+                    # Delete articles
+                    await db.execute(
+                        delete(Article).where(Article.id.in_(old_ids))
+                    )
+                    await db.commit()
+                    logger.info(f"Purged {len(old_ids)} articles older than 7 days")
+                else:
+                    logger.info("No articles to purge")
+        except Exception as e:
+            logger.warning(f"Article purge failed: {e}")
+
+        await asyncio.sleep(6 * 3600)  # every 6 hours
 
 
 async def _auto_analyze_categories():
@@ -284,24 +367,33 @@ async def lifespan(app: FastAPI):
         _all_models = (await db.scalars(select(_IM))).all()
         load_models(_all_models)
 
+    # Compute initial source priorities before starting ingest loops
+    from app.source_engine.source_scorer import recompute_priorities
+    async with async_session() as db:
+        await recompute_priorities(db)
+
     # Signal background tasks that DB is ready
     import asyncio
     global _db_ready
     _db_ready = asyncio.Event()
     _db_ready.set()
 
-    # Start background tasks
-    catalog_task = asyncio.create_task(_auto_ingest_catalog())
-    refresh_task = asyncio.create_task(_auto_refresh_cases())
+    # Start background tasks — 3 priority-based ingest loops
+    ingest_high   = asyncio.create_task(_auto_ingest_by_priority("high", 15))    # every 15 min
+    ingest_medium = asyncio.create_task(_auto_ingest_by_priority("medium", 60))  # every 1h
+    ingest_low    = asyncio.create_task(_auto_ingest_by_priority("low", 120))    # every 2h
+    scorer_task   = asyncio.create_task(_auto_recompute_priorities())
+    feeds_gnews   = asyncio.create_task(_auto_fetch_feeds_gnews())
+    refresh_task  = asyncio.create_task(_auto_refresh_cases())
     category_task = asyncio.create_task(_auto_analyze_categories())
     classify_task = asyncio.create_task(_auto_classify_articles())
+    purge_task    = asyncio.create_task(_auto_purge_old_articles())
 
     yield
 
-    catalog_task.cancel()
-    refresh_task.cancel()
-    category_task.cancel()
-    classify_task.cancel()
+    for t in [ingest_high, ingest_medium, ingest_low, scorer_task, feeds_gnews,
+              refresh_task, category_task, classify_task, purge_task]:
+        t.cancel()
     from app.source_engine.scheduler import shutdown
     await shutdown()
 

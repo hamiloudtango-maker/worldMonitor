@@ -362,11 +362,12 @@ Rules:
                 sec = new.get("section", default_sec)
                 if not is_valid(fam, sec):
                     fam, sec = default_fam, default_sec
+                aliases = new.get("aliases", [])
                 m = IntelModel(
                     name=new["name"],
                     family=fam,
                     section=sec,
-                    aliases=new_aliases,
+                    aliases=aliases,
                     origin="ai_enriched",
                 )
                 db.add(m)
@@ -549,6 +550,368 @@ async def _background_ingest(case_name: str):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+# 0. POST /cases/report — Generate intelligence report (MUST be before /{case_id})
+@router.post("/report")
+async def generate_report(
+    body: dict,
+    user: CurrentUser = Depends(get_current_user),
+    _db: AsyncSession = Depends(get_db),  # only for auth
+):
+    """Generate a Markdown intelligence report.
+    Receives case_ids, scrapes top articles, sends to Gemini 2.5 Flash."""
+    from app.source_engine.detector import _call_gemini
+    db = _db
+
+    try:
+        return await _do_generate_report(body, user, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Report generation failed")
+        raise HTTPException(500, f"Report error: {e}")
+
+
+async def _do_generate_report(body: dict, user, db):
+    """Internal report logic — separated for clean error handling."""
+    from app.source_engine.detector import call_gemini
+
+    case_ids = body.get("case_ids", [])
+    feed_ids = body.get("feed_ids", [])
+    custom_prompt = body.get("prompt", "")
+    report_type = body.get("type", "case-summary")
+
+    # ── Feed debrief ──
+    if report_type == "feed-debrief" and not feed_ids:
+        # Legacy single feed_id support
+        fid = body.get("feed_id")
+        if fid:
+            feed_ids = [fid]
+    if report_type == "feed-debrief" and not feed_ids:
+        raise HTTPException(400, "feed_ids required")
+
+    # ── Collect feed articles ──
+    feed_sections: list[dict] = []
+    if feed_ids:
+        from app.models.ai_feed import AIFeed
+        from app.models.article import Article as FeedArt
+        from app.domains.ai_feeds.router import _ensure_matching
+        from sqlalchemy import text as sa_text
+
+        for fid in feed_ids[:5]:
+            try:
+                feed = await db.get(AIFeed, uuid.UUID(fid))
+            except Exception:
+                continue
+            if not feed:
+                continue
+            query_data = json.loads(feed.query) if isinstance(feed.query, str) else (feed.query or {})
+            model_layers = query_data.get("model_layers", [])
+            if not model_layers:
+                continue
+
+            await _ensure_matching(db, model_layers)
+            params = {}; pidx = 0
+            inner_sql = "SELECT id FROM articles"
+            for layer in model_layers:
+                mids = [m.replace("-", "") for m in layer.get("model_ids", []) if m]
+                if not mids: continue
+                placeholders = ",".join(f":fp{pidx + i}" for i in range(len(mids)))
+                for i, mid in enumerate(mids): params[f"fp{pidx + i}"] = mid
+                pidx += len(mids)
+                layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+                if layer.get("operator") == "NOT":
+                    inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+                else:
+                    inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
+            result_ids = await db.execute(sa_text(
+                f"SELECT a.id FROM articles a WHERE a.id IN ({inner_sql}) ORDER BY a.pub_date DESC LIMIT 20"
+            ), params)
+            matched_ids = [uuid.UUID(r[0]) for r in result_ids.fetchall()]
+            if not matched_ids:
+                continue
+
+            articles = (await db.scalars(select(FeedArt).where(FeedArt.id.in_(matched_ids)).order_by(desc(FeedArt.pub_date)))).all()
+            arts_list = [{
+                "title": a.title, "source": a.source_id,
+                "date": a.pub_date.isoformat() if a.pub_date else "",
+                "threat": a.threat_level or "info", "theme": a.theme or "",
+                "summary": a.summary or "", "link": a.link,
+            } for a in articles]
+
+            feed_sections.append({
+                "feed": feed.name,
+                "description": feed.description or "",
+                "articles": arts_list,
+            })
+
+    # ── Feed-only report (no cases) ──
+    if report_type == "feed-debrief" and feed_sections:
+        feed_context = ""
+        for sec in feed_sections:
+            arts_text = "\n".join(
+                f'[{a["threat"]}] {a["title"]} ({a["source"]}, {a["date"]})\n{a["summary"][:200]}'
+                for a in sec["articles"]
+            )
+            feed_context += f'\n## Feed: {sec["feed"]}\n{sec["description"]}\n{arts_text}\n'
+
+        feed_prompt = (
+            "Tu es un analyste OSINT senior francophone. Redige un debrief actualite.\n"
+            "Structure: ## Faits Marquants, ## Analyse, ## Implications, ## Points de Vigilance\n\n"
+            f"Donnees:\n{feed_context}"
+        )
+        report = await call_gemini(feed_prompt, model="google/gemini-2.5-flash", max_tokens=16384, temperature=0.3, timeout=120)
+        sources_meta = {
+            "cases": [],
+            "feeds": [{"name": s["feed"], "articles": [
+                {"title": a["title"], "url": a.get("link", ""), "threat": a["threat"], "source": a["source"]}
+                for a in s["articles"]
+            ]} for s in feed_sections],
+        }
+        return {"report": report, "sources": sources_meta}
+
+
+
+    if not case_ids and report_type in ("case-summary", "all-cases", "custom-analysis"):
+        result = await db.scalars(
+            select(Case).where(Case.org_id == user.org_id, Case.status == "active")
+        )
+        case_ids = [str(c.id) for c in result.all()]
+
+    # ── Collect articles with smart selection ──
+    all_sections: list[dict] = []
+
+    for cid in case_ids[:10]:
+        try:
+            cid_uuid = uuid.UUID(cid)
+        except Exception:
+            continue
+        case = await db.scalar(select(Case).where(Case.id == cid_uuid))
+        if not case:
+            continue
+
+        # Fetch articles for this case
+        model_layers = _get_model_layers(case)
+        if not model_layers:
+            continue
+
+        from app.domains.ai_feeds.router import _ensure_matching
+        await _ensure_matching(db, model_layers)
+
+        from sqlalchemy import text as sa_text
+        params = {}
+        pidx = 0
+        inner_sql = "SELECT id FROM articles"
+        for layer in model_layers:
+            mids = [m.replace("-", "") for m in layer.get("model_ids", []) if m]
+            if not mids:
+                continue
+            placeholders = ",".join(f":p{pidx + i}" for i in range(len(mids)))
+            for i, mid in enumerate(mids):
+                params[f"p{pidx + i}"] = mid
+            pidx += len(mids)
+            layer_sql = f"SELECT article_id FROM article_models WHERE model_id IN ({placeholders})"
+            if layer.get("operator") == "NOT":
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id NOT IN ({layer_sql})"
+            else:
+                inner_sql = f"SELECT id FROM ({inner_sql}) sub WHERE id IN ({layer_sql})"
+
+        from app.models.article import Article as Art
+        # Top 10 alerts (critical + high)
+        matched = f"SELECT a.id, a.pub_date, a.threat_level FROM articles a WHERE a.id IN ({inner_sql})"
+        alert_ids = await db.execute(sa_text(
+            f"SELECT id FROM ({matched}) m WHERE m.threat_level IN ('critical','high') ORDER BY m.pub_date DESC LIMIT 10"
+        ), params)
+        alert_rows = [r[0] for r in alert_ids.fetchall()]
+
+        # 20 diverse articles (not alerts, recent first)
+        diverse_ids = await db.execute(sa_text(
+            f"SELECT id FROM ({matched}) m WHERE m.threat_level NOT IN ('critical','high') ORDER BY m.pub_date DESC LIMIT 20"
+        ), params)
+        diverse_rows = [r[0] for r in diverse_ids.fetchall()]
+
+        all_id_strs = list(set(alert_rows + diverse_rows))
+        if not all_id_strs:
+            all_sections.append({"case": case.name, "type": case.type, "articles": []})
+            continue
+
+        all_ids = [uuid.UUID(i) if not isinstance(i, uuid.UUID) else i for i in all_id_strs]
+        articles = (await db.scalars(
+            select(Art).where(Art.id.in_(all_ids)).order_by(desc(Art.pub_date))
+        )).all()
+
+        # ── Build article data: cache first, scrape new ones (max 5s each) ──
+        scraped: list[dict] = []
+        from app.source_engine.scraper import read_scraped, scrape_and_save
+        import asyncio as _aio
+
+        to_scrape: list = []  # articles not yet cached
+        for a in articles[:30]:
+            pub_str = a.pub_date.strftime("%Y-%m-%d") if a.pub_date else "unknown"
+            cached = None
+            try:
+                cached = read_scraped(a.source_id, pub_str, a.hash)
+            except Exception:
+                pass
+
+            scraped.append({
+                "title": a.title,
+                "source": a.source_id,
+                "date": a.pub_date.isoformat() if a.pub_date else "",
+                "threat": a.threat_level or "info",
+                "theme": a.theme or "",
+                "summary": a.summary or "",
+                "content": (cached or "")[:2000],
+                "link": a.link,
+                "_idx": len(scraped),  # track position for update
+            })
+            if not cached and a.link:
+                to_scrape.append((a, pub_str, len(scraped) - 1))
+
+        # Scrape uncached articles in parallel (max 10, 8s timeout each)
+        if to_scrape:
+            async def _scrape_one(art, pub, idx):
+                try:
+                    md = await _aio.wait_for(
+                        scrape_and_save(art.link, art.source_id, pub, art.hash, art.title or ""),
+                        timeout=8,
+                    )
+                    if md:
+                        scraped[idx]["content"] = md[:2000]
+                except Exception:
+                    pass
+
+            tasks = [_scrape_one(a, p, i) for a, p, i in to_scrape[:10]]
+            await _aio.gather(*tasks)
+            # Remaining articles will be scraped on next report (cache builds up)
+
+        all_sections.append({
+            "case": case.name,
+            "type": case.type,
+            "identity": json.loads(case.identity_card) if case.identity_card else {},
+            "articles": scraped,
+            "alert_count": len(alert_rows),
+            "total_articles": len(articles),
+        })
+
+    # ── Build LLM prompt ──
+    context_parts = []
+    for sec in all_sections:
+        arts_text = ""
+        for a in sec["articles"]:
+            content_preview = a["content"][:800] if a["content"] else a["summary"]
+            arts_text += f'\n--- [{a["threat"]}] {a["title"]} ({a["source"]}, {a["date"]})\n{content_preview}\n'
+
+        context_parts.append(
+            f'## Case: {sec["case"]} ({sec["type"]})\n'
+            f'Identity: {json.dumps(sec.get("identity", {}), ensure_ascii=False)[:300]}\n'
+            f'{sec["alert_count"]} alertes, {sec["total_articles"]} articles analyses\n'
+            f'{arts_text}'
+        )
+
+    # Add feed sections to context
+    for sec in feed_sections:
+        arts_text = ""
+        for a in sec["articles"]:
+            arts_text += f'\n--- [{a["threat"]}] {a["title"]} ({a["source"]}, {a["date"]})\n{a["summary"][:200]}\n'
+        context_parts.append(
+            f'## Feed: {sec["feed"]}\n{sec["description"]}\n{arts_text}'
+        )
+
+    context = "\n\n".join(context_parts)
+
+    FORMAT_RULES = (
+        "\n\nREGLES DE MISE EN FORME OBLIGATOIRES:\n"
+        "- Utilise des titres ## et ### pour structurer\n"
+        "- Chaque point numerote sur une NOUVELLE LIGNE (pas de paragraphe continu)\n"
+        "- UN SAUT DE LIGNE entre chaque point/section\n"
+        "- Utilise des listes a puces (- ) pour les details\n"
+        "- **Gras** pour les noms propres, chiffres cles et conclusions\n"
+        "- Chaque affirmation cite sa source: (Source: nom, date)\n"
+        "- JAMAIS de bloc de texte de plus de 4 lignes sans saut de ligne\n"
+        "- Termine chaque section par une ligne vide\n"
+    )
+
+    if report_type == "all-cases":
+        system = (
+            "Tu es un analyste OSINT senior francophone. Pour CHAQUE article fourni, redige:\n\n"
+            "### **Titre de l'article**\n"
+            "**Source:** nom | **Date:** YYYY-MM-DD | **Menace:** niveau\n\n"
+            "Resume de 5-10 lignes structure en points:\n"
+            "- Faits cles\n"
+            "- Contexte\n"
+            "- Enjeux et implications\n\n"
+            "---\n\n"
+            "Separe CHAQUE article par une ligne horizontale (---).\n"
+            "Regroupe les articles par case avec un titre ## pour chaque case.\n"
+            "Commence par les alertes (critiques/elevees).\n"
+            "Termine par une ## Synthese Globale structuree en points."
+            + FORMAT_RULES
+        )
+        names = ", ".join(s["case"] for s in all_sections)
+        intro = f"Resume article par article pour {len(all_sections)} cases: {names}."
+    else:
+        system = (
+            "Tu es un analyste OSINT senior francophone. Redige un rapport d'intelligence.\n\n"
+            "Structure OBLIGATOIRE avec ces titres exacts:\n\n"
+            "## Synthese Executive\n"
+            "3-5 points cles, un par ligne, avec source entre parentheses.\n\n"
+            "## Alertes Critiques\n"
+            "Liste a puces des menaces identifiees. Obligatoire si alertes presentes.\n\n"
+            "## Analyse par Theme\n"
+            "Un sous-titre ### par theme. Chaque theme = 3-5 lignes max.\n\n"
+            "## Tendances et Evolution\n"
+            "Points numerotes, un par ligne.\n\n"
+            "## Recommandations\n"
+            "Liste a puces d'actions concretes."
+            + FORMAT_RULES
+        )
+        names = ", ".join(s["case"] for s in all_sections)
+        if len(all_sections) == 1:
+            intro = f"Rapport d'intelligence pour le case \"{names}\"."
+        else:
+            intro = f"Rapport d'intelligence transversal couvrant {len(all_sections)} cases: {names}. Inclus une analyse croisee."
+
+    if custom_prompt:
+        system += f"\n\nInstruction supplementaire de l'analyste: {custom_prompt}"
+
+    full_prompt = f"{system}\n\n{intro}\n\nDonnees:\n{context}"
+
+    # Truncate if too long for Gemini
+    if len(full_prompt) > 60000:
+        full_prompt = full_prompt[:60000] + "\n\n[... tronque pour limites du modele]"
+
+    try:
+        from app.source_engine.detector import call_gemini
+        report = await call_gemini(
+            full_prompt,
+            model="google/gemini-2.5-flash",
+            max_tokens=16384,
+            temperature=0.3,
+            timeout=120,
+        )
+        # Build sources metadata for the notebook view
+        logger.info(f"Report done: {len(all_sections)} case sections, {len(feed_sections)} feed sections")
+        sources_meta = {
+            "cases": [
+                {"name": s["case"], "type": s.get("type", ""), "articles": [
+                    {"title": a["title"], "url": a.get("link", ""), "threat": a["threat"], "source": a["source"]}
+                    for a in s.get("articles", [])
+                ]} for s in all_sections
+            ],
+            "feeds": [
+                {"name": s["feed"], "articles": [
+                    {"title": a["title"], "url": a.get("link", ""), "threat": a["threat"], "source": a["source"]}
+                    for a in s.get("articles", [])
+                ]} for s in feed_sections
+            ],
+        }
+        logger.info(f"Sources meta: {len(sources_meta['cases'])} cases, {len(sources_meta['feeds'])} feeds")
+        return {"report": report, "sources": sources_meta}
+    except Exception as e:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"LLM error: {e}")
+
 
 # 1. POST /cases — Create case
 @router.post("")
@@ -739,9 +1102,9 @@ async def delete_case(
 @router.get("/{case_id}/articles")
 async def case_articles(
     case_id: uuid.UUID,
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(200, ge=1, le=2000),
     offset: int = Query(0, ge=0),
-    days: int = Query(7, ge=1, le=90, description="Retention window in days"),
+    days: int = Query(30, ge=1, le=90, description="Retention window in days"),
     threat: str = Query("", description="Filter by threat level"),
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -758,6 +1121,9 @@ async def case_articles(
 
     model_layers = _get_model_layers(case)
     if model_layers:
+        # Ensure articles are matched against these models before querying
+        from app.domains.ai_feeds.router import _ensure_matching
+        await _ensure_matching(db, model_layers)
         # Sequential layer logic via raw SQL (same as _count_articles_and_alerts)
         from sqlalchemy import text as sa_text
         params = {}
@@ -835,6 +1201,8 @@ async def case_stats(
     from sqlalchemy import text
 
     # Build article ID set using model_layers logic
+    # Note: _ensure_matching is NOT called here — the articles endpoint
+    # already runs it, and stats is always called after articles.
     model_layers = _get_model_layers(case)
     if model_layers:
         params = {}
@@ -1084,3 +1452,6 @@ async def update_board(
         "case_id": str(case_id),
         "layout": body.layout,
     }
+
+
+

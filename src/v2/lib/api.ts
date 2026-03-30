@@ -155,6 +155,8 @@ export async function fetchAllArticles(params: string = '', maxArticles: number 
   return all;
 }
 
+import type { FeedQuery } from './ai-feeds-api';
+
 // ── Case types ───────────────────────────────────────────────
 export interface IdentityCard {
   name: string;
@@ -172,11 +174,7 @@ export interface CaseData {
   name: string;
   type: string;
   search_keywords: string;
-  query: {
-    layers?: any[];
-    models?: string[];
-    model_layers?: { operator: string; model_ids: string[] }[];
-  } | null;
+  query: FeedQuery | null;
   identity_card: Record<string, any> | null;
   status: string;
   article_count: number;
@@ -225,13 +223,28 @@ export function deleteCase(id: string): Promise<void> {
   return api<void>(`/cases/${id}`, { method: 'DELETE' });
 }
 
-export function getCaseArticles(id: string, params?: { limit?: number; offset?: number; threat?: string }): Promise<{ articles: import('@/v2/lib/constants').Article[]; total: number }> {
+export async function getCaseArticles(id: string, params?: { limit?: number; offset?: number; threat?: string }): Promise<{ articles: import('@/v2/lib/constants').Article[]; total: number }> {
+  const PAGE = params?.limit || 200;
   const q = new URLSearchParams();
-  if (params?.limit) q.set('limit', String(params.limit));
-  if (params?.offset) q.set('offset', String(params.offset));
+  q.set('limit', String(PAGE));
+  q.set('offset', '0');
   if (params?.threat) q.set('threat', params.threat);
-  const qs = q.toString();
-  return api(`/cases/${id}/articles${qs ? `?${qs}` : ''}`);
+
+  const first = await api<{ articles: import('@/v2/lib/constants').Article[]; total: number }>(`/cases/${id}/articles?${q.toString()}`);
+  const all = [...first.articles];
+  const total = first.total;
+
+  if (total > PAGE) {
+    const pages = Math.ceil(total / PAGE) - 1;
+    const fetches = Array.from({ length: pages }, (_, i) => {
+      const pq = new URLSearchParams(q);
+      pq.set('offset', String((i + 1) * PAGE));
+      return api<{ articles: import('@/v2/lib/constants').Article[] }>(`/cases/${id}/articles?${pq.toString()}`);
+    });
+    const results = await Promise.all(fetches);
+    for (const r of results) all.push(...r.articles);
+  }
+  return { articles: all, total };
 }
 
 export function getCaseStats(id: string): Promise<CaseStats> {

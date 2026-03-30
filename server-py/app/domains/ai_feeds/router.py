@@ -94,15 +94,17 @@ async def _ensure_matching(db, model_layers: list[dict]) -> None:
         if not unmatched:
             continue
 
-        # Phase 1: FlashText
+        # Phase 1: FlashText — fast, always run fully
         flash_results, remaining = flash_match_targeted(unmatched, [mid])
         if flash_results:
             await store_matches(db, flash_results)
             await db.commit()
 
-        # Phase 2: Gemma on what FlashText missed
+        # Phase 2: Gemma — slow on CPU, cap at 200 during user requests
+        # (background classifier handles the rest)
         if remaining:
-            gemma_results, _ = gemma_match_targeted(remaining, [mid])
+            gemma_batch = remaining[:200]
+            gemma_results, _ = gemma_match_targeted(gemma_batch, [mid])
             if gemma_results:
                 await store_matches(db, gemma_results)
                 await db.commit()
@@ -274,6 +276,64 @@ def _serialize_catalog(s) -> dict:
         "last_error": getattr(s, 'last_error', None),
         "status": _source_status(s),
     }
+
+
+@router.post("/catalog/{source_id}/view")
+async def track_source_view(
+    source_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Track a widget consultation for this source by ID."""
+    from app.models.ai_feed import RssCatalogEntry
+    source = await db.get(RssCatalogEntry, source_id)
+    if not source:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    source.view_count = (source.view_count or 0) + 1
+    source.last_viewed_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"ok": True, "view_count": source.view_count}
+
+
+@router.post("/catalog/track-view")
+async def track_source_view_by_name(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Track a widget consultation by source name (fuzzy match)."""
+    from app.models.ai_feed import RssCatalogEntry
+    name = (body.get("name") or "").strip().lower()
+    if not name:
+        return {"ok": False}
+    source = (await db.execute(
+        select(RssCatalogEntry).where(func.lower(RssCatalogEntry.name) == name)
+    )).scalar()
+    if not source:
+        # Try with underscores replaced
+        source = (await db.execute(
+            select(RssCatalogEntry).where(func.lower(RssCatalogEntry.name) == name.replace("_", " "))
+        )).scalar()
+    if not source:
+        return {"ok": False}
+    source.view_count = (source.view_count or 0) + 1
+    source.last_viewed_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/catalog/{source_id}/promote")
+async def promote_source(
+    source_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Instantly promote a source to high priority (e.g. when added to feed/widget)."""
+    from app.models.ai_feed import RssCatalogEntry
+    source = await db.get(RssCatalogEntry, source_id)
+    if not source:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    source.priority = "high"
+    source.priority_score = max(source.priority_score or 0, 300)
+    await db.commit()
+    return {"ok": True, "priority": "high"}
 
 
 @router.patch("/catalog/{source_id}")
@@ -1560,15 +1620,30 @@ async def refresh_feed(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Run the feed query against ingested articles and populate results."""
+    """Refresh feed: fetch Google News for the feed name, ingest, then re-match."""
     feed = await db.get(AIFeed, feed_id)
     if not feed or feed.org_id != user.org_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Feed not found")
 
+    # Fetch Google News articles using the feed name
+    gnews_inserted = 0
+    try:
+        from app.source_engine.google_news import fetch_google_news
+        from app.source_engine.article_pipeline import ingest_articles
+
+        source_id = f"feed_{feed.name.lower().replace(' ', '_')}"
+        rows = await fetch_google_news(query=feed.name, theme="", country="", lang="en", max_items=50)
+        if rows:
+            gnews_inserted = await ingest_articles(db, source_id, rows)
+            await db.commit()
+            logger.info(f"Feed '{feed.name}': {gnews_inserted} new articles from Google News")
+    except Exception as e:
+        logger.warning(f"Feed '{feed.name}' Google News fetch failed: {e}")
+
     query_data = json.loads(feed.query) if isinstance(feed.query, str) else (feed.query or {})
     inserted = await _refresh_feed_results(db, feed.id, query_data)
     rc = await db.scalar(select(func.count()).where(AIFeedResult.ai_feed_id == feed.id))
-    return {"inserted": inserted, "total_results": rc or 0}
+    return {"inserted": inserted, "gnews_new": gnews_inserted, "total_results": rc or 0}
 
 
 # ── CRUD: AI Feeds ───────────────────────────────────────────
@@ -1701,6 +1776,37 @@ async def add_feed_source(
     feed = await db.get(AIFeed, feed_id)
     if not feed or feed.org_id != user.org_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Feed not found")
+
+    # Auto-categorize if metadata is missing
+    _auto_tags = []
+    if not body.country:
+        try:
+            import re as _re
+            from app.source_engine.detector import _call_gemini
+            prompt = f"""Categorize this RSS feed for an OSINT intelligence platform.
+Feed name: "{body.name}"
+Feed URL: {body.url}
+
+JSON only (no markdown):
+{{"country": "Country name", "continent": "Continent", "tags": ["Category1"], "source_type": "wire|mainstream|tech|finance|intel|cyber|specialty", "tier": 3}}
+
+Rules:
+- country: publisher's country (e.g. "France", "US")
+- continent: Europe, Asie, Afrique, Amerique du Nord, Amerique du Sud, Oceanie, Moyen-Orient
+- tags: e.g. ["Actualites"], ["Tech", "Cyber"], ["Finance"]
+- tier: 1=wire, 2=major, 3=specialty, 4=blog"""
+            raw = await _call_gemini(prompt)
+            cleaned = _re.sub(r"^```(?:json)?\s*", "", raw.strip())
+            cleaned = _re.sub(r"\s*```$", "", cleaned)
+            cat = json.loads(cleaned.strip())
+            body.country = body.country or cat.get("country")
+            body.continent = body.continent or cat.get("continent")
+            body.source_type = body.source_type or cat.get("source_type")
+            body.tier = body.tier or cat.get("tier", 3)
+            _auto_tags = cat.get("tags", [])
+        except Exception:
+            pass
+
     source = AIFeedSource(
         ai_feed_id=feed_id,
         url=body.url,
@@ -1716,11 +1822,11 @@ async def add_feed_source(
 
     # Also persist in global RSS catalog (dedup by URL)
     from app.models.ai_feed import RssCatalogEntry
-    existing = await db.execute(
+    cat_entry = (await db.execute(
         select(RssCatalogEntry).where(RssCatalogEntry.url == body.url)
-    )
-    if not existing.scalar():
-        catalog_entry = RssCatalogEntry(
+    )).scalar()
+    if not cat_entry:
+        cat_entry = RssCatalogEntry(
             url=body.url,
             name=body.name,
             lang=body.lang,
@@ -1728,9 +1834,13 @@ async def add_feed_source(
             source_type=body.source_type,
             country=body.country,
             continent=body.continent,
+            tags=_auto_tags,
             origin="custom",
         )
-        db.add(catalog_entry)
+        db.add(cat_entry)
+    # Promote to high priority — source added to a feed = important
+    cat_entry.priority = "high"
+    cat_entry.priority_score = max(getattr(cat_entry, 'priority_score', 0) or 0, 300)
 
     await db.commit()
     await db.refresh(source)

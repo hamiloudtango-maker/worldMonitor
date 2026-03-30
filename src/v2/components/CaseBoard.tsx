@@ -59,12 +59,11 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, s] = await Promise.all([
-        getCaseArticles(caseData.id, { limit: getLimit('caseArticleLimit') }),
-        getCaseStats(caseData.id),
-      ]);
-      console.log('[CaseBoard.load]', a.articles.length, 'articles, total:', s.total);
+      // Sequential: articles first (runs _ensure_matching), then stats (skips matching)
+      const a = await getCaseArticles(caseData.id, { limit: getLimit('caseArticleLimit') });
       setArticles(a.articles);
+      const s = await getCaseStats(caseData.id);
+      console.log('[CaseBoard.load]', a.articles.length, 'articles, total:', s.total);
       setStats(s);
     } catch (err) { console.error('[CaseBoard.load] FAILED', err); }
     setLoading(false);

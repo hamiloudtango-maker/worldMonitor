@@ -14,8 +14,14 @@ export interface QueryLayer {
   parts: QueryPart[];
 }
 
+export interface ModelLayerDef {
+  operator: 'OR' | 'AND' | 'NOT';
+  model_ids: string[];
+}
+
 export interface FeedQuery {
   layers: QueryLayer[];
+  model_layers?: ModelLayerDef[];
 }
 
 export interface AIConfig {
@@ -28,7 +34,7 @@ export interface AIFeedData {
   id: string;
   name: string;
   description: string | null;
-  query: { layers: QueryLayer[] } | null;
+  query: FeedQuery | null;
   ai_config: AIConfig | null;
   status: string;
   is_template: boolean;

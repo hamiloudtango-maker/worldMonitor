@@ -1,9 +1,9 @@
 """
-Unified matching engine: FlashText + EmbeddingGemma + RapidFuzz.
+Unified matching engine: FlashText + MiniLM-L6 + RapidFuzz.
 
 Ingestion pipeline:
   - FlashText: exact word-boundary matching (aliases in article text) — 0 false positives
-  - EmbeddingGemma 300m: semantic cosine similarity for what FlashText missed (threshold 0.30)
+  - MiniLM-L6-v2: semantic cosine similarity for what FlashText missed (threshold 0.25)
   - RapidFuzz: fuzzy search for the search bar (model suggestions)
 
 Loaded once at startup. Called at ingestion for each new article batch.
@@ -26,17 +26,17 @@ _model_meta: dict[str, dict] = {}             # model_id_hex → {family, sectio
 _search_choices: list[str] = []               # flat list for search bar
 _search_to_model: dict[str, str] = {}         # choice → model_id_hex
 
-EMBED_MODEL = "google/embeddinggemma-300m"
-MIN_COSINE_SCORE = 0.30
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+MIN_COSINE_SCORE = 0.25
 
 
 def _get_encoder():
     global _encoder
     if _encoder is None:
         from sentence_transformers import SentenceTransformer
-        logger.info("Loading EmbeddingGemma 300m...")
-        _encoder = SentenceTransformer(EMBED_MODEL, trust_remote_code=True)
-        logger.info("EmbeddingGemma loaded")
+        logger.info("Loading MiniLM-L6-v2...")
+        _encoder = SentenceTransformer(EMBED_MODEL)
+        logger.info("MiniLM-L6-v2 loaded")
     return _encoder
 
 
@@ -397,41 +397,41 @@ async def classify_unclassified_articles(db) -> int:
     return classified
 
 
-# ── Lazy-loaded Gemma encoder for background classification ──
-_gemma_encoder = None
+# ── Lazy-loaded encoder for background classification ──
+# Reuses the same MiniLM-L6 encoder as targeted matching
+_bg_encoder = None
 _section_vectors: dict[tuple[str, str], 'numpy.ndarray'] = {}
 
-MIN_SECTION_SCORE = 0.20  # threshold for section classification
+MIN_SECTION_SCORE = 0.15  # threshold for section classification (MiniLM distribution is lower)
 
 
-def _get_gemma():
-    """Lazy-load Gemma encoder + section vectors."""
-    global _gemma_encoder, _section_vectors
-    if _gemma_encoder is not None:
-        return _gemma_encoder
+def _get_bg_encoder():
+    """Lazy-load encoder + section vectors for background classification."""
+    global _bg_encoder, _section_vectors
+    if _bg_encoder is not None:
+        return _bg_encoder
 
     import numpy as np
-    from sentence_transformers import SentenceTransformer
     from app.domains.ai_feeds.taxonomy import SECTION_DESCRIPTIONS
 
-    logger.info("Loading EmbeddingGemma 300m for background classification...")
-    _gemma_encoder = SentenceTransformer("google/embeddinggemma-300m", trust_remote_code=True)
+    # Reuse the same encoder instance
+    _bg_encoder = _get_encoder()
 
     # Embed section descriptions once
     keys = list(SECTION_DESCRIPTIONS.keys())
     texts = list(SECTION_DESCRIPTIONS.values())
-    vecs = _gemma_encoder.encode(texts, normalize_embeddings=True, batch_size=64)
+    vecs = _bg_encoder.encode(texts, normalize_embeddings=True, batch_size=64)
     _section_vectors = {keys[i]: vecs[i] for i in range(len(keys))}
 
-    logger.info(f"Gemma loaded, {len(_section_vectors)} section vectors ready")
-    return _gemma_encoder
+    logger.info(f"BG classifier ready, {len(_section_vectors)} section vectors")
+    return _bg_encoder
 
 
 def _classify_by_gemma(articles: list) -> int:
     """Classify articles by cosine similarity against section description embeddings."""
     import numpy as np
 
-    encoder = _get_gemma()
+    encoder = _get_bg_encoder()
     if not _section_vectors:
         return 0
 

@@ -80,17 +80,19 @@ def get_gemini_url() -> str:
     )
 
 
-async def call_gemini(prompt: str, *, client: httpx.AsyncClient | None = None, token: str | None = None) -> str:
+async def call_gemini(prompt: str, *, client: httpx.AsyncClient | None = None, token: str | None = None,
+                      model: str | None = None, max_tokens: int = 8192, temperature: float = 0.1,
+                      timeout: int = 30) -> str:
     """Call Gemini. Accepts optional shared client+token for batch efficiency."""
     if token is None:
         token = await get_gemini_token()
 
     url = get_gemini_url()
     body = {
-        "model": settings.gemini_model,
+        "model": model or settings.gemini_model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 8192,
-        "temperature": 0.1,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
         "thinking": {"type": "disabled"},
     }
     headers = {"Authorization": f"Bearer {token}"}
@@ -98,7 +100,7 @@ async def call_gemini(prompt: str, *, client: httpx.AsyncClient | None = None, t
     if client:
         resp = await client.post(url, headers=headers, json=body)
     else:
-        async with httpx.AsyncClient(timeout=30) as c:
+        async with httpx.AsyncClient(timeout=timeout) as c:
             resp = await c.post(url, headers=headers, json=body)
 
     resp.raise_for_status()

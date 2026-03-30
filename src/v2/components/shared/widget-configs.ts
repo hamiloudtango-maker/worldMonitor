@@ -4,6 +4,7 @@
  * Adding a widget = adding 1 config entry, not 30 lines of JSX.
  */
 import type { ListConfig, ChartConfig, GaugeConfig } from './renderers';
+import { withLimit } from '@/v2/lib/display-settings';
 
 // ═══════════════════════════════════════════════════════════════
 // LIST WIDGETS (price-list, article-list, status-list)
@@ -48,7 +49,7 @@ export const LIST_WIDGETS: Record<string, ListConfig> = {
 
   // ── Live sources: status lists ──
   seismology: {
-    endpoint: '/seismology/v1/list-earthquakes?min_magnitude=4&page_size=20',
+    endpoint: withLimit('/seismology/v1/list-earthquakes?min_magnitude=4&page_size=20'),
     fields: [
       { key: 'magnitude', position: 'title' },
       { key: 'place', position: 'subtitle' },
@@ -56,7 +57,7 @@ export const LIST_WIDGETS: Record<string, ListConfig> = {
     ],
   },
   maritime: {
-    endpoint: '/maritime/v1/list-navigational-warnings?page_size=15',
+    endpoint: withLimit('/maritime/v1/list-navigational-warnings?page_size=15'),
     fields: [
       { key: 'area', position: 'title' },
       { key: 'text', position: 'subtitle' },
@@ -65,14 +66,14 @@ export const LIST_WIDGETS: Record<string, ListConfig> = {
     maxItems: 15,
   },
   natural: {
-    endpoint: '/natural/v1/list-natural-events?limit=20',
+    endpoint: withLimit('/natural/v1/list-natural-events?limit=20'),
     fields: [
       { key: 'category_title', position: 'badge' },
       { key: 'title', position: 'title' },
     ],
   },
   aviation: {
-    endpoint: '/aviation/v1/list-aviation-news?page_size=15',
+    endpoint: withLimit('/aviation/v1/list-aviation-news?page_size=15'),
     fields: [
       { key: 'title', position: 'title' },
     ],
@@ -90,7 +91,7 @@ export const LIST_WIDGETS: Record<string, ListConfig> = {
 
   // ── Research / Veille ──
   hackernews: {
-    endpoint: '/research/v1/list-hackernews-items?page_size=20',
+    endpoint: withLimit('/research/v1/list-hackernews-items?page_size=20'),
     fields: [
       { key: 'title', position: 'title' },
       { key: 'score', position: 'value', format: 'int' },
@@ -98,7 +99,7 @@ export const LIST_WIDGETS: Record<string, ListConfig> = {
     linkField: 'url',
   },
   predictions: {
-    endpoint: '/prediction/v1/list-prediction-markets?page_size=15',
+    endpoint: withLimit('/prediction/v1/list-prediction-markets?page_size=15'),
     fields: [
       { key: 'title', position: 'title' },
       { key: 'yes_price', position: 'value', format: 'pct' },
@@ -112,7 +113,7 @@ export const LIST_WIDGETS: Record<string, ListConfig> = {
 
 export const CHART_WIDGETS: Record<string, ChartConfig> = {
   fredrates: {
-    endpoint: '/economic/v1/get-fred-series?series_id=DGS10&limit=30',
+    endpoint: withLimit('/economic/v1/get-fred-series?series_id=DGS10&limit=30'),
     dataKey: 'observations',
     xField: 'date',
     xFormat: (d: string) => d.slice(5),

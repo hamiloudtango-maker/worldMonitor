@@ -193,19 +193,53 @@ def read_scraped(source_id: str, pub_date: str | None, article_hash: str) -> str
     return None
 
 
+def delete_scraped(source_id: str, pub_date: str | None, article_hash: str) -> bool:
+    """Delete cached markdown file. Returns True if file existed."""
+    path = get_article_path(source_id, pub_date, article_hash)
+    if path.exists():
+        path.unlink()
+        return True
+    return False
+
+
+def _resolve_google_news_url(url: str) -> str:
+    """Resolve Google News redirect URLs to the real article URL."""
+    if 'news.google.com/rss/articles/' not in url:
+        return url
+    try:
+        from googlenewsdecoder import new_decoderv1
+        result = new_decoderv1(url)
+        if result.get("status") and result.get("decoded_url"):
+            return result["decoded_url"]
+    except Exception:
+        pass
+    return url
+
+
 async def scrape_and_save(url: str, source_id: str, pub_date: str | None, article_hash: str, title: str = "") -> str | None:
     """Scrape article and save to disk. Returns markdown or None on failure."""
-    # Check cache first
+    # Check cache first — but invalidate corrupted Google consent pages
     cached = read_scraped(source_id, pub_date, article_hash)
     if cached:
-        return cached
+        if 'Before you continue' in cached[:200] or 'consent.google.com' in cached[:500]:
+            # Corrupted cache from pre-resolver era — delete and re-scrape
+            delete_scraped(source_id, pub_date, article_hash)
+        else:
+            return cached
 
-    content, scraped_title = await scrape_url(url, timeout=30)
+    # Resolve Google News URLs to real article URLs
+    real_url = _resolve_google_news_url(url)
+
+    content, scraped_title = await scrape_url(real_url, timeout=30)
     if not content or len(content.strip()) < 50:
         return None
 
+    # Reject Google consent/error pages
+    if 'Before you continue' in content[:300] or 'consent.google.com' in content[:500]:
+        return None
+
     # Build markdown with header
-    header = f"# {scraped_title or title}\n\nSource: {url}\n\n---\n\n"
+    header = f"# {scraped_title or title}\n\nSource: {real_url}\n\n---\n\n"
     full_md = header + content
 
     # Write to disk

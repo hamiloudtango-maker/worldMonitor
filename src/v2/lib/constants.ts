@@ -19,6 +19,9 @@ export interface Article {
   persons: string[];
   organizations: string[];
   country_codes: string[];
+  family: string;
+  section: string;
+  sentiment: string;
 }
 
 export interface Stats {

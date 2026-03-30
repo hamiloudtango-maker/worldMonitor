@@ -2,10 +2,9 @@
 import { useState } from 'react';
 import { useAIFeeds } from '@/v2/hooks/useAIFeeds';
 import type { AIFeedData, FeedQuery } from '@/v2/lib/ai-feeds-api';
-import { bootstrapFeed, addFeedSource, refreshFeed } from '@/v2/lib/ai-feeds-api';
+import { bootstrapFeed, refreshFeed } from '@/v2/lib/ai-feeds-api';
 import FeedList from './ai-feeds/FeedList';
 import ModelQueryBuilder, { type ModelLayer } from './shared/ModelQueryBuilder';
-import SourceSelector from './ai-feeds/SourceSelector';
 import FeedPreview from './ai-feeds/FeedPreview';
 import FeedCreator from './ai-feeds/FeedCreator';
 import RssBulkAdd from './ai-feeds/RssBulkAdd';
@@ -13,11 +12,9 @@ import RssBulkAdd from './ai-feeds/RssBulkAdd';
 export default function AIFeedsView() {
   const { feeds, add, remove, update } = useAIFeeds();
   const [selected, setSelected] = useState<AIFeedData | null>(null);
-  const [localQuery, setLocalQuery] = useState<FeedQuery>({ layers: [] });
   const [localModelLayers, setLocalModelLayers] = useState<ModelLayer[]>([]);
   const [dirty, setDirty] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
-  const [sourceKey, setSourceKey] = useState(0);
   const [previewKey, setPreviewKey] = useState(0);
   const [creating, setCreating] = useState(false);
   const [previewCount, setPreviewCount] = useState(0);
@@ -27,15 +24,9 @@ export default function AIFeedsView() {
 
   function handleSelect(feed: AIFeedData) {
     setSelected(feed);
-    setLocalQuery(feed.query || { layers: [] });
     setLocalModelLayers(feed.query?.model_layers || []);
     setDirty(false);
     setCreating(false);
-  }
-
-  function handleQueryChange(query: FeedQuery) {
-    setLocalQuery(query);
-    setDirty(true);
   }
 
   function handleModelLayersChange(layers: ModelLayer[]) {
@@ -53,34 +44,18 @@ export default function AIFeedsView() {
     try {
       const feed = await add(name, '', query);
 
-      // Bootstrap to get AI-suggested sources
+      // Bootstrap to get AI description
       const bootstrap = await bootstrapFeed(name);
-
-      if (bootstrap.resolved_sources?.length && feed.id) {
-        const addPromises = bootstrap.resolved_sources.map(s =>
-          addFeedSource(feed.id, {
-            url: s.url, name: s.name, lang: s.lang ?? undefined,
-            tier: s.tier, source_type: s.source_type ?? undefined,
-            country: s.country ?? undefined, continent: s.continent ?? undefined,
-            origin: 'ai_suggested',
-          }).catch(() => null)
-        );
-        await Promise.all(addPromises);
-      }
-
       if (bootstrap.description) {
         await update(feed.id, { query, description: bootstrap.description });
       }
 
-      setLocalQuery(query);
       setLocalModelLayers(query.model_layers || []);
       setDirty(false);
       setCreating(false);
-      // Refresh matching + reload
       await refreshFeed(feed.id);
       const refreshed = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(feed.id));
-      setSelected({ ...refreshed, source_count: bootstrap.resolved_sources?.length || 0 });
-      setSourceKey(k => k + 1);
+      setSelected(refreshed);
       setPreviewKey(k => k + 1);
     } catch {
       const feed = await add(name, '', query);
@@ -93,7 +68,6 @@ export default function AIFeedsView() {
     await remove(id);
     if (selected?.id === id) {
       setSelected(null);
-      setLocalQuery({ layers: [] });
       setLocalModelLayers([]);
     }
   }
@@ -105,18 +79,17 @@ export default function AIFeedsView() {
       // Save query to DB, then reload preview (endpoint does _ensure_matching)
       await update(selected.id, { query: { layers: [], model_layers: localModelLayers } });
       setDirty(false);
-      setPreviewKey(k => k + 1);
     } catch (err) { console.error('[Feed] save failed', err); }
+    // Increment key to trigger FeedPreview reload — refreshing state is
+    // managed by FeedPreview's own loading state, so reset here.
+    setPreviewKey(k => k + 1);
     setRefreshing(false);
   }
 
-  async function handleRefresh() {
+  function handleRefresh() {
     if (!selected) return;
-    setRefreshing(true);
-    try {
-      setPreviewKey(k => k + 1);
-    } catch {}
-    setRefreshing(false);
+    // Just increment key — FeedPreview handles its own loading state
+    setPreviewKey(k => k + 1);
   }
 
 
@@ -147,7 +120,7 @@ export default function AIFeedsView() {
       ) : selected ? (
         <>
           {/* Center: Query builder + Preview */}
-          <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-200/60">
+          <div className="flex-1 flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 {editingName ? (
@@ -178,17 +151,16 @@ export default function AIFeedsView() {
                   </h2>
                 )}
                 <p className="text-[10px] text-slate-400">
-                  {selected.source_count} sources · {previewCount || selected.result_count} articles · {selected.status}
+                  {previewCount || selected.result_count} articles · {selected.status}
                   {selected.description && <span className="ml-1">— {selected.description}</span>}
                 </p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
                 >
-                  {refreshing ? 'Chargement...' : 'Rafraichir'}
+                  Rafraichir
                 </button>
                 {dirty && (
                   <button
@@ -205,14 +177,9 @@ export default function AIFeedsView() {
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <ModelQueryBuilder layers={localModelLayers} onChange={handleModelLayersChange} />
               <div className="border-t border-slate-100 pt-4">
-                <FeedPreview feedId={selected.id} query={localQuery} onCountChange={setPreviewCount} refreshKey={previewKey} />
+                <FeedPreview feedId={selected.id} onCountChange={setPreviewCount} refreshKey={previewKey} />
               </div>
             </div>
-          </div>
-
-          {/* Right: Source selector */}
-          <div className="w-80 shrink-0 bg-white">
-            <SourceSelector key={sourceKey} feedId={selected.id} />
           </div>
         </>
       ) : (

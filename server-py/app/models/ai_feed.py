@@ -112,6 +112,10 @@ class RssCatalogEntry(Base):
     etag: Mapped[str | None] = mapped_column(String(200), nullable=True)
     last_modified: Mapped[str | None] = mapped_column(String(200), nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    priority: Mapped[str] = mapped_column(String(10), default="low")  # high, medium, low
+    priority_score: Mapped[int] = mapped_column(Integer, default=0)
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

@@ -38,3 +38,21 @@ export function setDisplaySettings(config: Partial<DisplayConfig>): DisplayConfi
 export function getLimit(key: keyof DisplayConfig): number {
   return getDisplaySettings()[key];
 }
+
+/**
+ * Inject configured limit into any API endpoint URL.
+ * Replaces existing limit/page_size/per_page or appends it.
+ */
+export function withLimit(endpoint: string, key: keyof DisplayConfig = 'widgetArticleLimit'): string {
+  const limit = getLimit(key);
+  // Replace existing limit params
+  let url = endpoint
+    .replace(/([?&])limit=\d+/, `$1limit=${limit}`)
+    .replace(/([?&])page_size=\d+/, `$1page_size=${limit}`)
+    .replace(/([?&])per_page=\d+/, `$1per_page=${limit}`);
+  // If no limit param existed, append one
+  if (url === endpoint && !url.includes('limit=') && !url.includes('page_size=')) {
+    url += (url.includes('?') ? '&' : '?') + `limit=${limit}`;
+  }
+  return url;
+}
