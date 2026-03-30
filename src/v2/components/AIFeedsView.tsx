@@ -23,6 +23,7 @@ export default function AIFeedsView() {
   const [previewCount, setPreviewCount] = useState(0);
   const [editingName, setEditingName] = useState(false);
   const [editName, setEditName] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   function handleSelect(feed: AIFeedData) {
     setSelected(feed);
@@ -95,17 +96,29 @@ export default function AIFeedsView() {
 
   async function handleSave() {
     if (!selected || !dirty) return;
-    const updated = await update(selected.id, { query: { ...localQuery, model_layers: localModelLayers } });
-    setSelected(updated);
-    setDirty(false);
-    // Auto-refresh results after saving new filters
+    setRefreshing(true);
     try {
+      const updated = await update(selected.id, { query: { ...localQuery, model_layers: localModelLayers } });
+      setDirty(false);
       await refreshFeed(updated.id);
       const refreshed = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(updated.id));
       setSelected(refreshed);
       setSourceKey(k => k + 1);
       setPreviewKey(k => k + 1);
     } catch {}
+    setRefreshing(false);
+  }
+
+  async function handleRefresh() {
+    if (!selected) return;
+    setRefreshing(true);
+    try {
+      await refreshFeed(selected.id);
+      const updated = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(selected.id));
+      setSelected(updated);
+      setPreviewKey(k => k + 1);
+    } catch {}
+    setRefreshing(false);
   }
 
 
@@ -173,24 +186,20 @@ export default function AIFeedsView() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={async () => {
-                    if (!selected) return;
-                    await refreshFeed(selected.id);
-                    const updated = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(selected.id));
-                    setSelected(updated);
-                    setPreviewKey(k => k + 1);
-                  }}
-                  className="px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
                 >
-                  Rafraichir
+                  {refreshing ? 'Chargement...' : 'Rafraichir'}
                 </button>
                 {dirty && (
                   <button
                     onClick={handleSave}
-                    className="px-4 py-1.5 text-[11px] font-semibold text-white rounded-lg shadow-sm transition-colors"
+                    disabled={refreshing}
+                    className="px-4 py-1.5 text-[11px] font-semibold text-white rounded-lg shadow-sm transition-colors disabled:opacity-50"
                     style={{ background: '#42d3a5' }}
                   >
-                    Sauvegarder
+                    {refreshing ? 'Sauvegarde...' : 'Sauvegarder'}
                   </button>
                 )}
               </div>
