@@ -102,14 +102,11 @@ export default function AIFeedsView() {
     if (!selected || !dirty) return;
     setRefreshing(true);
     try {
-      const updated = await update(selected.id, { query: { layers: [], model_layers: localModelLayers } });
+      // Save query to DB, then reload preview (endpoint does _ensure_matching)
+      await update(selected.id, { query: { layers: [], model_layers: localModelLayers } });
       setDirty(false);
-      await refreshFeed(updated.id);
-      const refreshed = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(updated.id));
-      setSelected(refreshed);
-      setSourceKey(k => k + 1);
       setPreviewKey(k => k + 1);
-    } catch (err) { console.error('[Feed] save+refresh failed', err); }
+    } catch (err) { console.error('[Feed] save failed', err); }
     setRefreshing(false);
   }
 
@@ -117,9 +114,6 @@ export default function AIFeedsView() {
     if (!selected) return;
     setRefreshing(true);
     try {
-      await refreshFeed(selected.id);
-      const updated = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(selected.id));
-      setSelected(updated);
       setPreviewKey(k => k + 1);
     } catch {}
     setRefreshing(false);
