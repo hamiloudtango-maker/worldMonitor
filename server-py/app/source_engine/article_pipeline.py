@@ -80,8 +80,11 @@ Return this exact JSON structure:
     {{
       "index": 0,
       "title_en": "English translation of headline (if already English, copy as-is)",
+      "lang": "en",
       "family": "politics",
       "section": "Geopolitics",
+      "article_type": "news",
+      "criticality": "developing",
       "persons": ["Name1", "Name2"],
       "organizations": ["NATO", "OPEC"],
       "country_codes": ["US", "UA", "RU"],
@@ -106,7 +109,10 @@ TAXONOMY — pick ONE family + section per article:
   mute: Noise, Entertainment
 
 Rules:
+- lang: ISO 639-1 language code of the ORIGINAL headline (en, fr, de, es, ar, ja, ko, pt, ru, zh, etc.)
 - family + section: classify the article into the MOST relevant family and section from the taxonomy above
+- article_type: "news" (factual reporting), "opinion" (editorial/commentary), "analysis" (in-depth study), "report" (official/institutional report)
+- criticality: "breaking" (just happened, urgent), "developing" (ongoing situation, evolving), "background" (context, analysis, not time-sensitive)
 - title_en: translate to English if not already English. Keep original if already in English.
 - country_codes: ISO 3166-1 alpha-2 (US, FR, UA, RU, CN, IR, etc.)
 - countries_mentioned: full country names in English (United States, France, Ukraine, etc.)
@@ -120,7 +126,8 @@ Rules:
 """
 
 _EMPTY_ENRICHMENT = {
-    "title_en": "", "family": "economy", "section": "Corporate",
+    "title_en": "", "lang": "en", "family": "economy", "section": "Corporate",
+    "article_type": "news", "criticality": "background",
     "persons": [], "organizations": [], "country_codes": [],
     "countries_mentioned": [], "tags": [],
     "sentiment": "neutral", "summary": "",
@@ -200,12 +207,14 @@ def _build_article(
         description=str(row.get("description", "") or "")[:500],
         link=link,
         pub_date=_parse_pub_date(row),
-        lang=lang,
+        lang=enriched.get("lang", lang),
         threat_level=cls["threat_level"],
         theme=theme,
         confidence=cls["confidence"],
         family=family,
         section=section,
+        article_type=enriched.get("article_type", "news"),
+        criticality=enriched.get("criticality", "background"),
         entities_json=json.dumps(entities) if entities else None,
         persons_json=json.dumps(persons) if persons else None,
         orgs_json=json.dumps(organizations) if organizations else None,

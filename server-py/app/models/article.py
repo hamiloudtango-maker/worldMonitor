@@ -38,6 +38,8 @@ class Article(Base):
     section: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)  # Geopolitics, Corporate...
 
     # Enriched metadata (single LLM call)
+    article_type: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)  # news, opinion, analysis, report
+    criticality: Mapped[str | None] = mapped_column(String(15), nullable=True, index=True)  # breaking, developing, background
     sentiment: Mapped[str | None] = mapped_column(String(10), nullable=True)  # positive, negative, neutral
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)  # 2-3 sentence summary
     tags_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: ["conflict", "nuclear", "diplomacy"]
