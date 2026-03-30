@@ -58,10 +58,12 @@ def _serialize_source(s: AIFeedSource) -> dict:
 
 async def _ensure_matching(db, model_layers: list[dict]) -> None:
     """Ensure articles are matched against the given models before querying.
-    - Articles < 2 days: Gemini Flash (semantic)
-    - Articles > 2 days: FlashText (exact keywords)
+    3 phases, each on the REMAINDER of the previous:
+      1. FlashText (exact) → fast, free
+      2. Gemma 0.30 (semantic) → on what FlashText missed
+      3. Gemini Flash (LLM) → on what Gemma missed, best-effort
+    Only matches against the models in this case/feed, not all 316.
     """
-    from sqlalchemy import text as sa_text
     from datetime import timedelta
 
     all_mids = []
@@ -71,50 +73,48 @@ async def _ensure_matching(db, model_layers: list[dict]) -> None:
         return
 
     unique_mids = list(set(all_mids))
-
-    # Find articles not yet matched against these models (last 30 days)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
 
     from app.models.article import Article
     from app.models.article_model import ArticleModel
-    from app.source_engine.matching_engine import match_articles_targeted, match_articles_gemini, store_matches
+    from app.source_engine.matching_engine import flash_match_targeted, gemma_match_targeted, match_articles_gemini, store_matches
 
-    # Find articles not already matched against these specific models
-    # Using ORM to avoid UUID string/hex mismatch
     already_matched = select(ArticleModel.article_id).where(
         ArticleModel.model_id.in_([uuid.UUID(m) if len(m) == 32 else uuid.UUID(m) for m in unique_mids])
     )
 
-    # Older articles (2-30 days) — FlashText
-    older_articles = (await db.execute(
+    all_unmatched = (await db.execute(
         select(Article)
-        .where(Article.created_at > cutoff, Article.created_at <= two_days_ago)
+        .where(Article.created_at > cutoff)
         .where(Article.id.not_in(already_matched))
-        .limit(1000)
+        .limit(2000)
     )).scalars().all()
 
-    if older_articles:
-        matches = match_articles_targeted(older_articles, unique_mids)
-        if matches:
-            await store_matches(db, matches)
-            await db.commit()
-        logger.info(f"FlashText matched {len(older_articles)} older articles -> {len(matches)} matches")
+    if not all_unmatched:
+        return
 
-    # Recent articles (< 2 days) — Gemini Flash
-    recent_articles = (await db.execute(
-        select(Article)
-        .where(Article.created_at > two_days_ago)
-        .where(Article.id.not_in(already_matched))
-        .limit(500)
-    )).scalars().all()
+    # Phase 1: FlashText
+    flash_results, remaining = flash_match_targeted(all_unmatched, unique_mids)
+    if flash_results:
+        await store_matches(db, flash_results)
+        await db.commit()
 
-    if recent_articles:
-        matches = await match_articles_gemini(recent_articles, unique_mids, db)
-        if matches:
-            await store_matches(db, matches)
+    # Phase 2: Gemma on what FlashText missed
+    if remaining:
+        gemma_results, remaining = gemma_match_targeted(remaining, unique_mids)
+        if gemma_results:
+            await store_matches(db, gemma_results)
             await db.commit()
-        logger.info(f"Gemini matched {len(recent_articles)} recent articles -> {len(matches)} matches")
+
+    # Phase 3: Gemini on what Gemma missed — best effort
+    if remaining:
+        try:
+            gemini_results = await match_articles_gemini(remaining[:200], unique_mids, db)
+            if gemini_results:
+                await store_matches(db, gemini_results)
+                await db.commit()
+        except Exception as e:
+            logger.warning(f"Gemini matching skipped: {e}")
 
 
 async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:

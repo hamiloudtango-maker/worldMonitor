@@ -188,18 +188,15 @@ def search_models(query: str, limit: int = 10) -> list[dict]:
     return out
 
 
-def match_articles_targeted(articles: list, model_ids: list[str]) -> list[tuple[str, str, float, str]]:
-    """Match articles against a SPECIFIC set of model IDs (not all models).
-    Used by cases/feeds refresh — only checks models in the query.
-
-    Returns list of (article_id_hex, model_id_hex, score, method).
-    """
+def flash_match_targeted(articles: list, model_ids: list[str]) -> tuple[list[tuple[str, str, float, str]], list]:
+    """Phase 1: FlashText against specific models.
+    Returns (matches, unmatched_articles)."""
     if not articles or not model_ids or not _model_kp:
-        return []
+        return [], list(articles)
 
     target_set = set(model_ids)
     results: list[tuple[str, str, float, str]] = []
-    seen: set[tuple[str, str]] = set()
+    matched_aids: set[str] = set()
 
     for a in articles:
         aid = a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')
@@ -207,13 +204,51 @@ def match_articles_targeted(articles: list, model_ids: list[str]) -> list[tuple[
         found_mids = _model_kp.extract_keywords(full_text)
         for mid in set(found_mids):
             if mid in target_set:
-                pair = (aid, mid)
-                if pair not in seen:
-                    seen.add(pair)
-                    results.append((aid, mid, 1.0, "flash"))
+                results.append((aid, mid, 1.0, "flash"))
+                matched_aids.add(aid)
 
-    logger.info(f"match_targeted: {len(articles)} articles x {len(model_ids)} models -> {len(results)} matches")
-    return results
+    unmatched = [a for a in articles if (a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')) not in matched_aids]
+    logger.info(f"flash_targeted: {len(articles)} articles -> {len(results)} matches, {len(unmatched)} unmatched")
+    return results, unmatched
+
+
+def gemma_match_targeted(articles: list, model_ids: list[str]) -> tuple[list[tuple[str, str, float, str]], list]:
+    """Phase 2: Gemma 0.30 against specific models. Only on articles FlashText missed.
+    Returns (matches, still_unmatched_articles)."""
+    if not articles or not model_ids:
+        return [], list(articles)
+
+    target_vectors = {mid: _model_vectors[mid] for mid in model_ids if mid in _model_vectors}
+    if not target_vectors:
+        return [], list(articles)
+
+    encoder = _get_encoder()
+    art_texts = []
+    art_ids = []
+    for a in articles:
+        aid = a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')
+        art_texts.append(_article_full_text(a))
+        art_ids.append(aid)
+
+    art_vecs = encoder.encode(art_texts, normalize_embeddings=True, batch_size=64)
+    t_mids = list(target_vectors.keys())
+    t_matrix = np.array([target_vectors[mid] for mid in t_mids])
+    sim_matrix = np.dot(art_vecs, t_matrix.T)
+
+    results: list[tuple[str, str, float, str]] = []
+    matched_aids: set[str] = set()
+
+    for j, mid in enumerate(t_mids):
+        col = sim_matrix[:, j]
+        for i in range(len(articles)):
+            if col[i] >= MIN_COSINE_SCORE:
+                aid = art_ids[i]
+                results.append((aid, mid, float(col[i]), "embed"))
+                matched_aids.add(aid)
+
+    unmatched = [a for a in articles if (a.id.hex if hasattr(a.id, 'hex') else str(a.id).replace('-', '')) not in matched_aids]
+    logger.info(f"gemma_targeted: {len(articles)} articles -> {len(results)} matches, {len(unmatched)} still unmatched")
+    return results, unmatched
 
 
 async def match_articles_gemini(articles: list, model_ids: list[str], db) -> list[tuple[str, str, float, str]]:

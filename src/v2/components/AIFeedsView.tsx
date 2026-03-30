@@ -97,6 +97,13 @@ export default function AIFeedsView() {
     const updated = await update(selected.id, { query: { ...localQuery, model_layers: localModelLayers } });
     setSelected(updated);
     setDirty(false);
+    // Auto-refresh results after saving new filters
+    try {
+      await refreshFeed(updated.id);
+      const refreshed = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(updated.id));
+      setSelected(refreshed);
+      setSourceKey(k => k + 1);
+    } catch {}
   }
 
 

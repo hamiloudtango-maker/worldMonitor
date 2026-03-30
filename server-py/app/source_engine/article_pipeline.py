@@ -280,16 +280,7 @@ async def ingest_articles(
 
     await db.commit()
 
-    # Match new articles against Intel Models (FlashText + Gemma)
-    if new_articles:
-        try:
-            from app.source_engine.matching_engine import match_articles, store_matches
-            matches = match_articles(new_articles)
-            if matches:
-                await store_matches(db, matches)
-                await db.commit()
-        except Exception:
-            logger.debug("model matching after ingest_articles skipped", exc_info=True)
+    # Matching is triggered at case/feed refresh, not at ingestion
 
     # Delta-match new articles against all active cases
     if new_articles:
@@ -434,16 +425,7 @@ async def enrich_and_store(
         await db.rollback()
         return 0
 
-    # Match new articles against Intel Models (FlashText + Gemma)
-    if new_articles:
-        try:
-            from app.source_engine.matching_engine import match_articles, store_matches
-            matches = match_articles(new_articles)
-            if matches:
-                await store_matches(db, matches)
-                await db.commit()
-        except Exception:
-            logger.debug("model matching after ingest_articles skipped", exc_info=True)
+    # Matching is triggered at case/feed refresh, not at ingestion
 
     # Delta-match new articles against all active cases
     if new_articles:
