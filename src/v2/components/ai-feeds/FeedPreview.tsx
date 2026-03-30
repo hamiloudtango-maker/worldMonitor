@@ -30,28 +30,13 @@ export default function FeedPreview({ feedId, query, onCountChange, refreshKey }
     setLoading(true);
     try {
       if (feedId) {
-        // Read feed's model_layers, then fetch articles by model IDs (same as case)
-        const { getFeed } = await import('@/v2/lib/ai-feeds-api');
-        const { fetchArticlesByModels } = await import('@/v2/lib/api');
         const { getLimit } = await import('@/v2/lib/display-settings');
-        const feed = await getFeed(feedId);
-        const ml = feed.query?.model_layers || [];
-        const modelIds = ml.flatMap((l: any) => l.model_ids || []);
-        if (modelIds.length > 0) {
-          const data = await fetchArticlesByModels(modelIds, getLimit('feedArticleLimit'));
-          setArticles(data.articles.map((a: any) => ({
-            ...a, article_url: a.link, source_name: a.source_id,
-            relevance_score: 0, fetched_at: a.created_at,
-          })));
-          setTotal(data.total);
-          onCountChange?.(data.total);
-          setLoading(false);
-          return;
-        }
+        const data = await listFeedArticles(feedId, { limit: getLimit('feedArticleLimit') });
+        setArticles(data.articles);
+        setTotal(data.total);
+        onCountChange?.(data.total);
       }
     } catch { /* silent */ }
-    setArticles([]);
-    setTotal(0);
     setLoading(false);
   }
 

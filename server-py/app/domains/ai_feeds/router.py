@@ -148,30 +148,29 @@ async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
     )
     rows = result.fetchall()
 
-    # Clear old results and rebuild — ensures removed filters take effect
+    # Clear old results
     from sqlalchemy import delete
     await db.execute(delete(AIFeedResult).where(AIFeedResult.ai_feed_id == feed_id))
+    await db.commit()
 
     if not rows:
-        await db.commit()
         return 0
 
+    # Rebuild results
     existing_urls: set[str] = set()
-
-    inserted = 0
     now = datetime.now(timezone.utc)
+    batch = []
     for r in rows:
         url = r[1] or ""
         if not url or url in existing_urls:
             continue
-        # Parse published_at — may be string from SQLite
         pub = r[3]
         if isinstance(pub, str):
             try:
                 pub = datetime.fromisoformat(pub.replace(" ", "T"))
             except (ValueError, TypeError):
                 pub = None
-        result_entry = AIFeedResult(
+        batch.append(AIFeedResult(
             ai_feed_id=feed_id,
             article_url=url,
             title=r[0] or "",
@@ -182,14 +181,13 @@ async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
             category=r[6],
             relevance_score=0.5,
             fetched_at=now,
-        )
-        db.add(result_entry)
+        ))
         existing_urls.add(url)
-        inserted += 1
 
-    if inserted:
+    if batch:
+        db.add_all(batch)
         await db.commit()
-    return inserted
+    return len(batch)
 
 
 def _serialize_result(r: AIFeedResult) -> dict:
