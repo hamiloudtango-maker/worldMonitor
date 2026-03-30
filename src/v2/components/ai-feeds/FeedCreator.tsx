@@ -7,7 +7,7 @@ import type { FeedQuery } from '@/v2/lib/ai-feeds-api';
 import { fetchCategoryTree, fetchLeaves } from '@/v2/lib/ai-feeds-api';
 import type { CategoryL1, CategoryL2, CategoryLeaf } from '@/v2/lib/ai-feeds-api';
 import TemplateGrid from './TemplateGrid';
-import ChipQueryBuilder from './ChipQueryBuilder';
+import ModelQueryBuilder, { type ModelLayer } from '../shared/ModelQueryBuilder';
 import FeedPreview from './FeedPreview';
 import SourceSelector from './SourceSelector';
 
@@ -445,30 +445,36 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   }
 
   // ── STEP: Build ──
+  const modelLayers: ModelLayer[] = (query.model_layers || []).map(l => ({
+    operator: l.operator as ModelLayer['operator'],
+    model_ids: l.model_ids || [],
+  }));
+
+  function handleModelLayersChange(layers: ModelLayer[]) {
+    setQuery(prev => ({ ...prev, model_layers: layers }));
+  }
+
+  const hasFilters = modelLayers.length > 0 || query.layers.length > 0;
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-        <h1 className="text-base font-bold text-slate-900">AI Feed</h1>
+        <h1 className="text-base font-bold text-slate-900">AI Feed — {feedName || 'Nouveau'}</h1>
         <div className="flex items-center gap-3">
           <button onClick={handleClear} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">Effacer</button>
           <button
             onClick={handleSave}
-            disabled={saving || query.layers.length === 0}
+            disabled={saving || !hasFilters}
             className="px-4 py-1.5 text-[12px] font-semibold text-white rounded-lg bg-[#42d3a5] hover:bg-[#38b891] disabled:opacity-50 transition-colors"
           >
-            {saving ? 'Création...' : 'Sauvegarder AI Feed'}
+            {saving ? 'Création...' : 'Créer le Feed'}
           </button>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-y-auto p-6">
-          <h1 className="text-lg font-semibold text-slate-700 italic mb-4">Collecter articles et rapports</h1>
-          <ChipQueryBuilder query={query} onChange={setQuery} tree={tree} treeLoading={treeLoading} />
-
-          <div className="mt-6 border-t border-slate-100 pt-4">
-            <FeedPreview feedId={null} query={query} />
-          </div>
+          <ModelQueryBuilder layers={modelLayers} onChange={handleModelLayersChange} />
         </div>
 
         <div className="w-72 shrink-0 border-l border-slate-200/60 bg-white">

@@ -74,10 +74,14 @@ export default function AIFeedsView() {
 
       setLocalQuery(query);
       setLocalModelLayers(query.model_layers || []);
-      setSelected({ ...feed, source_count: bootstrap.resolved_sources?.length || 0 });
       setDirty(false);
       setCreating(false);
+      // Refresh matching + reload
+      await refreshFeed(feed.id);
+      const refreshed = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(feed.id));
+      setSelected({ ...refreshed, source_count: bootstrap.resolved_sources?.length || 0 });
       setSourceKey(k => k + 1);
+      setPreviewKey(k => k + 1);
     } catch {
       const feed = await add(name, '', query);
       handleSelect(feed);
@@ -105,7 +109,7 @@ export default function AIFeedsView() {
       setSelected(refreshed);
       setSourceKey(k => k + 1);
       setPreviewKey(k => k + 1);
-    } catch {}
+    } catch (err) { console.error('[Feed] save+refresh failed', err); }
     setRefreshing(false);
   }
 
