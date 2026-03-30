@@ -102,7 +102,7 @@ export default function AIFeedsView() {
     if (!selected || !dirty) return;
     setRefreshing(true);
     try {
-      const updated = await update(selected.id, { query: { ...localQuery, model_layers: localModelLayers } });
+      const updated = await update(selected.id, { query: { layers: [], model_layers: localModelLayers } });
       setDirty(false);
       await refreshFeed(updated.id);
       const refreshed = await import('@/v2/lib/ai-feeds-api').then(m => m.getFeed(updated.id));
