@@ -162,14 +162,16 @@ async def _refresh_feed_results(db, feed_id, query_data: dict) -> int:
             params,
         )
     rows = result.fetchall()
+
+    # Clear old results and rebuild — ensures removed filters take effect
+    from sqlalchemy import delete
+    await db.execute(delete(AIFeedResult).where(AIFeedResult.ai_feed_id == feed_id))
+
     if not rows:
+        await db.commit()
         return 0
 
-    # Get existing URLs to avoid duplicates
-    existing = await db.execute(
-        select(AIFeedResult.article_url).where(AIFeedResult.ai_feed_id == feed_id)
-    )
-    existing_urls = {r[0] for r in existing.all()}
+    existing_urls: set[str] = set()
 
     inserted = 0
     now = datetime.now(timezone.utc)
