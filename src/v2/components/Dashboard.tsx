@@ -304,21 +304,27 @@ function DashboardInner({ user, onLogout }: Props) {
 
 /* ═══ Dashboard Widget Catalog ═══ */
 const DASH_WIDGETS: WDef2[] = [
-  { id: 'kpis',      title: 'Indicateurs Clés',  icon: Activity,      category: 'Général',  defaultW: 12, defaultH: 2,  minH: 2, minW: 6 },
-  { id: 'cases',     title: 'Cases suivis',       icon: FolderOpen,    category: 'Général',  defaultW: 12, defaultH: 5,  minH: 3, minW: 4 },
-  { id: 'map',       title: 'Cartographie',       icon: Globe,         category: 'Général',  defaultW: 8,  defaultH: 8,  minH: 4, minW: 4 },
-  { id: 'alerts',    title: 'Alertes',            icon: AlertTriangle, category: 'Général',  defaultW: 4,  defaultH: 8,  minH: 3, minW: 3 },
-  { id: 'news',      title: 'Actualités',         icon: Newspaper,     category: 'Général',  defaultW: 4,  defaultH: 6,  minH: 3, minW: 3 },
-  { id: 'sentiment', title: 'Sentiment',          icon: TrendingUp,    category: 'Analyse',  defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  { id: 'themes',    title: 'Thématiques',        icon: BarChart2,     category: 'Analyse',  defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  // Content (Inoreader-style)
+  { id: 'kpis',        title: 'Indicateurs Clés',       icon: Activity,      category: 'Contenu',    defaultW: 12, defaultH: 2,  minH: 2, minW: 6 },
+  { id: 'news',        title: 'Nouveaux articles',      icon: Newspaper,     category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 4, minW: 4 },
+  { id: 'alerts',      title: 'Alertes critiques',      icon: AlertTriangle, category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 3, minW: 3 },
+  { id: 'cases',       title: 'Cases suivis',           icon: FolderOpen,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
+  { id: 'trending',    title: 'Tendances',              icon: TrendingUp,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
+  // Analyse
+  { id: 'map',         title: 'Cartographie',           icon: Globe,         category: 'Analyse',    defaultW: 8,  defaultH: 8,  minH: 4, minW: 4 },
+  { id: 'sentiment',   title: 'Sentiment Global',       icon: TrendingUp,    category: 'Analyse',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  { id: 'themes',      title: 'Thématiques',            icon: BarChart2,     category: 'Analyse',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  // Data & usage (Inoreader-style)
+  { id: 'stats',       title: 'Statistiques',           icon: BarChart2,     category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  { id: 'rules-log',   title: 'Journal des rules',      icon: Activity,      category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
 ];
 
 const DASH_DEFAULTS: WS2[] = [
-  { id: 'kpis', w: 12, h: 2 },
-  { id: 'cases', w: 12, h: 5 },
-  { id: 'map', w: 8, h: 8 },
-  { id: 'alerts', w: 4, h: 8 },
-  { id: 'sentiment', w: 6, h: 5 },
+  { id: 'alerts', w: 6, h: 8 },
+  { id: 'news', w: 6, h: 8 },
+  { id: 'trending', w: 6, h: 6 },
+  { id: 'cases', w: 6, h: 6 },
+  { id: 'stats', w: 6, h: 5 },
   { id: 'themes', w: 6, h: 5 },
 ];
 
@@ -449,8 +455,57 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
           </ResponsiveContainer>
         </div>
       );
+    case 'trending':
+      return (
+        <div className="overflow-y-auto h-full p-2 space-y-0.5">
+          {[...articles].sort((a, b) => {
+            const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+            return (order[a.threat_level] ?? 5) - (order[b.threat_level] ?? 5);
+          }).slice(0, 12).map(a => (
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+              <div className="w-14 h-10 rounded shrink-0 overflow-hidden" style={{ background: '#0f1923' }}>
+                {(a as any).image_url && <img src={(a as any).image_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px]" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
+                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      );
+    case 'stats':
+      return (
+        <div className="p-4 h-full space-y-3 overflow-y-auto">
+          {[
+            { l: 'Articles aujourd\'hui', v: articles.filter(a => a.pub_date && (Date.now() - new Date(a.pub_date).getTime()) < 86400000).length },
+            { l: 'Sources actives', v: new Set(articles.map(a => a.source_id)).size },
+            { l: 'Pays couverts', v: new Set(articles.flatMap(a => a.country_codes)).size },
+            { l: 'Thèmes', v: new Set(articles.map(a => a.theme).filter(Boolean)).size },
+            { l: 'Alertes (24h)', v: articles.filter(a => (a.threat_level === 'critical' || a.threat_level === 'high') && a.pub_date && (Date.now() - new Date(a.pub_date).getTime()) < 86400000).length },
+          ].map((s, i) => (
+            <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid #1e2d3d' }}>
+              <span className="text-[12px]" style={{ color: '#6b7d93' }}>{s.l}</span>
+              <span className="text-[14px] font-bold" style={{ color: '#4d8cf5' }}>{s.v}</span>
+            </div>
+          ))}
+        </div>
+      );
+    case 'rules-log':
+      return (
+        <div className="flex items-center justify-center h-full text-center px-4">
+          <div>
+            <Activity size={24} style={{ color: '#556677' }} className="mx-auto mb-2" />
+            <p className="text-[12px]" style={{ color: '#6b7d93' }}>Les règles d'automatisation s'afficheront ici</p>
+            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Créez des rules dans l'onglet Configuration</p>
+          </div>
+        </div>
+      );
     default:
-      return <div className="flex items-center justify-center h-full text-sm" style={{ color: '#6b7d93' }}>Widget inconnu</div>;
+      return <div className="flex items-center justify-center h-full text-sm" style={{ color: '#556677' }}>Widget inconnu</div>;
   }
 }
 
