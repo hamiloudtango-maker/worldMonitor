@@ -286,7 +286,7 @@ function DashboardInner({ user, onLogout }: Props) {
 
               <div className="px-6 pb-6 space-y-4">
                 {nav === 'dashboard' && (
-                  <WidgetGrid catalog={catalog} storageKey="wm-dash-v9" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
+                  <WidgetGrid catalog={DASH_WIDGETS} storageKey="wm-dash-v9" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
                 )}
                 {nav === 'cases' && <CasesView cases={cases} loading={casesLoading} onAdd={addCase} onRemove={removeCase} />}
                 {nav === 'ai-feeds' && <AIFeedsView />}
