@@ -288,7 +288,7 @@ function DashboardInner({ user, onLogout }: Props) {
 
               <div className="px-6 pb-6 space-y-4">
                 {nav === 'dashboard' && (
-                  <WidgetGrid catalog={catalog} storageKey="wm-dash-v5" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
+                  <WidgetGrid catalog={catalog} storageKey="wm-dash-v7" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
                 )}
                 {nav === 'cases' && <CasesView cases={cases} loading={casesLoading} onAdd={addCase} onRemove={removeCase} />}
                 {nav === 'ai-feeds' && <AIFeedsView />}
@@ -309,30 +309,41 @@ function DashboardInner({ user, onLogout }: Props) {
   );
 }
 
-/* ═══ Dashboard Widget Catalog ═══ */
+/* ═══ Dashboard Widget Catalog — Inoreader exact ═══ */
+const ARTICLE_CONFIG: WDef2['configFields'] = [
+  { key: 'view', label: 'Vue', type: 'select', options: [{ value: 'magazine', label: 'Magazine' }, { value: 'list', label: 'Liste' }], default: 'magazine' },
+  { key: 'count', label: "Nombre d'articles", type: 'number', default: 5, min: 1, max: 20 },
+  { key: 'hideSource', label: 'Masquer la source', type: 'toggle', default: false },
+];
+
 const DASH_WIDGETS: WDef2[] = [
-  // Content (Inoreader-style)
-  { id: 'kpis',        title: 'Indicateurs Clés',       icon: Activity,      category: 'Contenu',    defaultW: 12, defaultH: 2,  minH: 2, minW: 6 },
-  { id: 'news',        title: 'Nouveaux articles',      icon: Newspaper,     category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 4, minW: 4 },
-  { id: 'alerts',      title: 'Alertes critiques',      icon: AlertTriangle, category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 3, minW: 3 },
-  { id: 'cases',       title: 'Cases suivis',           icon: FolderOpen,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
-  { id: 'trending',    title: 'Tendances',              icon: TrendingUp,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
-  // Analyse
-  { id: 'map',         title: 'Cartographie',           icon: Globe,         category: 'Analyse',    defaultW: 8,  defaultH: 8,  minH: 4, minW: 4 },
-  { id: 'sentiment',   title: 'Sentiment Global',       icon: TrendingUp,    category: 'Analyse',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  { id: 'themes',      title: 'Thématiques',            icon: BarChart2,     category: 'Analyse',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  // Data & usage (Inoreader-style)
-  { id: 'stats',       title: 'Statistiques',           icon: BarChart2,     category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  { id: 'rules-log',   title: 'Journal des rules',      icon: Activity,      category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  // Getting started
+  { id: 'checklist',        title: 'Checklist profil',           icon: Activity,      category: 'Démarrage',  defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  // Content
+  { id: 'whats-new',        title: "Quoi de neuf",               icon: Newspaper,     category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 4, minW: 4, configFields: ARTICLE_CONFIG },
+  { id: 'new-articles',     title: 'Nouveaux articles',          icon: Rss,           category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 4, minW: 4, configFields: ARTICLE_CONFIG },
+  { id: 'read-later',       title: 'Lire plus tard',             icon: FolderOpen,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4, configFields: ARTICLE_CONFIG },
+  { id: 'trending',         title: 'Tendances',                  icon: TrendingUp,    category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 3, minW: 4, configFields: ARTICLE_CONFIG },
+  { id: 'recently-read',    title: 'Articles lus récemment',     icon: Activity,      category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4, configFields: ARTICLE_CONFIG },
+  { id: 'cases',            title: 'Cases suivis',               icon: FolderOpen,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
+  // Data & usage
+  { id: 'stats',            title: 'Statistiques',               icon: BarChart2,     category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4,
+    configFields: [{ key: 'type', label: 'Type', type: 'select', options: [{ value: 'overview', label: 'Vue d\'ensemble' }, { value: 'read', label: 'Lu vs Non lu' }, { value: 'sources', label: 'Par source' }], default: 'overview' }] },
+  { id: 'rules-log',        title: 'Journal des rules',          icon: Zap,           category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  { id: 'inactive-feeds',   title: 'Feeds inactifs',             icon: AlertTriangle, category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  { id: 'failing-feeds',    title: 'Feeds en erreur',            icon: AlertTriangle, category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  // Intelligence (WorldMonitor unique)
+  { id: 'map',              title: 'Cartographie',               icon: Globe,         category: 'Intelligence', defaultW: 8,  defaultH: 8,  minH: 4, minW: 4 },
+  { id: 'alerts',           title: 'Alertes menaces',            icon: AlertTriangle, category: 'Intelligence', defaultW: 6,  defaultH: 8,  minH: 3, minW: 3, configFields: ARTICLE_CONFIG },
+  { id: 'sentiment',        title: 'Sentiment Global',           icon: TrendingUp,    category: 'Intelligence', defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+  { id: 'themes',           title: 'Thématiques',                icon: BarChart2,     category: 'Intelligence', defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
 ];
 
 const DASH_DEFAULTS: WS2[] = [
-  { id: 'alerts', w: 6, h: 8 },
-  { id: 'news', w: 6, h: 8 },
-  { id: 'trending', w: 6, h: 6 },
+  { id: 'read-later', w: 6, h: 6 },
+  { id: 'whats-new', w: 6, h: 8 },
+  { id: 'trending', w: 6, h: 8 },
   { id: 'cases', w: 6, h: 6 },
-  { id: 'stats', w: 6, h: 5 },
-  { id: 'themes', w: 6, h: 5 },
 ];
 
 /* ═══ Dashboard Widget Content ═══ */
@@ -342,21 +353,63 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
 }) {
   const setReadingArticleId = useContext(ArticleReaderContext);
   switch (id) {
-    case 'kpis':
+    case 'checklist': {
+      const steps = [
+        { label: 'Créer un compte', done: true },
+        { label: 'Ajouter votre premier feed', done: articles.length > 0 },
+        { label: 'Créer un dossier', done: false },
+        { label: 'Sauvegarder un article', done: false },
+        { label: 'Créer un case', done: cases.length > 0 },
+        { label: 'Configurer une rule', done: false },
+        { label: 'Installer les raccourcis clavier', done: true },
+      ];
+      const done = steps.filter(s => s.done).length;
+      const pct = Math.round((done / steps.length) * 100);
       return (
-        <div className="flex gap-2 p-3 h-full items-center">
-          {[
-            { l: 'Documents', v: stats?.total || 0, color: '#4d8cf5' },
-            { l: 'Cases', v: cases.length, color: '#42d3a5' },
-            { l: 'Critiques', v: stats?.by_threat['critical'] || 0, color: '#ef4444' },
-            { l: 'Élevées', v: stats?.by_threat['high'] || 0, color: '#f97316' },
-            { l: 'Sources', v: Object.keys(stats?.by_source || {}).length, color: '#8b5cf6' },
-          ].map((k, i) => (
-            <div key={i} className="flex-1 rounded-lg py-3 px-3 text-center" style={{ background: '#0f1923' }}>
-              <div className="text-xl font-extrabold" style={{ color: k.color }}>{k.v.toLocaleString()}</div>
-              <div className="text-[9px] font-medium uppercase tracking-wider" style={{ color: '#556677' }}>{k.l}</div>
+        <div className="p-4 h-full overflow-y-auto">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="text-[18px] font-bold" style={{ color: '#4d8cf5' }}>{pct}%</div>
+            <div className="flex-1 h-2 rounded-full" style={{ background: '#0f1923' }}>
+              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: '#4d8cf5' }} />
             </div>
+          </div>
+          <div className="space-y-2">
+            {steps.map((s, i) => (
+              <div key={i} className="flex items-center gap-3 py-1.5">
+                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{
+                  background: s.done ? '#42d3a5' : '#1e2d3d',
+                  color: s.done ? '#fff' : '#556677',
+                }}>
+                  {s.done ? '✓' : <span className="text-[10px]">{i + 1}</span>}
+                </div>
+                <span className="text-[12px]" style={{ color: s.done ? '#556677' : '#b0bec9', textDecoration: s.done ? 'line-through' : 'none' }}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    case 'whats-new':
+    case 'new-articles':
+    case 'read-later':
+    case 'recently-read':
+      return (
+        <div className="overflow-y-auto h-full p-2 space-y-0.5">
+          {(id === 'whats-new' ? articles.slice(0, 8) : id === 'trending' ? [...articles].sort((a, b) => { const o: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }; return (o[a.threat_level] ?? 5) - (o[b.threat_level] ?? 5); }).slice(0, 8) : articles.slice(0, 8)).map(a => (
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+              <div className="w-16 h-12 rounded-lg shrink-0 overflow-hidden" style={{ background: '#0f1923' }}>
+                {(a as any).image_url && <img src={(a as any).image_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-medium" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
+                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+                </div>
+              </div>
+            </button>
           ))}
+          {articles.length === 0 && <div className="text-center py-6 text-[11px]" style={{ color: '#556677' }}>Aucun article</div>}
         </div>
       );
     case 'cases':
@@ -505,9 +558,29 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
       return (
         <div className="flex items-center justify-center h-full text-center px-4">
           <div>
-            <Activity size={24} style={{ color: '#556677' }} className="mx-auto mb-2" />
+            <Zap size={24} style={{ color: '#3a4a5a' }} className="mx-auto mb-2" />
             <p className="text-[12px]" style={{ color: '#6b7d93' }}>Les règles d'automatisation s'afficheront ici</p>
-            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Créez des rules dans l'onglet Configuration</p>
+            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Créez des rules dans l'onglet Automate</p>
+          </div>
+        </div>
+      );
+    case 'inactive-feeds':
+      return (
+        <div className="flex items-center justify-center h-full text-center px-4">
+          <div>
+            <Rss size={24} style={{ color: '#3a4a5a' }} className="mx-auto mb-2" />
+            <p className="text-[12px]" style={{ color: '#6b7d93' }}>Feeds qui n'ont pas publié depuis longtemps</p>
+            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Aucun feed inactif détecté</p>
+          </div>
+        </div>
+      );
+    case 'failing-feeds':
+      return (
+        <div className="flex items-center justify-center h-full text-center px-4">
+          <div>
+            <AlertTriangle size={24} style={{ color: '#3a4a5a' }} className="mx-auto mb-2" />
+            <p className="text-[12px]" style={{ color: '#6b7d93' }}>Feeds qui retournent des erreurs</p>
+            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Aucune erreur de feed détectée</p>
           </div>
         </div>
       );
