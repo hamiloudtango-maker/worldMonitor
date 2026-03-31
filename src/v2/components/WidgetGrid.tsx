@@ -1,6 +1,7 @@
 /**
  * WidgetGrid — Free positioning with react-grid-layout.
  * Drag anywhere, resize from corners/edges, auto-compact.
+ * Per-widget settings panel (⚙) Inoreader-style.
  *
  * Widget content is rendered via React portals to bypass
  * react-grid-layout's shouldComponentUpdate which only compares
@@ -12,13 +13,24 @@ import { createPortal } from 'react-dom';
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { X, Plus, Search } from 'lucide-react';
+import { X, Plus, Search, Settings, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import ErrorBoundary from './shared/ErrorBoundary';
 
 const ACCENT = '#42d3a5';
 const ReactGridLayout = RGL.WidthProvider ? RGL.WidthProvider(RGL) : RGL;
 
 /* ═══ Types ═══ */
+
+export interface WidgetConfigField {
+  key: string;
+  label: string;
+  type: 'select' | 'number' | 'toggle' | 'text';
+  options?: { value: string; label: string }[];
+  default?: any;
+  min?: number;
+  max?: number;
+}
+
 export interface WidgetDef {
   id: string;
   title: string;
@@ -28,6 +40,7 @@ export interface WidgetDef {
   defaultH: number;   // grid units
   minW?: number;
   minH?: number;
+  configFields?: WidgetConfigField[];
 }
 
 export interface WidgetState {
@@ -44,7 +57,7 @@ interface Props {
   catalog: WidgetDef[];
   storageKey: string;
   defaultWidgets: WidgetState[];
-  renderContent: (id: string) => React.ReactNode;
+  renderContent: (id: string, config?: Record<string, any>) => React.ReactNode;
 }
 
 /* ═══ Persistence ═══ */
@@ -71,8 +84,23 @@ function saveLayout(key: string, layout: LayoutItem[]) {
   localStorage.setItem(key, JSON.stringify(layout));
 }
 
+function loadWidgetConfigs(key: string): Record<string, Record<string, any>> {
+  try {
+    const r = localStorage.getItem(`${key}_configs`);
+    if (r) return JSON.parse(r);
+  } catch {/**/}
+  return {};
+}
+function saveWidgetConfigs(key: string, configs: Record<string, Record<string, any>>) {
+  localStorage.setItem(`${key}_configs`, JSON.stringify(configs));
+}
+
 /* ═══ Portal-based widget content ═══ */
-function WidgetPortal({ id, renderContent }: { id: string; renderContent: (id: string) => React.ReactNode }) {
+function WidgetPortal({ id, renderContent, config }: {
+  id: string;
+  renderContent: (id: string, config?: Record<string, any>) => React.ReactNode;
+  config?: Record<string, any>;
+}) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -82,8 +110,79 @@ function WidgetPortal({ id, renderContent }: { id: string; renderContent: (id: s
 
   if (!target) return null;
   return createPortal(
-    <ErrorBoundary label={id}>{renderContent(id)}</ErrorBoundary>,
+    <ErrorBoundary label={id}>{renderContent(id, config)}</ErrorBoundary>,
     target,
+  );
+}
+
+/* ═══ Widget Settings Panel ═══ */
+function WidgetSettingsPanel({ def, config, onChange, onClose }: {
+  def: WidgetDef;
+  config: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  onClose: () => void;
+}) {
+  if (!def.configFields?.length) return null;
+
+  return (
+    <div className="absolute top-10 right-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-30 overflow-hidden" onMouseDown={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/80">
+        <span className="text-[11px] font-bold text-slate-700">Configuration</span>
+        <button onClick={onClose} className="p-0.5 text-slate-400 hover:text-slate-600 rounded">
+          <X size={12} />
+        </button>
+      </div>
+      <div className="p-3 space-y-3">
+        {def.configFields.map(field => (
+          <div key={field.key}>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 block">
+              {field.label}
+            </label>
+            {field.type === 'select' && (
+              <select
+                value={config[field.key] ?? field.default ?? ''}
+                onChange={e => onChange(field.key, e.target.value)}
+                className="w-full text-[12px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-[#42d3a5] text-slate-700"
+              >
+                {field.options?.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            )}
+            {field.type === 'number' && (
+              <input
+                type="number"
+                value={config[field.key] ?? field.default ?? ''}
+                onChange={e => onChange(field.key, parseInt(e.target.value) || field.default)}
+                min={field.min}
+                max={field.max}
+                className="w-full text-[12px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-[#42d3a5] text-slate-700"
+              />
+            )}
+            {field.type === 'toggle' && (
+              <button
+                onClick={() => onChange(field.key, !(config[field.key] ?? field.default))}
+                className={`relative w-9 h-5 rounded-full transition-colors ${
+                  (config[field.key] ?? field.default) ? 'bg-[#42d3a5]' : 'bg-slate-200'
+                }`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                  (config[field.key] ?? field.default) ? 'translate-x-4' : 'translate-x-0.5'
+                }`} />
+              </button>
+            )}
+            {field.type === 'text' && (
+              <input
+                type="text"
+                value={config[field.key] ?? field.default ?? ''}
+                onChange={e => onChange(field.key, e.target.value)}
+                className="w-full text-[12px] px-2 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-[#42d3a5] text-slate-700"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -93,10 +192,10 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
   const [layout, setLayout] = useState<LayoutItem[]>(() => loadLayout(storageKey, defaultWidgets, catalogMap));
   const [showCatalog, setShowCatalog] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState<string | null>(null);
+  const [widgetConfigs, setWidgetConfigs] = useState<Record<string, Record<string, any>>>(() => loadWidgetConfigs(storageKey));
 
   const onLayoutChange = useCallback((newLayout: LayoutItem[]) => {
-    // Merge positions from react-grid-layout with our state to preserve
-    // widget selection and minW/minH constraints
     setLayout(prev => {
       const posMap = new Map(newLayout.map(l => [l.i, l]));
       const merged = prev.map(item => {
@@ -105,6 +204,14 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
       });
       saveLayout(storageKey, merged);
       return merged;
+    });
+  }, [storageKey]);
+
+  const updateWidgetConfig = useCallback((widgetId: string, key: string, value: any) => {
+    setWidgetConfigs(prev => {
+      const next = { ...prev, [widgetId]: { ...(prev[widgetId] || {}), [key]: value } };
+      saveWidgetConfigs(storageKey, next);
+      return next;
     });
   }, [storageKey]);
 
@@ -122,6 +229,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
   function removeWidget(id: string) {
     const next = layout.filter(l => l.i !== id);
     setLayout(next); saveLayout(storageKey, next);
+    setSettingsOpen(null);
   }
 
   function resetLayout() {
@@ -131,14 +239,20 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
 
   const activeSet = new Set(layout.map(l => l.i));
   const available = catalog.filter(w => !activeSet.has(w.id));
-  const categories = [...new Set(available.map(w => w.category))];
 
   const activeItems = layout.filter(item => catalogMap[item.i]);
 
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {layout.length > 0 && (
+            <button onClick={resetLayout} className="flex items-center gap-1 px-2 py-1 text-[10px] text-slate-400 hover:text-slate-600 rounded transition-colors" title="Réinitialiser">
+              <RotateCcw size={11} /> Reset
+            </button>
+          )}
+        </div>
         <button onClick={() => setShowCatalog(!showCatalog)} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-[#42d3a5] hover:border-[#42d3a5]/30 transition-all">
           <Plus size={14} /> Widget
         </button>
@@ -164,7 +278,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
             const filteredCats = [...new Set(filtered.map(w => w.category))];
             const coreCategories = filteredCats.filter(c => !c.startsWith('RSS'));
             const rssCategories = filteredCats.filter(c => c.startsWith('RSS'));
-            if (filtered.length === 0) return <p className="text-sm text-slate-400 text-center py-4">Aucun widget trouve</p>;
+            if (filtered.length === 0) return <p className="text-sm text-slate-400 text-center py-4">Aucun widget trouvé</p>;
             return (
               <>
                 {/* Core widgets */}
@@ -232,22 +346,48 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
             {activeItems.map(item => {
               const def = catalogMap[item.i];
               const Icon = def.icon;
+              const hasConfig = def.configFields && def.configFields.length > 0;
               return (
-                <div key={item.i} className="bg-white rounded-xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden">
+                <div key={item.i} className="bg-white rounded-xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden group relative">
                   {/* Header — drag handle */}
                   <div className="wg-drag px-3 py-1.5 border-b border-slate-100 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none">
                     <div className="flex items-center gap-2">
                       <Icon size={13} style={{ color: ACCENT }} />
                       <span className="text-[12px] font-bold text-slate-900">{def.title}</span>
                     </div>
-                    <button
-                      onMouseDown={e => e.stopPropagation()}
-                      onClick={() => removeWidget(item.i)}
-                      className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                    >
-                      <X size={12} />
-                    </button>
+                    <div className="flex items-center gap-0.5">
+                      {hasConfig && (
+                        <button
+                          onMouseDown={e => e.stopPropagation()}
+                          onClick={() => setSettingsOpen(settingsOpen === item.i ? null : item.i)}
+                          className={`p-1 rounded transition-all ${
+                            settingsOpen === item.i
+                              ? 'text-[#42d3a5] bg-teal-50'
+                              : 'text-slate-300 hover:text-slate-500 opacity-0 group-hover:opacity-100'
+                          }`}
+                          title="Configurer"
+                        >
+                          <Settings size={12} />
+                        </button>
+                      )}
+                      <button
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={() => removeWidget(item.i)}
+                        className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                   </div>
+                  {/* Settings panel */}
+                  {settingsOpen === item.i && hasConfig && (
+                    <WidgetSettingsPanel
+                      def={def}
+                      config={widgetConfigs[item.i] || {}}
+                      onChange={(key, value) => updateWidgetConfig(item.i, key, value)}
+                      onClose={() => setSettingsOpen(null)}
+                    />
+                  )}
                   {/* Portal target — content rendered outside RGL's tree */}
                   <div id={`wg-content-${item.i}`} className="flex-1 min-h-0 overflow-hidden" />
                 </div>
@@ -256,7 +396,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
           </ReactGridLayout>
           {/* Portals: render widget content independently of RGL's SCU */}
           {activeItems.map(item => (
-            <WidgetPortal key={item.i} id={item.i} renderContent={renderContent} />
+            <WidgetPortal key={item.i} id={item.i} renderContent={renderContent} config={widgetConfigs[item.i]} />
           ))}
         </>
       ) : (

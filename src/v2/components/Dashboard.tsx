@@ -23,11 +23,14 @@ import AIFeedsView from './AIFeedsView';
 import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './WidgetGrid';
 import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import NotificationPanel from './shared/NotificationPanel';
+import NotificationBell from './NotificationBell';
+import GlobalSearch from './GlobalSearch';
 import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 import SourceManager from './SourceManager';
 import ApiServices from './ApiServices';
 import IntelModelsManager from './IntelModelsManager';
 import ReportsView from './ReportsView';
+import ReaderView from './ReaderView';
 import ArticleReader from './ArticleReader';
 import { ArticleReaderContext } from '@/v2/hooks/useArticleReader';
 
@@ -38,7 +41,7 @@ interface Props {
   user: { email: string; org_name: string };
   onLogout: () => void;
 }
-type NavKey = 'dashboard' | 'cases' | 'ai-feeds' | 'world' | 'reports' | 'settings';
+type NavKey = 'dashboard' | 'reader' | 'cases' | 'ai-feeds' | 'world' | 'reports' | 'settings';
 
 /* ═══════════════════════════════════════════════════════════════
    CONSTANTS
@@ -51,6 +54,7 @@ const CHART_COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#0
 
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep?: boolean }[] = [
   { key: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+  { key: 'reader',    label: 'Lecteur',         icon: Newspaper },
   { key: 'cases',     label: 'Cases',           icon: FolderOpen },
   { key: 'ai-feeds',  label: 'AI Feeds',        icon: Rss },
   { key: 'world',     label: '360 Mondial',     icon: Globe },
@@ -63,7 +67,7 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep
    ═══════════════════════════════════════════════════════════════ */
 function getNavFromHash(): NavKey {
   const raw = window.location.hash.replace('#', '').split(':')[0];
-  const valid: NavKey[] = ['dashboard', 'cases', 'ai-feeds', 'world', 'reports', 'settings'];
+  const valid: NavKey[] = ['dashboard', 'reader', 'cases', 'ai-feeds', 'world', 'reports', 'settings'];
   return valid.includes(raw as NavKey) ? (raw as NavKey) : 'dashboard';
 }
 
@@ -248,9 +252,11 @@ function DashboardInner({ user, onLogout }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <GlobalSearch />
             <button onClick={load} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 border border-slate-200 transition-colors" title="Actualiser">
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </button>
+            <NotificationBell onOpenArticle={setReadingArticleId} />
             <NotificationPanel articles={articles} cases={cases} />
             <button className="flex items-center gap-1.5 px-3 py-1.5 text-white text-[12px] font-semibold rounded-lg shadow-sm transition-colors" style={{ background: ACCENT }}>
               <FileBarChart size={14} /> Rapport
@@ -271,6 +277,9 @@ function DashboardInner({ user, onLogout }: Props) {
               renderContent={dashRenderContent}
             />
           )}
+
+          {/* ════════════════════ READER VIEW ════════════════════ */}
+          {nav === 'reader' && <ReaderView />}
 
           {/* ════════════════════ CASES VIEW ════════════════════ */}
           {nav === 'cases' && (
