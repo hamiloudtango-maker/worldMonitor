@@ -14,6 +14,36 @@ logger = logging.getLogger(__name__)
 
 # Atom namespace
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
+MEDIA_NS = {"media": "http://search.yahoo.com/mrss/"}
+
+
+def _extract_image(item: etree._Element) -> str:
+    """Extract image URL from RSS item — tries multiple sources."""
+    # 1. media:content or media:thumbnail
+    for ns_prefix in ["media", "{http://search.yahoo.com/mrss/}"]:
+        for tag in ["thumbnail", "content"]:
+            el = item.find(f"{ns_prefix}:{tag}", namespaces=MEDIA_NS) if ":" in f"{ns_prefix}:{tag}" else item.find(f"{ns_prefix}{tag}")
+            if el is not None and el.get("url"):
+                return el.get("url", "")
+    # Try without namespace
+    for tag_name in ["{http://search.yahoo.com/mrss/}thumbnail", "{http://search.yahoo.com/mrss/}content"]:
+        el = item.find(tag_name)
+        if el is not None and el.get("url"):
+            return el.get("url", "")
+    # 2. enclosure with image type
+    enc = item.find("enclosure")
+    if enc is not None:
+        enc_type = enc.get("type", "")
+        if "image" in enc_type:
+            return enc.get("url", "")
+    # 3. First <img> in description HTML
+    desc = item.findtext("description") or ""
+    if "<img" in desc:
+        import re
+        m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', desc)
+        if m:
+            return m.group(1)
+    return ""
 
 
 async def fetch_rss_feed(url: str, max_items: int = 50, timeout: int = 15) -> list[ParsedRow]:
@@ -78,6 +108,7 @@ def _parse_rss(root: etree._Element, max_items: int) -> list[ParsedRow]:
             "link": link,
             "pubDate": item.findtext("pubDate") or item.findtext("dc:date") or "",
             "source": item.findtext("source") or "",
+            "image": _extract_image(item),
         })
     return rows
 
@@ -116,5 +147,6 @@ def _parse_atom(root: etree._Element, max_items: int) -> list[ParsedRow]:
             "link": link,
             "pubDate": pub,
             "source": "",
+            "image": _extract_image(entry),
         })
     return rows

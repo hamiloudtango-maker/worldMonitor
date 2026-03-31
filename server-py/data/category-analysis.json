@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-03-31T21:32:57.306245+00:00",
+  "generated_at": "2026-03-31T21:44:00.357504+00:00",
   "period_days": 7,
-  "total_articles": 27670,
+  "total_articles": 27889,
   "categories": [
     {
       "name": "economy",
-      "article_count": 4793,
+      "article_count": 4862,
       "subcategories": [
         {
           "name": "stock market",
-          "article_count": 168,
+          "article_count": 172,
           "keywords": [
             "stock market"
           ],
@@ -25,11 +25,11 @@
         },
         {
           "name": "investment",
-          "article_count": 70,
+          "article_count": 71,
           "keywords": [
             "investment"
           ],
-          "label": "Stratégies d'investissement"
+          "label": "Tendances d'investissement"
         },
         {
           "name": "sec filing",
@@ -37,15 +37,15 @@
           "keywords": [
             "sec filing"
           ],
-          "label": "Dépôts SEC"
+          "label": "Documents SEC"
         },
         {
           "name": "inflation",
-          "article_count": 48,
+          "article_count": 49,
           "keywords": [
             "inflation"
           ],
-          "label": "Taux d'inflation"
+          "label": "L'inflation économique"
         },
         {
           "name": "economy",
@@ -53,7 +53,7 @@
           "keywords": [
             "economy"
           ],
-          "label": "Conjoncture économique"
+          "label": "Situation économique"
         },
         {
           "name": "oil prices",
@@ -65,15 +65,15 @@
         },
         {
           "name": "geopolitics",
-          "article_count": 33,
+          "article_count": 34,
           "keywords": [
             "geopolitics"
           ],
-          "label": "Enjeux géopolitiques"
+          "label": "Géopolitique mondiale"
         },
         {
           "name": "corporate governance",
-          "article_count": 31,
+          "article_count": 33,
           "keywords": [
             "corporate governance"
           ],
@@ -81,7 +81,7 @@
         },
         {
           "name": "infrastructure",
-          "article_count": 29,
+          "article_count": 32,
           "keywords": [
             "infrastructure"
           ],
@@ -121,7 +121,7 @@
         },
         {
           "name": "Air Canada",
-          "article_count": 7,
+          "article_count": 8,
           "keywords": [
             "Air Canada"
           ],
@@ -131,7 +131,7 @@
     },
     {
       "name": "economic",
-      "article_count": 3227,
+      "article_count": 3226,
       "subcategories": [
         {
           "name": "stock market",
@@ -147,23 +147,23 @@
           "keywords": [
             "investment"
           ],
-          "label": "Stratégies d'investissement"
+          "label": "Tendances d'investissement"
         },
         {
           "name": "economy",
-          "article_count": 147,
+          "article_count": 148,
           "keywords": [
             "economy"
           ],
-          "label": "Conjoncture économique"
+          "label": "Situation économique"
         },
         {
           "name": "fuel prices",
-          "article_count": 80,
+          "article_count": 81,
           "keywords": [
             "fuel prices"
           ],
-          "label": "Prix des carburants"
+          "label": "Prix du carburant"
         },
         {
           "name": "oil prices",
@@ -179,7 +179,7 @@
           "keywords": [
             "inflation"
           ],
-          "label": "Taux d'inflation"
+          "label": "L'inflation économique"
         },
         {
           "name": "manufacturing",
@@ -195,7 +195,7 @@
           "keywords": [
             "finance"
           ],
-          "label": "Marchés financiers"
+          "label": "Secteur financier"
         },
         {
           "name": "trade",
@@ -211,7 +211,7 @@
           "keywords": [
             "tourism"
           ],
-          "label": "Industrie du tourisme"
+          "label": "Secteur du tourisme"
         },
         {
           "name": "TotalEnergies",
@@ -251,32 +251,32 @@
           "keywords": [
             "EU"
           ],
-          "label": "Actualités UE"
+          "label": "Union Européenne"
         }
       ]
     },
     {
       "name": "conflict",
-      "article_count": 2452,
+      "article_count": 2450,
       "subcategories": [
         {
           "name": "geopolitics",
-          "article_count": 295,
+          "article_count": 300,
           "keywords": [
             "geopolitics"
           ],
-          "label": "Enjeux géopolitiques"
+          "label": "Géopolitique mondiale"
         },
         {
           "name": "iran",
-          "article_count": 212,
+          "article_count": 211,
           "keywords": [
             "iran"
           ]
         },
         {
           "name": "war",
-          "article_count": 206,
+          "article_count": 208,
           "keywords": [
             "war"
           ]
@@ -290,14 +290,14 @@
         },
         {
           "name": "diplomacy",
-          "article_count": 133,
+          "article_count": 134,
           "keywords": [
             "diplomacy"
           ]
         },
         {
           "name": "middle east conflict",
-          "article_count": 115,
+          "article_count": 117,
           "keywords": [
             "middle east conflict"
           ]
@@ -347,7 +347,7 @@
         },
         {
           "name": "Donald Trump",
-          "article_count": 52,
+          "article_count": 54,
           "keywords": [
             "Donald Trump"
           ],
@@ -371,18 +371,18 @@
     },
     {
       "name": "diplomatic",
-      "article_count": 1764,
+      "article_count": 1770,
       "subcategories": [
         {
           "name": "diplomacy",
-          "article_count": 409,
+          "article_count": 412,
           "keywords": [
             "diplomacy"
           ]
         },
         {
           "name": "international relations",
-          "article_count": 273,
+          "article_count": 272,
           "keywords": [
             "international relations"
           ]
@@ -396,24 +396,24 @@
         },
         {
           "name": "geopolitics",
-          "article_count": 102,
+          "article_count": 103,
           "keywords": [
             "geopolitics"
           ],
-          "label": "Enjeux géopolitiques"
+          "label": "Géopolitique mondiale"
+        },
+        {
+          "name": "foreign policy",
+          "article_count": 80,
+          "keywords": [
+            "foreign policy"
+          ]
         },
         {
           "name": "elections",
           "article_count": 80,
           "keywords": [
             "elections"
-          ]
-        },
-        {
-          "name": "foreign policy",
-          "article_count": 79,
-          "keywords": [
-            "foreign policy"
           ]
         },
         {
@@ -469,7 +469,7 @@
         },
         {
           "name": "UN",
-          "article_count": 42,
+          "article_count": 44,
           "keywords": [
             "UN"
           ]
@@ -597,7 +597,7 @@
     },
     {
       "name": "tech",
-      "article_count": 1224,
+      "article_count": 1229,
       "subcategories": [
         {
           "name": "ai",
@@ -622,7 +622,7 @@
         },
         {
           "name": "social media",
-          "article_count": 52,
+          "article_count": 53,
           "keywords": [
             "social media"
           ]
@@ -636,21 +636,21 @@
         },
         {
           "name": "sports",
-          "article_count": 32,
+          "article_count": 34,
           "keywords": [
             "sports"
           ]
         },
         {
           "name": "football",
-          "article_count": 30,
+          "article_count": 33,
           "keywords": [
             "football"
           ]
         },
         {
           "name": "space exploration",
-          "article_count": 24,
+          "article_count": 25,
           "keywords": [
             "space exploration"
           ]
@@ -694,58 +694,65 @@
         },
         {
           "name": "OpenAI",
-          "article_count": 20,
+          "article_count": 21,
           "keywords": [
             "OpenAI"
           ]
         },
         {
-          "name": "Anthropic",
+          "name": "NASA",
           "article_count": 16,
           "keywords": [
-            "Anthropic"
+            "NASA"
           ]
         }
       ]
     },
     {
       "name": "politics",
-      "article_count": 1153,
+      "article_count": 1185,
       "subcategories": [
         {
           "name": "diplomacy",
-          "article_count": 256,
+          "article_count": 255,
           "keywords": [
             "diplomacy"
           ]
         },
         {
           "name": "international relations",
-          "article_count": 159,
+          "article_count": 160,
           "keywords": [
             "international relations"
           ]
         },
         {
           "name": "geopolitics",
-          "article_count": 133,
+          "article_count": 139,
           "keywords": [
             "geopolitics"
           ],
-          "label": "Enjeux géopolitiques"
+          "label": "Géopolitique mondiale"
         },
         {
           "name": "governance",
-          "article_count": 98,
+          "article_count": 99,
           "keywords": [
             "governance"
           ]
         },
         {
           "name": "foreign policy",
-          "article_count": 60,
+          "article_count": 62,
           "keywords": [
             "foreign policy"
+          ]
+        },
+        {
+          "name": "government",
+          "article_count": 48,
+          "keywords": [
+            "government"
           ]
         },
         {
@@ -756,10 +763,10 @@
           ]
         },
         {
-          "name": "government",
+          "name": "human rights",
           "article_count": 46,
           "keywords": [
-            "government"
+            "human rights"
           ]
         },
         {
@@ -771,21 +778,14 @@
         },
         {
           "name": "oil",
-          "article_count": 43,
+          "article_count": 44,
           "keywords": [
             "oil"
           ]
         },
         {
-          "name": "human rights",
-          "article_count": 41,
-          "keywords": [
-            "human rights"
-          ]
-        },
-        {
           "name": "Donald Trump",
-          "article_count": 82,
+          "article_count": 87,
           "keywords": [
             "Donald Trump"
           ],
@@ -801,7 +801,7 @@
         },
         {
           "name": "White House",
-          "article_count": 19,
+          "article_count": 23,
           "keywords": [
             "White House"
           ]
@@ -812,11 +812,11 @@
           "keywords": [
             "EU"
           ],
-          "label": "Actualités UE"
+          "label": "Union Européenne"
         },
         {
           "name": "BJP",
-          "article_count": 9,
+          "article_count": 10,
           "keywords": [
             "BJP"
           ]
@@ -825,22 +825,22 @@
     },
     {
       "name": "military",
-      "article_count": 828,
+      "article_count": 827,
       "subcategories": [
         {
           "name": "iran",
-          "article_count": 72,
+          "article_count": 73,
           "keywords": [
             "iran"
           ]
         },
         {
           "name": "geopolitics",
-          "article_count": 63,
+          "article_count": 64,
           "keywords": [
             "geopolitics"
           ],
-          "label": "Enjeux géopolitiques"
+          "label": "Géopolitique mondiale"
         },
         {
           "name": "conflict",
@@ -938,76 +938,83 @@
     },
     {
       "name": "mute",
-      "article_count": 696,
+      "article_count": 763,
       "subcategories": [
         {
           "name": "football",
-          "article_count": 209,
+          "article_count": 240,
           "keywords": [
             "football"
           ]
         },
         {
           "name": "sports",
-          "article_count": 203,
+          "article_count": 226,
           "keywords": [
             "sports"
           ]
         },
         {
           "name": "world cup",
-          "article_count": 51,
+          "article_count": 65,
           "keywords": [
             "world cup"
           ]
         },
         {
           "name": "celebrity",
-          "article_count": 46,
+          "article_count": 51,
           "keywords": [
             "celebrity"
           ]
         },
         {
           "name": "culture",
-          "article_count": 34,
+          "article_count": 33,
           "keywords": [
             "culture"
           ]
         },
         {
           "name": "entertainment",
-          "article_count": 29,
+          "article_count": 31,
           "keywords": [
             "entertainment"
           ]
         },
         {
           "name": "cricket",
-          "article_count": 24,
+          "article_count": 27,
           "keywords": [
             "cricket"
           ]
         },
         {
           "name": "local news",
-          "article_count": 23,
+          "article_count": 25,
           "keywords": [
             "local news"
           ]
         },
         {
+          "name": "lottery",
+          "article_count": 19,
+          "keywords": [
+            "lottery"
+          ]
+        },
+        {
           "name": "music",
-          "article_count": 20,
+          "article_count": 19,
           "keywords": [
             "music"
           ]
         },
         {
-          "name": "basketball",
-          "article_count": 15,
+          "name": "FIFA",
+          "article_count": 8,
           "keywords": [
-            "basketball"
+            "FIFA"
           ]
         },
         {
@@ -1037,30 +1044,127 @@
           "keywords": [
             "PSL"
           ]
+        }
+      ]
+    },
+    {
+      "name": "society",
+      "article_count": 636,
+      "subcategories": [
+        {
+          "name": "crime",
+          "article_count": 94,
+          "keywords": [
+            "crime"
+          ]
         },
         {
-          "name": "Tottenham",
+          "name": "education",
+          "article_count": 48,
+          "keywords": [
+            "education"
+          ]
+        },
+        {
+          "name": "culture",
+          "article_count": 44,
+          "keywords": [
+            "culture"
+          ]
+        },
+        {
+          "name": "arrest",
+          "article_count": 42,
+          "keywords": [
+            "arrest"
+          ]
+        },
+        {
+          "name": "human rights",
+          "article_count": 34,
+          "keywords": [
+            "human rights"
+          ]
+        },
+        {
+          "name": "investigation",
+          "article_count": 30,
+          "keywords": [
+            "investigation"
+          ]
+        },
+        {
+          "name": "violence",
+          "article_count": 29,
+          "keywords": [
+            "violence"
+          ]
+        },
+        {
+          "name": "organized crime",
+          "article_count": 28,
+          "keywords": [
+            "organized crime"
+          ]
+        },
+        {
+          "name": "justice",
+          "article_count": 25,
+          "keywords": [
+            "justice"
+          ]
+        },
+        {
+          "name": "drug trafficking",
+          "article_count": 25,
+          "keywords": [
+            "drug trafficking"
+          ]
+        },
+        {
+          "name": "police",
+          "article_count": 8,
+          "keywords": [
+            "police"
+          ]
+        },
+        {
+          "name": "ICE",
+          "article_count": 6,
+          "keywords": [
+            "ICE"
+          ]
+        },
+        {
+          "name": "Dezi Freeman",
           "article_count": 5,
           "keywords": [
-            "Tottenham"
+            "Dezi Freeman"
+          ]
+        },
+        {
+          "name": "Amnesty International",
+          "article_count": 5,
+          "keywords": [
+            "Amnesty International"
           ]
         }
       ]
     },
     {
       "name": "health",
-      "article_count": 627,
+      "article_count": 635,
       "subcategories": [
         {
           "name": "public health",
-          "article_count": 119,
+          "article_count": 120,
           "keywords": [
             "public health"
           ]
         },
         {
           "name": "healthcare",
-          "article_count": 39,
+          "article_count": 40,
           "keywords": [
             "healthcare"
           ]
@@ -1154,110 +1258,6 @@
           "article_count": 3,
           "keywords": [
             "Henry Lee"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "society",
-      "article_count": 617,
-      "subcategories": [
-        {
-          "name": "crime",
-          "article_count": 88,
-          "keywords": [
-            "crime"
-          ]
-        },
-        {
-          "name": "education",
-          "article_count": 49,
-          "keywords": [
-            "education"
-          ]
-        },
-        {
-          "name": "culture",
-          "article_count": 48,
-          "keywords": [
-            "culture"
-          ]
-        },
-        {
-          "name": "arrest",
-          "article_count": 37,
-          "keywords": [
-            "arrest"
-          ]
-        },
-        {
-          "name": "human rights",
-          "article_count": 31,
-          "keywords": [
-            "human rights"
-          ]
-        },
-        {
-          "name": "violence",
-          "article_count": 28,
-          "keywords": [
-            "violence"
-          ]
-        },
-        {
-          "name": "investigation",
-          "article_count": 28,
-          "keywords": [
-            "investigation"
-          ]
-        },
-        {
-          "name": "organized crime",
-          "article_count": 27,
-          "keywords": [
-            "organized crime"
-          ]
-        },
-        {
-          "name": "drug trafficking",
-          "article_count": 25,
-          "keywords": [
-            "drug trafficking"
-          ]
-        },
-        {
-          "name": "justice",
-          "article_count": 22,
-          "keywords": [
-            "justice"
-          ]
-        },
-        {
-          "name": "police",
-          "article_count": 8,
-          "keywords": [
-            "police"
-          ]
-        },
-        {
-          "name": "ICE",
-          "article_count": 6,
-          "keywords": [
-            "ICE"
-          ]
-        },
-        {
-          "name": "Amnesty International",
-          "article_count": 5,
-          "keywords": [
-            "Amnesty International"
-          ]
-        },
-        {
-          "name": "Dezi Freeman",
-          "article_count": 4,
-          "keywords": [
-            "Dezi Freeman"
           ]
         }
       ]
@@ -1375,18 +1375,18 @@
     },
     {
       "name": "environmental",
-      "article_count": 490,
+      "article_count": 493,
       "subcategories": [
         {
           "name": "climate change",
-          "article_count": 45,
+          "article_count": 46,
           "keywords": [
             "climate change"
           ]
         },
         {
           "name": "sustainability",
-          "article_count": 40,
+          "article_count": 41,
           "keywords": [
             "sustainability"
           ]
@@ -1441,10 +1441,10 @@
           ]
         },
         {
-          "name": "energy policy",
+          "name": "environmental policy",
           "article_count": 13,
           "keywords": [
-            "energy policy"
+            "environmental policy"
           ]
         },
         {
@@ -1465,11 +1465,11 @@
         },
         {
           "name": "EU",
-          "article_count": 7,
+          "article_count": 8,
           "keywords": [
             "EU"
           ],
-          "label": "Actualités UE"
+          "label": "Union Européenne"
         },
         {
           "name": "Trump administration",
@@ -1489,7 +1489,7 @@
     },
     {
       "name": "protest",
-      "article_count": 453,
+      "article_count": 455,
       "subcategories": [
         {
           "name": "protest",
@@ -1716,32 +1716,32 @@
     },
     {
       "name": "cyber",
-      "article_count": 274,
+      "article_count": 267,
       "subcategories": [
         {
           "name": "cybersecurity",
-          "article_count": 81,
+          "article_count": 79,
           "keywords": [
             "cybersecurity"
           ]
         },
         {
           "name": "cyberattack",
-          "article_count": 32,
+          "article_count": 30,
           "keywords": [
             "cyberattack"
           ]
         },
         {
           "name": "hacking",
-          "article_count": 24,
+          "article_count": 23,
           "keywords": [
             "hacking"
           ]
         },
         {
           "name": "data breach",
-          "article_count": 23,
+          "article_count": 22,
           "keywords": [
             "data breach"
           ]
@@ -1820,11 +1820,11 @@
     },
     {
       "name": "technology",
-      "article_count": 208,
+      "article_count": 215,
       "subcategories": [
         {
           "name": "ai",
-          "article_count": 40,
+          "article_count": 37,
           "keywords": [
             "ai"
           ]
@@ -1844,6 +1844,13 @@
           ]
         },
         {
+          "name": "innovation",
+          "article_count": 15,
+          "keywords": [
+            "innovation"
+          ]
+        },
+        {
           "name": "artificial intelligence",
           "article_count": 14,
           "keywords": [
@@ -1851,15 +1858,8 @@
           ]
         },
         {
-          "name": "innovation",
-          "article_count": 14,
-          "keywords": [
-            "innovation"
-          ]
-        },
-        {
           "name": "software development",
-          "article_count": 13,
+          "article_count": 12,
           "keywords": [
             "software development"
           ]
@@ -1879,10 +1879,10 @@
           ]
         },
         {
-          "name": "software",
-          "article_count": 8,
+          "name": "social media",
+          "article_count": 9,
           "keywords": [
-            "software"
+            "social media"
           ]
         },
         {
@@ -1894,7 +1894,7 @@
         },
         {
           "name": "Meta",
-          "article_count": 8,
+          "article_count": 9,
           "keywords": [
             "Meta"
           ],
@@ -1925,7 +1925,7 @@
     },
     {
       "name": "defense",
-      "article_count": 174,
+      "article_count": 171,
       "subcategories": [
         {
           "name": "iran",
@@ -1954,7 +1954,7 @@
           "keywords": [
             "geopolitics"
           ],
-          "label": "Enjeux géopolitiques"
+          "label": "Géopolitique mondiale"
         },
         {
           "name": "military strike",
@@ -2027,21 +2027,21 @@
           ]
         },
         {
-          "name": "US Navy",
+          "name": "Army",
           "article_count": 3,
           "keywords": [
-            "US Navy"
+            "Army"
           ]
         }
       ]
     },
     {
       "name": "terrorism",
-      "article_count": 162,
+      "article_count": 161,
       "subcategories": [
         {
           "name": "terrorism",
-          "article_count": 61,
+          "article_count": 62,
           "keywords": [
             "terrorism"
           ]
@@ -2082,17 +2082,17 @@
           ]
         },
         {
+          "name": "counter-terrorism",
+          "article_count": 10,
+          "keywords": [
+            "counter-terrorism"
+          ]
+        },
+        {
           "name": "bank",
           "article_count": 10,
           "keywords": [
             "bank"
-          ]
-        },
-        {
-          "name": "counter-terrorism",
-          "article_count": 9,
-          "keywords": [
-            "counter-terrorism"
           ]
         },
         {
@@ -2103,10 +2103,10 @@
           ]
         },
         {
-          "name": "banking",
+          "name": "law enforcement",
           "article_count": 7,
           "keywords": [
-            "banking"
+            "law enforcement"
           ]
         },
         {
@@ -2134,11 +2134,11 @@
     },
     {
       "name": "environment",
-      "article_count": 134,
+      "article_count": 145,
       "subcategories": [
         {
           "name": "natural disaster",
-          "article_count": 22,
+          "article_count": 24,
           "keywords": [
             "natural disaster"
           ]
@@ -2159,9 +2159,16 @@
         },
         {
           "name": "climate change",
-          "article_count": 10,
+          "article_count": 11,
           "keywords": [
             "climate change"
+          ]
+        },
+        {
+          "name": "flooding",
+          "article_count": 9,
+          "keywords": [
+            "flooding"
           ]
         },
         {
@@ -2169,13 +2176,6 @@
           "article_count": 9,
           "keywords": [
             "weather forecast"
-          ]
-        },
-        {
-          "name": "flooding",
-          "article_count": 8,
-          "keywords": [
-            "flooding"
           ]
         },
         {
@@ -2193,6 +2193,13 @@
           ]
         },
         {
+          "name": "environmental policy",
+          "article_count": 7,
+          "keywords": [
+            "environmental policy"
+          ]
+        },
+        {
           "name": "wildlife conservation",
           "article_count": 6,
           "keywords": [
@@ -2200,45 +2207,45 @@
           ]
         },
         {
-          "name": "biodiversity",
-          "article_count": 6,
+          "name": "Inmet",
+          "article_count": 3,
           "keywords": [
-            "biodiversity"
+            "Inmet"
           ]
         }
       ]
     },
     {
       "name": "energy",
-      "article_count": 130,
+      "article_count": 135,
       "subcategories": [
         {
           "name": "energy policy",
-          "article_count": 26,
+          "article_count": 30,
           "keywords": [
             "energy policy"
           ]
         },
         {
           "name": "geopolitics",
-          "article_count": 15,
+          "article_count": 16,
           "keywords": [
             "geopolitics"
           ],
-          "label": "Enjeux géopolitiques"
-        },
-        {
-          "name": "energy crisis",
-          "article_count": 14,
-          "keywords": [
-            "energy crisis"
-          ]
+          "label": "Géopolitique mondiale"
         },
         {
           "name": "energy security",
           "article_count": 14,
           "keywords": [
             "energy security"
+          ]
+        },
+        {
+          "name": "energy crisis",
+          "article_count": 13,
+          "keywords": [
+            "energy crisis"
           ]
         },
         {
@@ -2249,19 +2256,19 @@
           ]
         },
         {
+          "name": "renewable energy",
+          "article_count": 13,
+          "keywords": [
+            "renewable energy"
+          ]
+        },
+        {
           "name": "oil prices",
           "article_count": 12,
           "keywords": [
             "oil prices"
           ],
           "label": "Prix du pétrole"
-        },
-        {
-          "name": "renewable energy",
-          "article_count": 12,
-          "keywords": [
-            "renewable energy"
-          ]
         },
         {
           "name": "energy markets",
@@ -2280,14 +2287,14 @@
         },
         {
           "name": "international cooperation",
-          "article_count": 7,
+          "article_count": 8,
           "keywords": [
             "international cooperation"
           ]
         },
         {
           "name": "TotalEnergies",
-          "article_count": 13,
+          "article_count": 14,
           "keywords": [
             "TotalEnergies"
           ],
@@ -2442,11 +2449,11 @@
     },
     {
       "name": "Donald Trump",
-      "count": 266
+      "count": 273
     },
     {
       "name": "Meta",
-      "count": 152
+      "count": 153
     },
     {
       "name": "G7",
@@ -2454,31 +2461,31 @@
     },
     {
       "name": "TotalEnergies",
-      "count": 121
+      "count": 122
     },
     {
       "name": "EU",
       "count": 112
     },
     {
+      "name": "Rubio",
+      "count": 99
+    },
+    {
       "name": "Houthis",
       "count": 99
     },
     {
-      "name": "Rubio",
-      "count": 98
-    },
-    {
       "name": "UN",
-      "count": 84
-    },
-    {
-      "name": "NATO",
-      "count": 68
+      "count": 87
     },
     {
       "name": "Government",
-      "count": 68
+      "count": 69
+    },
+    {
+      "name": "NATO",
+      "count": 66
     },
     {
       "name": "Apple",
@@ -2494,23 +2501,19 @@
     },
     {
       "name": "Google",
-      "count": 58
+      "count": 59
     },
     {
       "name": "White House",
-      "count": 47
+      "count": 51
     },
     {
       "name": "Tiger Woods",
-      "count": 47
+      "count": 48
     },
     {
       "name": "FBI",
       "count": 46
-    },
-    {
-      "name": "Putin",
-      "count": 45
     },
     {
       "name": "Marco Rubio",
@@ -2521,28 +2524,28 @@
       "count": 43
     },
     {
+      "name": "Putin",
+      "count": 42
+    },
+    {
       "name": "Pentagon",
       "count": 41
     },
     {
       "name": "Congress",
-      "count": 39
+      "count": 40
     },
     {
       "name": "NASA",
-      "count": 39
+      "count": 40
     },
     {
       "name": "BJP",
-      "count": 38
+      "count": 39
     },
     {
       "name": "Police",
       "count": 37
-    },
-    {
-      "name": "Kremlin",
-      "count": 35
     },
     {
       "name": "Ko Wen-je",
@@ -2555,36 +2558,40 @@
     {
       "name": "Anthropic",
       "count": 33
+    },
+    {
+      "name": "Tinubu",
+      "count": 33
     }
   ],
   "trending_countries": [
     {
       "name": "United States",
-      "count": 2744
+      "count": 2763
     },
     {
       "name": "Iran",
-      "count": 1763
+      "count": 1777
     },
     {
       "name": "Brazil",
-      "count": 1142
+      "count": 1171
     },
     {
       "name": "India",
-      "count": 764
-    },
-    {
-      "name": "France",
-      "count": 731
+      "count": 786
     },
     {
       "name": "Israel",
-      "count": 725
+      "count": 730
+    },
+    {
+      "name": "France",
+      "count": 728
     },
     {
       "name": "China",
-      "count": 689
+      "count": 691
     },
     {
       "name": "Taiwan",
@@ -2592,87 +2599,87 @@
     },
     {
       "name": "Russia",
-      "count": 446
+      "count": 429
     },
     {
       "name": "Japan",
-      "count": 291
+      "count": 292
     },
     {
       "name": "United Kingdom",
-      "count": 274
-    },
-    {
-      "name": "Ukraine",
-      "count": 269
+      "count": 277
     },
     {
       "name": "Spain",
-      "count": 259
+      "count": 262
+    },
+    {
+      "name": "Ukraine",
+      "count": 256
     },
     {
       "name": "Argentina",
-      "count": 245
+      "count": 252
     },
     {
       "name": "Croatia",
-      "count": 231
+      "count": 234
     },
     {
       "name": "Nigeria",
-      "count": 219
+      "count": 220
     },
     {
       "name": "Germany",
-      "count": 218
+      "count": 219
     },
     {
       "name": "Italy",
-      "count": 210
-    },
-    {
-      "name": "Pakistan",
-      "count": 205
+      "count": 219
     },
     {
       "name": "Portugal",
-      "count": 195
+      "count": 218
+    },
+    {
+      "name": "Pakistan",
+      "count": 203
     },
     {
       "name": "Lebanon",
-      "count": 191
+      "count": 193
     },
     {
       "name": "Mongolia",
-      "count": 190
+      "count": 189
     },
     {
       "name": "Chile",
-      "count": 173
+      "count": 186
     },
     {
       "name": "Australia",
-      "count": 168
+      "count": 174
     },
     {
       "name": "South Korea",
-      "count": 152
-    },
-    {
-      "name": "Yemen",
-      "count": 143
+      "count": 153
     },
     {
       "name": "Saudi Arabia",
-      "count": 142
+      "count": 144
     },
     {
-      "name": "Venezuela",
-      "count": 142
+      "name": "Yemen",
+      "count": 144
     },
     {
       "name": "Cuba",
-      "count": 137
+      "count": 143
+    },
+    {
+      "name": "Venezuela",
+      "count": 143
     },
     {
       "name": "Paraguay",
@@ -2681,24 +2688,24 @@
   ],
   "trending_tags": [
     {
-      "name": "diplomacy",
-      "count": 864
+      "name": "sports",
+      "count": 888
     },
     {
-      "name": "sports",
-      "count": 862
+      "name": "diplomacy",
+      "count": 866
     },
     {
       "name": "football",
-      "count": 801
+      "count": 836
     },
     {
       "name": "geopolitics",
-      "count": 730
+      "count": 743
     },
     {
       "name": "international relations",
-      "count": 623
+      "count": 622
     },
     {
       "name": "iran",
@@ -2706,19 +2713,19 @@
     },
     {
       "name": "politics",
-      "count": 428
+      "count": 422
     },
     {
       "name": "stock market",
-      "count": 413
+      "count": 419
     },
     {
       "name": "middle east",
-      "count": 352
+      "count": 354
     },
     {
       "name": "culture",
-      "count": 341
+      "count": 336
     },
     {
       "name": "investment",
@@ -2726,67 +2733,71 @@
     },
     {
       "name": "war",
-      "count": 265
+      "count": 267
     },
     {
       "name": "conflict",
-      "count": 258
-    },
-    {
-      "name": "tourism",
-      "count": 240
+      "count": 257
     },
     {
       "name": "human rights",
-      "count": 235
+      "count": 242
+    },
+    {
+      "name": "tourism",
+      "count": 241
     },
     {
       "name": "celebrity",
-      "count": 232
+      "count": 238
     },
     {
       "name": "education",
-      "count": 232
-    },
-    {
-      "name": "economy",
-      "count": 222
+      "count": 233
     },
     {
       "name": "foreign policy",
-      "count": 220
+      "count": 224
+    },
+    {
+      "name": "economy",
+      "count": 223
+    },
+    {
+      "name": "arrest",
+      "count": 213
     },
     {
       "name": "elections",
       "count": 211
     },
     {
-      "name": "ai",
-      "count": 210
-    },
-    {
       "name": "protest",
       "count": 209
     },
     {
-      "name": "arrest",
-      "count": 208
-    },
-    {
-      "name": "middle east conflict",
-      "count": 199
+      "name": "ai",
+      "count": 206
     },
     {
       "name": "social media",
-      "count": 197
+      "count": 202
+    },
+    {
+      "name": "middle east conflict",
+      "count": 201
     },
     {
       "name": "us foreign policy",
-      "count": 189
+      "count": 190
     },
     {
       "name": "oil prices",
-      "count": 177
+      "count": 179
+    },
+    {
+      "name": "world cup",
+      "count": 176
     },
     {
       "name": "governance",
@@ -2794,11 +2805,7 @@
     },
     {
       "name": "infrastructure",
-      "count": 172
-    },
-    {
-      "name": "government",
-      "count": 166
+      "count": 174
     }
   ],
   "new_intel_models": 0

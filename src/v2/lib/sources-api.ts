@@ -26,6 +26,7 @@ export interface ArticleSummary {
   title: string;
   description: string;
   url: string;
+  image_url?: string;
   source_id: string;
   pub_date?: string;
   threat_level?: string;

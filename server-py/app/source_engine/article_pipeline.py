@@ -206,6 +206,7 @@ def _build_article(
         title_translated=translated,
         description=str(row.get("description", "") or "")[:500],
         link=link,
+        image_url=row.get("image") or None,
         pub_date=_parse_pub_date(row),
         lang=enriched.get("lang", lang),
         threat_level=cls["threat_level"],

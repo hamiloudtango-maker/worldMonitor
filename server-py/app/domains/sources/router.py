@@ -659,6 +659,7 @@ def _article_summary(a: Article) -> dict:
         "title": a.title,
         "description": (a.description or "")[:300],
         "url": a.link,
+        "image_url": a.image_url if hasattr(a, 'image_url') else None,
         "source_id": a.source_id,
         "pub_date": a.pub_date.isoformat() if a.pub_date else None,
         "threat_level": a.threat_level,

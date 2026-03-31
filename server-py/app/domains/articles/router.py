@@ -99,6 +99,7 @@ async def search_articles(
                 "title_translated": a.title_translated,
                 "description": a.description,
                 "link": a.link,
+                "image_url": a.image_url,
                 "pub_date": a.pub_date.isoformat() if a.pub_date else None,
                 "lang": a.lang,
                 "threat_level": a.threat_level,

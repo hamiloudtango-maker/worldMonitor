@@ -257,14 +257,19 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                   className={`rounded-xl overflow-hidden cursor-pointer transition-all ${isRead ? 'opacity-50' : ''}`}
                   style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}
                 >
-                  {/* Image area — gradient placeholder (real images would come from og:image) */}
-                  <div className="h-44 relative" style={{
-                    background: a.threat_level === 'critical'
-                      ? 'linear-gradient(160deg, #1e1028, #2d1515, #1a0808)'
-                      : a.threat_level === 'high'
-                      ? 'linear-gradient(160deg, #1a2836, #2d1f0e, #1a1508)'
-                      : `linear-gradient(160deg, #1a2836, #162230, #0f1923)`,
+                  {/* Image area */}
+                  <div className="h-44 relative overflow-hidden" style={{
+                    background: '#0f1923',
                   }}>
+                    {(a as any).image_url ? (
+                      <img
+                        src={(a as any).image_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        loading="lazy"
+                      />
+                    ) : null}
                     {/* Overlay badges */}
                     {a.threat_level && (a.threat_level === 'critical' || a.threat_level === 'high') && (
                       <div className="absolute top-2.5 left-2.5">
@@ -285,6 +290,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                   </div>
 
                   {/* Content below image */}
+                  {/* Close image area extra elements if needed */}
                   <div className="p-4">
                     <h3 className="text-[15px] font-semibold leading-snug line-clamp-2 mb-2" style={{ color: '#b0bec9' }}>
                       {a.title}

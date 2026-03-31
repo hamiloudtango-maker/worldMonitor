@@ -17,6 +17,7 @@ class Article(Base):
     title_translated: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     link: Mapped[str] = mapped_column(Text, nullable=False)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # og:image, enclosure, media:content
     pub_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     lang: Mapped[str] = mapped_column(String(5), nullable=False, default="en")
 
