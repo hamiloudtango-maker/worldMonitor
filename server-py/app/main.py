@@ -42,6 +42,12 @@ ROUTERS = [
     "app.domains.cases.router",
     # AI Feeds
     "app.domains.ai_feeds.router",
+    # Plugins
+    "app.plugins.router",
+    # Notifications
+    "app.notifications.router",
+    # Rules engine
+    "app.rules_engine.router",
 ]
 
 
@@ -299,6 +305,27 @@ async def _auto_analyze_categories():
         await asyncio.sleep(7 * 24 * 3600)  # every 7 days
 
 
+async def _auto_plugin_ingest():
+    """Background task: ingest articles from all active plugin instances."""
+    import asyncio
+    import logging
+    from app.db import async_session
+
+    logger = logging.getLogger("plugin-ingest")
+    await _db_ready.wait()
+    await asyncio.sleep(10)  # stagger after RSS ingest
+
+    while True:
+        try:
+            from app.plugins.scheduler import run_plugin_ingest_cycle
+            n = await run_plugin_ingest_cycle(async_session)
+            if n:
+                logger.info(f"Plugin ingest: {n} new articles")
+        except Exception:
+            logger.debug("plugin ingest error", exc_info=True)
+        await asyncio.sleep(120)  # every 2 minutes, scheduler checks per-instance refresh_seconds
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.database_url.startswith("sqlite"):
@@ -307,8 +334,18 @@ async def lifespan(app: FastAPI):
         import app.models.intel_category  # noqa: F401
         import app.models.article_model  # noqa: F401
         import app.models.job  # noqa: F401 — register model before create_all
+        import app.plugins.models  # noqa: F401 — register PluginInstance
+        import app.notifications.models  # noqa: F401 — register Notification
+        import app.rules_engine.models  # noqa: F401 — register AutomationRule
 
         await create_all_tables()
+
+    # Discover plugins
+    from app.plugins import discover_plugins
+    import logging
+    _plog = logging.getLogger("plugins")
+    n_plugins = discover_plugins()
+    _plog.info(f"Discovered {n_plugins} plugins")
 
     # Seed RSS catalog + Intel Models on boot
     from app.db import async_session
@@ -388,11 +425,12 @@ async def lifespan(app: FastAPI):
     category_task = asyncio.create_task(_auto_analyze_categories())
     classify_task = asyncio.create_task(_auto_classify_articles())
     purge_task    = asyncio.create_task(_auto_purge_old_articles())
+    plugin_task   = asyncio.create_task(_auto_plugin_ingest())
 
     yield
 
     for t in [ingest_high, ingest_medium, ingest_low, scorer_task, feeds_gnews,
-              refresh_task, category_task, classify_task, purge_task]:
+              refresh_task, category_task, classify_task, purge_task, plugin_task]:
         t.cancel()
     from app.source_engine.scheduler import shutdown
     await shutdown()

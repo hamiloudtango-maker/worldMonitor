@@ -6,6 +6,7 @@ from app.models.org import Org
 from app.models.org_secret import OrgSecret
 from app.models.source_template import SourceTemplate
 from app.models.user import User
+from app.plugins.models import PluginInstance
 
 __all__ = [
     "AIFeed",
@@ -18,6 +19,7 @@ __all__ = [
     "DashboardPanel",
     "Org",
     "OrgSecret",
+    "PluginInstance",
     "SourceTemplate",
     "User",
 ]

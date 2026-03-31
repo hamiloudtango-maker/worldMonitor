@@ -338,12 +338,49 @@ async def list_entities(limit: int = Query(50, ge=1, le=200), db: AsyncSession =
     return {"entities": top}
 
 
+def _parse_json_field(val: str | None) -> list:
+    if not val:
+        return []
+    try:
+        return json.loads(val)
+    except Exception:
+        return []
+
+
+def _article_meta(article: Article) -> dict:
+    """Build rich metadata dict from an Article row."""
+    return {
+        "id": str(article.id),
+        "hash": article.hash,
+        "title": article.title,
+        "title_translated": article.title_translated,
+        "description": article.description,
+        "url": article.link,
+        "source_id": article.source_id,
+        "pub_date": article.pub_date.isoformat() if article.pub_date else None,
+        "lang": article.lang,
+        "threat_level": article.threat_level,
+        "theme": article.theme,
+        "family": article.family,
+        "section": article.section,
+        "article_type": article.article_type,
+        "criticality": article.criticality,
+        "sentiment": article.sentiment,
+        "summary": article.summary,
+        "tags": _parse_json_field(article.tags_json),
+        "persons": _parse_json_field(article.persons_json),
+        "orgs": _parse_json_field(article.orgs_json),
+        "countries": _parse_json_field(article.country_codes_json),
+        "countries_mentioned": _parse_json_field(article.countries_mentioned_json),
+    }
+
+
 @router.get("/{article_id}/content")
 async def get_article_content(
     article_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Scrape full article content as markdown. Cached on disk after first scrape."""
+    """Scrape full article content as markdown. Returns rich metadata + content."""
     import uuid as _uuid
     from app.source_engine.scraper import scrape_and_save, read_scraped
 
@@ -352,16 +389,22 @@ async def get_article_content(
         from fastapi import HTTPException
         raise HTTPException(404, "Article not found")
 
+    meta = _article_meta(article)
     pub_str = str(article.pub_date) if article.pub_date else None
+
+    # Estimate reading time (words / 200 wpm)
+    reading_time = None
 
     # Check cache
     cached = read_scraped(article.source_id, pub_str, article.hash)
     if cached:
+        word_count = len(cached.split())
+        reading_time = max(1, word_count // 200)
         return {
+            **meta,
             "content_md": cached,
-            "url": article.link,
-            "title": article.title,
-            "source_id": article.source_id,
+            "word_count": word_count,
+            "reading_time_min": reading_time,
             "cached": True,
         }
 
@@ -376,18 +419,19 @@ async def get_article_content(
 
     if not content:
         return {
+            **meta,
             "content_md": None,
-            "url": article.link,
-            "title": article.title,
             "error": "Scraping failed — content could not be extracted",
             "cached": False,
         }
 
+    word_count = len(content.split())
+    reading_time = max(1, word_count // 200)
     return {
+        **meta,
         "content_md": content,
-        "url": article.link,
-        "title": article.title,
-        "source_id": article.source_id,
+        "word_count": word_count,
+        "reading_time_min": reading_time,
         "cached": False,
     }
 

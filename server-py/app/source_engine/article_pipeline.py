@@ -436,4 +436,13 @@ async def enrich_and_store(
         except Exception:
             logger.debug("case matching after enrich_and_store skipped", exc_info=True)
 
+    # Run rules engine on new articles
+    if new_articles:
+        try:
+            from app.rules_engine.runner import run_rules_for_articles
+            await run_rules_for_articles(db, new_articles)
+            await db.commit()
+        except Exception:
+            logger.debug("rules engine after enrich_and_store skipped", exc_info=True)
+
     return len(new_articles)
