@@ -2,7 +2,7 @@
  * WorldMonitor OSINT — API client with JWT auth.
  */
 
-const API_BASE = 'http://localhost:8000/api';
+export const API_BASE = 'http://localhost:8000/api';
 
 // ── Token management ──────────────────────────────────────────
 const TOKEN_KEY = 'wm-access-token';

@@ -46,15 +46,14 @@ type NavKey = 'dashboard' | 'reader' | 'cases' | 'ai-feeds' | 'world' | 'reports
 /* ═══════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════ */
-const SIDEBAR_BG   = '#1e2a3a';
-const SIDEBAR_HEAD = '#192432';
-const ACCENT       = '#42d3a5';
-const CHART_COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
+const ACCENT       = '#4d8cf5';  // Inoreader-style blue
+const ACCENT_LIGHT = '#eef4ff';
+const CHART_COLORS = ['#4d8cf5', '#42d3a5', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
 
 
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep?: boolean }[] = [
-  { key: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { key: 'reader',    label: 'Lecteur',         icon: Newspaper },
+  { key: 'dashboard', label: 'Dashboard',       icon: LayoutDashboard },
   { key: 'cases',     label: 'Cases',           icon: FolderOpen },
   { key: 'ai-feeds',  label: 'AI Feeds',        icon: Rss },
   { key: 'world',     label: '360 Mondial',     icon: Globe },
@@ -68,7 +67,7 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep
 function getNavFromHash(): NavKey {
   const raw = window.location.hash.replace('#', '').split(':')[0];
   const valid: NavKey[] = ['dashboard', 'reader', 'cases', 'ai-feeds', 'world', 'reports', 'settings'];
-  return valid.includes(raw as NavKey) ? (raw as NavKey) : 'dashboard';
+  return valid.includes(raw as NavKey) ? (raw as NavKey) : 'reader';
 }
 
 export default function Dashboard(props: Props) {
@@ -165,146 +164,105 @@ function DashboardInner({ user, onLogout }: Props) {
 
   return (
     <ArticleReaderContext.Provider value={setReadingArticleId}>
-    <div className="flex h-screen bg-slate-100 text-slate-800 overflow-hidden" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="flex flex-col h-screen bg-white text-slate-800 overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}>
 
-      {/* ───────── SIDEBAR ───────── */}
-      <aside className="w-60 flex flex-col shrink-0 shadow-xl z-10 text-white" style={{ background: SIDEBAR_BG }}>
+      {/* ───────── TOP BAR (Inoreader-style) ───────── */}
+      <header className="h-12 bg-white border-b border-slate-200 flex items-center px-4 shrink-0 z-20">
         {/* Logo */}
-        <div className="h-16 flex items-center gap-3 px-5 shrink-0" style={{ background: SIDEBAR_HEAD }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg" style={{ background: `linear-gradient(135deg, ${ACCENT}, #3b82f6)` }}>
-            <Globe size={16} />
+        <div className="flex items-center gap-2.5 mr-6">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${ACCENT}, #6366f1)` }}>
+            <Globe size={14} className="text-white" />
           </div>
-          <div className="leading-tight">
-            <div className="font-extrabold text-sm tracking-wide">WORLDMONITOR</div>
-            <div className="text-[9px] font-bold tracking-[0.2em] uppercase" style={{ color: ACCENT }}>Intelligence Platform</div>
-          </div>
+          <span className="font-extrabold text-[15px] text-slate-900 tracking-tight">WorldMonitor</span>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map(item => (
-            <div key={item.key}>
-              {item.sep && <div className="my-3 mx-3 border-t border-white/5" />}
+        {/* Tab bar (Inoreader-style horizontal tabs) */}
+        <nav className="flex items-center gap-0.5 flex-1">
+          {NAV_ITEMS.map(item => {
+            const isActive = nav === item.key;
+            return (
               <button
+                key={item.key}
                 onClick={() => setNav(item.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all text-left ${
-                  nav === item.key ? 'font-semibold text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
+                  isActive
+                    ? 'text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                 }`}
-                style={nav === item.key ? { background: `${ACCENT}18` } : undefined}
+                style={isActive ? { background: ACCENT } : undefined}
               >
-                <item.icon size={18} style={{ color: nav === item.key ? ACCENT : undefined }} />
-                <span className="flex-1">{item.label}</span>
+                <item.icon size={14} />
+                <span className="hidden md:inline">{item.label}</span>
                 {item.key === 'cases' && cases.length > 0 && (
-                  <span className="text-[10px] font-bold text-slate-500 bg-white/10 w-5 h-5 rounded-full flex items-center justify-center">
+                  <span className={`text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ${isActive ? 'bg-white/30 text-white' : 'bg-slate-100 text-slate-500'}`}>
                     {cases.length}
                   </span>
                 )}
-                {item.key === 'dashboard' && alertArticles.length > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                {item.key === 'reader' && alertArticles.length > 0 && (
+                  <span className="bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                     {Math.min(alertArticles.length, 99)}
                   </span>
                 )}
               </button>
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
-        {/* User */}
-        <div className="px-4 py-4 shrink-0 border-t border-white/5" style={{ background: SIDEBAR_HEAD }}>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shadow-md" style={{ background: `linear-gradient(135deg, ${ACCENT}, #3b82f6)` }}>
+        {/* Right actions */}
+        <div className="flex items-center gap-1.5">
+          <GlobalSearch />
+          <button onClick={load} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-50 transition-colors" title="Actualiser">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <NotificationBell onOpenArticle={setReadingArticleId} />
+          {/* User avatar */}
+          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-slate-200">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: ACCENT }}>
               {user.org_name.charAt(0).toUpperCase()}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-slate-200 truncate">{user.email}</div>
-              <div className="text-[11px]" style={{ color: ACCENT }}>{user.org_name}</div>
-            </div>
-            <button onClick={onLogout} className="text-slate-600 hover:text-red-400 p-1 rounded" title="Déconnexion">
-              <LogOut size={14} />
+            <button onClick={onLogout} className="text-slate-400 hover:text-red-500 p-1 rounded transition-colors" title="Déconnexion">
+              <LogOut size={13} />
             </button>
           </div>
         </div>
-      </aside>
+      </header>
 
-      {/* ───────── MAIN ───────── */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      {/* ───────── CONTENT ───────── */}
+      <div className="flex-1 overflow-hidden">
 
-        {/* Header */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-bold text-slate-900">
-              {NAV_ITEMS.find(n => n.key === nav)?.label || 'Dashboard'}
-            </h1>
-            {!loading && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-semibold border border-emerald-100">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
-              </div>
+        {/* Reader = full height, no padding (has its own sidebar) */}
+        {nav === 'reader' && <ReaderView />}
+
+        {/* Other views with standard padding */}
+        {nav !== 'reader' && (
+          <div className="h-full overflow-y-auto p-5 space-y-4 bg-slate-50">
+
+            {nav === 'dashboard' && (
+              <WidgetGrid
+                catalog={catalog}
+                storageKey="wm-dash-v3"
+                defaultWidgets={DASH_DEFAULTS}
+                renderContent={dashRenderContent}
+              />
             )}
-            {loading && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-semibold border border-blue-100">
-                <RefreshCw size={10} className="animate-spin" /> Chargement...
-              </div>
+
+            {nav === 'cases' && (
+              <CasesView
+                cases={cases}
+                loading={casesLoading}
+                onAdd={addCase}
+                onRemove={removeCase}
+              />
             )}
-            {stats?.last_ingest_at && (
-              <div className="flex items-center gap-1 px-2 py-1 text-[10px] text-slate-400" title={`Dernière ingestion : ${new Date(stats.last_ingest_at).toLocaleString('fr-FR')}`}>
-                <Clock size={10} /> Ingestion {timeAgo(stats.last_ingest_at)}
-              </div>
-            )}
+
+            {nav === 'ai-feeds' && <AIFeedsView />}
+            {nav === 'world' && <WorldView />}
+            {nav === 'reports' && <ReportsView />}
+            {nav === 'settings' && <SettingsView user={user} stats={stats} cases={cases} onLogout={onLogout} />}
           </div>
-          <div className="flex items-center gap-2">
-            <GlobalSearch />
-            <button onClick={load} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 border border-slate-200 transition-colors" title="Actualiser">
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <NotificationBell onOpenArticle={setReadingArticleId} />
-            <NotificationPanel articles={articles} cases={cases} />
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-white text-[12px] font-semibold rounded-lg shadow-sm transition-colors" style={{ background: ACCENT }}>
-              <FileBarChart size={14} /> Rapport
-            </button>
-          </div>
-        </header>
-        {/* FilterBar removed — filtering via widgets */}
+        )}
+      </div>
 
-        {/* Content area */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-
-          {/* ════════════════════ DASHBOARD VIEW ════════════════════ */}
-          {nav === 'dashboard' && (
-            <WidgetGrid
-              catalog={catalog}
-              storageKey="wm-dash-v3"
-              defaultWidgets={DASH_DEFAULTS}
-              renderContent={dashRenderContent}
-            />
-          )}
-
-          {/* ════════════════════ READER VIEW ════════════════════ */}
-          {nav === 'reader' && <ReaderView />}
-
-          {/* ════════════════════ CASES VIEW ════════════════════ */}
-          {nav === 'cases' && (
-            <CasesView
-              cases={cases}
-              loading={casesLoading}
-              onAdd={addCase}
-              onRemove={removeCase}
-            />
-          )}
-
-          {/* ════════════════════ AI FEEDS VIEW ════════════════════ */}
-          {nav === 'ai-feeds' && <AIFeedsView />}
-
-          {/* ════════════════════ WORLD VIEW ════════════════════ */}
-          {nav === 'world' && <WorldView />}
-
-          {/* ════════════════════ REPORTS VIEW ════════════════════ */}
-          {nav === 'reports' && <ReportsView />}
-
-          {/* ════════════════════ SETTINGS VIEW ════════════════════ */}
-          {nav === 'settings' && <SettingsView user={user} stats={stats} cases={cases} onLogout={onLogout} />}
-
-        </div>
-      </main>
       <ArticleReader articleId={readingArticleId} onClose={() => setReadingArticleId(null)} />
     </div>
     </ArticleReaderContext.Provider>

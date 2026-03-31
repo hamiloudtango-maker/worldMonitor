@@ -2,8 +2,7 @@
 // Real-time notification bell with SSE connection and dropdown
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, Check, CheckCheck, ExternalLink, X, AlertTriangle, Info, Zap, Folder, Rss, Settings } from 'lucide-react';
-import { api } from '@/v2/lib/api';
-import { API_BASE } from '@/v2/lib/constants';
+import { api, API_BASE } from '@/v2/lib/api';
 
 interface NotifItem {
   id: string;

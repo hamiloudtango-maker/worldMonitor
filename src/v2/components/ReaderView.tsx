@@ -13,7 +13,7 @@ import { api } from '@/v2/lib/api';
 import ArticleListView from './ArticleListView';
 import AddSourceModal from './AddSourceModal';
 
-const ACCENT = '#42d3a5';
+const ACCENT = '#4d8cf5';
 
 type SidebarSection = 'all' | 'starred' | 'read-later' | 'trending' | { folder: FolderData };
 
@@ -82,7 +82,7 @@ export default function ReaderView() {
     : typeof section === 'object' ? section.folder.name : '';
 
   return (
-    <div className="flex h-full -m-5">
+    <div className="flex h-full">
 
       {/* ── Left sidebar: folders & quick access ─────────── */}
       <aside className="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0">

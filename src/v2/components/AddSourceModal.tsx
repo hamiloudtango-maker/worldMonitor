@@ -1,15 +1,15 @@
 // src/v2/components/AddSourceModal.tsx
 // Inoreader-style: paste URL → auto-detect → add to folder
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { X, Search, Loader2, Rss, Globe, Send, Twitter, Cloud, Facebook, Plus, FolderPlus, Check } from 'lucide-react';
+import { X, Search, Loader2, Rss, Globe, Send, AtSign, Cloud, MessageCircle, Plus, FolderPlus, Check } from 'lucide-react';
 import { detectSource, addSource, listFolders, createFolder, type DetectedSource, type FolderData } from '@/v2/lib/sources-api';
 
 const TYPE_ICONS: Record<string, typeof Rss> = {
   rss: Rss,
   telegram: Send,
-  twitter: Twitter,
+  twitter: AtSign,
   bluesky: Cloud,
-  facebook: Facebook,
+  facebook: MessageCircle,
   web_scraper: Globe,
 };
 
