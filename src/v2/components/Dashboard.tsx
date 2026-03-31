@@ -22,7 +22,7 @@ import CasesView from './CasesView';
 import WorldView from './WorldView';
 import AIFeedsView from './AIFeedsView';
 import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './WidgetGrid';
-import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
+// Old widget catalog removed — using Inoreader-style widgets only
 import NotificationPanel from './shared/NotificationPanel';
 import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
@@ -103,14 +103,14 @@ function DashboardInner({ user, onLogout }: Props) {
   }, []);
   const { articles, stats, entities, countries, loading, refresh: load } = useGlobalData();
   const [filters, setFilters]       = useState<ActiveFilters>(EMPTY_FILTERS);
-  const [catalog, setCatalog]       = useState(FULL_CATALOG);
+  const [catalog, setCatalog]       = useState(DASH_WIDGETS);
   const [readingArticleId, setReadingArticleId] = useState<string | null>(null);
 
   const { cases, loading: casesLoading, add: addCase, remove: removeCase } = useCases();
 
   // Load feed widgets into catalog
   useEffect(() => {
-    buildCatalogWithFeeds().then(setCatalog);
+    setCatalog(DASH_WIDGETS);
   }, [nav]); // Refresh when switching tabs (in case feeds were created)
 
   /* ── Filtered articles: backend JOIN when models selected, local filter for text search ── */
@@ -164,8 +164,6 @@ function DashboardInner({ user, onLogout }: Props) {
   , [stats]);
 
   const dashRenderContent = useCallback((id: string) => {
-    const shared = renderSharedWidget(id, filteredArticles, filteredStats, 'dash');
-    if (shared) return shared;
     return <DashContent id={id} stats={stats} articles={articles} cases={cases} alertArticles={alertArticles} sentimentData={sentimentData} thematicData={thematicData} />;
   }, [filteredArticles, filteredStats, stats, articles, cases, alertArticles, sentimentData, thematicData]);
 
@@ -288,7 +286,7 @@ function DashboardInner({ user, onLogout }: Props) {
 
               <div className="px-6 pb-6 space-y-4">
                 {nav === 'dashboard' && (
-                  <WidgetGrid catalog={catalog} storageKey="wm-dash-v7" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
+                  <WidgetGrid catalog={catalog} storageKey="wm-dash-v9" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
                 )}
                 {nav === 'cases' && <CasesView cases={cases} loading={casesLoading} onAdd={addCase} onRemove={removeCase} />}
                 {nav === 'ai-feeds' && <AIFeedsView />}
