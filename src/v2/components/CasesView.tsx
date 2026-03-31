@@ -288,39 +288,61 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
       )}
 
       {filtered.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
           {filtered.map(c => {
             const Icon = TYPE_ICON[c.type] ?? FileText;
             return (
               <div
                 key={c.id}
                 onClick={() => openCase(c)}
-                className="bg-[#1a2836] p-4 rounded-xl border border-[#1e2d3d]/60 hover:border-[#42d3a5]/30 hover:shadow-md cursor-pointer transition-all group relative"
+                className="rounded-xl overflow-hidden cursor-pointer transition-all group relative"
+                style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = '#42d3a540'; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = '#1e2d3d'; }}
               >
-                <button
-                  onClick={e => handleDelete(e, c.id)}
-                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-[#556677] hover:text-red-500 hover:bg-red-500/10 transition-all"
-                  title="Supprimer"
-                >
-                  {deleting === c.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                </button>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-xl bg-[#131d2a] flex items-center justify-center text-[#6b7d93] group-hover:bg-[#42d3a5]/10 group-hover:text-[#42d3a5] transition-colors shrink-0">
-                    <Icon size={18} />
+                {/* Header band with type color */}
+                <div className="h-1.5" style={{
+                  background: c.type === 'company' ? '#3b82f6' : c.type === 'country' ? '#22c55e' : c.type === 'person' ? '#a855f7' : '#f97316',
+                }} />
+
+                <div className="p-4">
+                  <button
+                    onClick={e => handleDelete(e, c.id)}
+                    className="absolute top-4 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all"
+                    style={{ color: '#556677' }}
+                    title="Supprimer"
+                  >
+                    {deleting === c.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  </button>
+
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                      style={{ background: '#131d2a', color: '#6b7d93' }}>
+                      <Icon size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-[14px] truncate" style={{ color: '#e2e8f0' }}>{c.name}</div>
+                      <div className="text-[10px]" style={{ color: '#556677' }}>{TYPE_LABEL[c.type] ?? c.type}</div>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-[#b0bec9] group-hover:text-[#2a9d7e] transition-colors truncate">{c.name}</div>
-                    <div className="text-[10px] text-[#556677]">{TYPE_LABEL[c.type] ?? c.type}</div>
-                  </div>
-                </div>
-                {c.identity_card?.description && (
-                  <p className="text-[11px] text-[#6b7d93] leading-relaxed line-clamp-2 mb-3">{c.identity_card.description}</p>
-                )}
-                <div className="flex items-center gap-3 text-[10px] text-[#556677]">
-                  <span className="flex items-center gap-1"><FileText size={11} /> {c.article_count} articles</span>
-                  {c.alert_count > 0 && (
-                    <span className="flex items-center gap-1 text-orange-500 font-semibold"><AlertTriangle size={11} /> {c.alert_count} alertes</span>
+
+                  {c.identity_card?.description && (
+                    <p className="text-[11px] leading-relaxed line-clamp-2 mb-3" style={{ color: '#6b7d93' }}>{c.identity_card.description}</p>
                   )}
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-[10px]" style={{ color: '#556677' }}>
+                      <span className="flex items-center gap-1"><FileText size={11} /> {c.article_count} articles</span>
+                      {c.alert_count > 0 && (
+                        <span className="flex items-center gap-1 font-semibold" style={{ color: '#f97316' }}>
+                          <AlertTriangle size={11} /> {c.alert_count} alertes
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: '#131d2a', color: '#6b7d93' }}>
+                      {c.status || 'actif'}
+                    </span>
+                  </div>
                 </div>
               </div>
             );

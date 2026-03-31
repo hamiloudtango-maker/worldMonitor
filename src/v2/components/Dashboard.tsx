@@ -1,32 +1,24 @@
 import { useState, useEffect, useCallback, useContext, useMemo } from 'react';
 import {
-  LayoutDashboard, FolderOpen, FileBarChart, Settings, Bell, Search,
-  AlertTriangle, Globe, TrendingUp, Building,
-  Newspaper, Activity, BarChart2,
-  RefreshCw, LogOut, ExternalLink, Rss, Clock,
-  Zap, PlusCircle,
+  LayoutDashboard, FolderOpen, FileBarChart, Settings,
+  Globe, Newspaper, Rss, Zap, Search, RefreshCw, LogOut,
+  TrendingUp, Star, BookmarkPlus, AlertTriangle, Activity,
+  BarChart2, Building, Plus, ChevronDown, ChevronUp,
+  MoreHorizontal, ExternalLink, Eye,
 } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell
-} from 'recharts';
 import type { CaseData } from '@/v2/lib/api';
 import type { Article, Stats } from '@/v2/lib/constants';
-import { capitalize, timeAgo } from '@/v2/lib/constants';
+import { timeAgo } from '@/v2/lib/constants';
 import { useCases } from '@/v2/hooks/useCases';
 import { DataProvider, useGlobalData } from '@/v2/hooks/useData';
-import { fetchArticlesByModels } from '@/v2/lib/api';
+import { api } from '@/v2/lib/api';
+import { listStarred, listReadLater, getTrending, type ArticleSummary } from '@/v2/lib/sources-api';
 import { getDisplaySettings as getDisplaySettingsFn, setDisplaySettings as setDisplaySettingsFn } from '@/v2/lib/display-settings';
-import LiveMap from './LiveMap';
 import CasesView from './CasesView';
 import WorldView from './WorldView';
 import AIFeedsView from './AIFeedsView';
-import WidgetGrid, { type WidgetDef as WDef2, type WidgetState as WS2 } from './WidgetGrid';
-// Old widget catalog removed — using Inoreader-style widgets only
-import NotificationPanel from './shared/NotificationPanel';
 import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
-import FilterBar, { type ActiveFilters, EMPTY_FILTERS } from './shared/FilterBar';
 import SourceManager from './SourceManager';
 import ApiServices from './ApiServices';
 import IntelModelsManager from './IntelModelsManager';
@@ -47,21 +39,19 @@ interface Props {
 type NavKey = 'dashboard' | 'reader' | 'cases' | 'ai-feeds' | 'world' | 'automate' | 'search-page' | 'reports' | 'settings';
 
 /* ═══════════════════════════════════════════════════════════════
-   CONSTANTS
+   CONSTANTS — Inoreader dark theme tokens
    ═══════════════════════════════════════════════════════════════ */
-// Inoreader dark theme tokens
 const BG_APP       = '#131d2a';
 const BG_SIDEBAR   = '#0f1923';
 const BG_CARD      = '#1a2836';
 const ACCENT       = '#4d8cf5';
 const TEXT_PRIMARY  = '#b0bec9';
 const TEXT_SECONDARY= '#6b7d93';
+const TEXT_HEADING  = '#e2e8f0';
 const BORDER       = '#1e2d3d';
-const CHART_COLORS = ['#4d8cf5', '#42d3a5', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
-
 
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep?: boolean }[] = [
-  { key: 'dashboard', label: 'Accueil',         icon: LayoutDashboard },
+  { key: 'dashboard', label: 'Dashboards',      icon: LayoutDashboard },
   { key: 'reader',    label: 'Feeds',           icon: Newspaper },
   { key: 'cases',     label: 'Cases',           icon: FolderOpen },
   { key: 'ai-feeds',  label: 'AI Feeds',        icon: Rss },
@@ -78,7 +68,7 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep
 function getNavFromHash(): NavKey {
   const raw = window.location.hash.replace('#', '').split(':')[0];
   const valid: NavKey[] = ['dashboard', 'reader', 'cases', 'ai-feeds', 'world', 'automate', 'search-page', 'reports', 'settings'];
-  return valid.includes(raw as NavKey) ? (raw as NavKey) : 'reader';
+  return valid.includes(raw as NavKey) ? (raw as NavKey) : 'dashboard';
 }
 
 export default function Dashboard(props: Props) {
@@ -90,7 +80,7 @@ export default function Dashboard(props: Props) {
 }
 
 function DashboardInner({ user, onLogout }: Props) {
-  const [nav, _setNav]              = useState<NavKey>(getNavFromHash);
+  const [nav, _setNav] = useState<NavKey>(getNavFromHash);
   const setNav = useCallback((key: NavKey) => {
     window.location.hash = key;
     _setNav(key);
@@ -101,100 +91,36 @@ function DashboardInner({ user, onLogout }: Props) {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  const { articles, stats, entities, countries, loading, refresh: load } = useGlobalData();
-  const [filters, setFilters]       = useState<ActiveFilters>(EMPTY_FILTERS);
-  const [catalog, setCatalog]       = useState(DASH_WIDGETS);
-  const [readingArticleId, setReadingArticleId] = useState<string | null>(null);
 
+  const { articles, stats, loading, refresh: load } = useGlobalData();
   const { cases, loading: casesLoading, add: addCase, remove: removeCase } = useCases();
-
-  // Load feed widgets into catalog
-  useEffect(() => {
-    setCatalog(DASH_WIDGETS);
-  }, [nav]); // Refresh when switching tabs (in case feeds were created)
-
-  /* ── Filtered articles: backend JOIN when models selected, local filter for text search ── */
-  const [modelArticles, setModelArticles] = useState<Article[] | null>(null);
-
-  useEffect(() => {
-    if (filters.models.length === 0) { setModelArticles(null); return; }
-    fetchArticlesByModels(filters.models).then(r => setModelArticles(r.articles)).catch(() => {});
-  }, [filters.models]);
-
-  const baseArticles = filters.models.length > 0 && modelArticles ? modelArticles : articles;
-  const filteredArticles = useMemo(() => {
-    if (!filters.q) return baseArticles;
-    const q = filters.q.toLowerCase();
-    return baseArticles.filter(a => a.title.toLowerCase().includes(q));
-  }, [baseArticles, filters.q]);
-
-  const alertArticles = useMemo(() =>
-    filteredArticles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high')
-  , [filteredArticles]);
-
-  const hasFilters = filters.q || filters.models.length;
-  const filteredStats = useMemo(() => hasFilters ? (() => {
-    const by_theme: Record<string, number> = {};
-    const by_threat: Record<string, number> = {};
-    const by_source: Record<string, number> = {};
-    for (const a of filteredArticles) {
-      by_theme[a.theme] = (by_theme[a.theme] || 0) + 1;
-      by_threat[a.threat_level] = (by_threat[a.threat_level] || 0) + 1;
-      by_source[a.source_id] = (by_source[a.source_id] || 0) + 1;
-    }
-    return { total: filteredArticles.length, by_theme, by_threat, by_source, by_lang: {} };
-  })() : stats, [filteredArticles, hasFilters, stats]);
-
-  const sentimentData = useMemo(() => {
-    const neg = (stats?.by_threat['critical'] || 0) + (stats?.by_threat['high'] || 0);
-    const pos = stats?.by_threat['low'] || 0;
-    const neu = stats?.by_threat['info'] || 0;
-    const seed = neg + pos + neu; // deterministic instead of random
-    return ['06', '09', '12', '15', '18', '21'].map((h, i) => ({
-      time: `${h}:00`,
-      positive: Math.round(pos * (0.5 + ((seed * (i + 1) * 7) % 60) / 100)),
-      negative: Math.round(neg * (0.3 + ((seed * (i + 1) * 13) % 90) / 100)),
-      neutral:  Math.round(neu * (0.5 + ((seed * (i + 1) * 3) % 50) / 100)),
-    }));
-  }, [stats]);
-
-  const thematicData = useMemo(() => Object.entries(stats?.by_theme || {})
-    .sort((a, b) => b[1] - a[1]).slice(0, 7)
-    .map(([n, v]) => ({ name: capitalize(n), value: v }))
-  , [stats]);
-
-  const dashRenderContent = useCallback((id: string) => {
-    return <DashContent id={id} stats={stats} articles={articles} cases={cases} alertArticles={alertArticles} sentimentData={sentimentData} thematicData={thematicData} />;
-  }, [filteredArticles, filteredStats, stats, articles, cases, alertArticles, sentimentData, thematicData]);
-
-  /* ═══════════════════════════════════════════════════════════════
-     RENDER
-     ═══════════════════════════════════════════════════════════════ */
-
+  const [readingArticleId, setReadingArticleId] = useState<string | null>(null);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+
+  const alertCount = useMemo(() =>
+    articles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high').length
+  , [articles]);
 
   return (
     <ArticleReaderContext.Provider value={setReadingArticleId}>
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif", background: BG_APP, color: TEXT_PRIMARY }}>
 
-      {/* ───────── SIDEBAR (Inoreader-style: dark, icons) ───────── */}
+      {/* ───────── SIDEBAR (Inoreader: dark, icons + labels) ───────── */}
       <aside
         className="flex flex-col shrink-0 z-10 transition-all duration-200"
         style={{ background: BG_SIDEBAR, width: sidebarExpanded ? 220 : 52, borderRight: `1px solid ${BORDER}` }}
       >
-        {/* Logo */}
         <div className="h-14 flex items-center justify-center shrink-0" style={{ borderBottom: `1px solid ${BORDER}` }}>
           <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${ACCENT}, #6366f1)` }}>
-            <Globe size={15} className="text-[#b0bec9]" />
+            <Globe size={15} className="text-white" />
           </div>
           {sidebarExpanded && (
             <div className="ml-2.5 leading-tight">
-              <div className="font-extrabold text-[12px] text-[#b0bec9] tracking-tight">WorldMonitor</div>
+              <div className="font-extrabold text-[12px] tracking-tight" style={{ color: TEXT_PRIMARY }}>WorldMonitor</div>
             </div>
           )}
         </div>
 
-        {/* Nav icons with labels (Inoreader-style) */}
         <nav className="flex-1 py-2 space-y-0.5 overflow-y-auto px-1.5">
           {NAV_ITEMS.map(item => {
             const isActive = nav === item.key;
@@ -213,16 +139,15 @@ function DashboardInner({ user, onLogout }: Props) {
                 >
                   <item.icon size={20} />
                   <span className="text-[9px] font-medium mt-1 truncate w-full text-center">{item.label}</span>
-                  {/* Badge */}
-                  {item.key === 'reader' && alertArticles.length > 0 && (
-                    <span className="absolute bg-red-500 text-[#b0bec9] text-[8px] font-bold rounded-full flex items-center justify-center"
+                  {item.key === 'reader' && alertCount > 0 && (
+                    <span className="absolute bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
                       style={{ width: 16, height: 16, top: 2, right: 2 }}>
-                      {Math.min(alertArticles.length, 99)}
+                      {Math.min(alertCount, 99)}
                     </span>
                   )}
                   {item.key === 'cases' && cases.length > 0 && (
-                    <span className="absolute bg-red-500 text-[#b0bec9] text-[8px] font-bold rounded-full flex items-center justify-center"
-                      style={{ width: 16, height: 16, top: 2, right: 2 }}>
+                    <span className="absolute text-white text-[8px] font-bold rounded-full flex items-center justify-center"
+                      style={{ width: 16, height: 16, top: 2, right: 2, background: ACCENT }}>
                       {cases.length}
                     </span>
                   )}
@@ -232,23 +157,19 @@ function DashboardInner({ user, onLogout }: Props) {
           })}
         </nav>
 
-        {/* Bottom: notifications, settings, user, collapse */}
         <div className="shrink-0 space-y-1 pb-3" style={{ padding: sidebarExpanded ? '0 8px 12px' : '0 6px 12px', borderTop: `1px solid ${BORDER}` }}>
           <div className="pt-3">
             <NotificationBell onOpenArticle={setReadingArticleId} />
           </div>
-          {/* User avatar */}
           <div className="flex items-center justify-center py-2">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-[#b0bec9] cursor-pointer" style={{ background: '#e91e8c' }} title={user.email} onClick={onLogout}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white cursor-pointer" style={{ background: '#e91e8c' }} title={user.email} onClick={onLogout}>
               {user.org_name.charAt(0).toUpperCase()}
             </div>
           </div>
-          {/* Collapse toggle */}
           <button
             onClick={() => setSidebarExpanded(!sidebarExpanded)}
             className="w-full flex items-center justify-center py-1.5 rounded transition-colors"
             style={{ color: TEXT_SECONDARY }}
-            title={sidebarExpanded ? 'Réduire' : 'Étendre'}
           >
             {sidebarExpanded ? '«' : '»'}
           </button>
@@ -257,17 +178,27 @@ function DashboardInner({ user, onLogout }: Props) {
 
       {/* ───────── MAIN ───────── */}
       <main className="flex-1 flex flex-col overflow-hidden">
-
-        {/* Content — no top header bar (Inoreader puts title inside each view) */}
         <div className="flex-1 overflow-hidden">
+
+          {/* Dashboard — Inoreader /dashboard: single scrollable column with stacked widgets */}
+          {nav === 'dashboard' && (
+            <DashboardView
+              articles={articles}
+              stats={stats}
+              cases={cases}
+              loading={loading}
+              onRefresh={load}
+              onOpenArticle={setReadingArticleId}
+            />
+          )}
+
           {nav === 'reader' && <ReaderView />}
 
-          {nav !== 'reader' && (
+          {nav !== 'reader' && nav !== 'dashboard' && (
             <div className="h-full overflow-y-auto" style={{ background: BG_APP }}>
-              {/* View header */}
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-[22px] font-bold text-[#b0bec9]">
+                  <h1 className="text-[22px] font-bold" style={{ color: TEXT_HEADING }}>
                     {NAV_ITEMS.find(n => n.key === nav)?.label || ''}
                   </h1>
                   {!loading && (
@@ -283,11 +214,7 @@ function DashboardInner({ user, onLogout }: Props) {
                   </button>
                 </div>
               </div>
-
               <div className="px-6 pb-6 space-y-4">
-                {nav === 'dashboard' && (
-                  <WidgetGrid catalog={DASH_WIDGETS} storageKey="wm-dash-v9" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
-                )}
                 {nav === 'cases' && <CasesView cases={cases} loading={casesLoading} onAdd={addCase} onRemove={removeCase} />}
                 {nav === 'ai-feeds' && <AIFeedsView />}
                 {nav === 'automate' && <AutomateView />}
@@ -307,288 +234,460 @@ function DashboardInner({ user, onLogout }: Props) {
   );
 }
 
-/* ═══ Dashboard Widget Catalog — Inoreader exact ═══ */
-const ARTICLE_CONFIG: WDef2['configFields'] = [
-  { key: 'view', label: 'Vue', type: 'select', options: [{ value: 'magazine', label: 'Magazine' }, { value: 'list', label: 'Liste' }], default: 'magazine' },
-  { key: 'count', label: "Nombre d'articles", type: 'number', default: 5, min: 1, max: 20 },
-  { key: 'hideSource', label: 'Masquer la source', type: 'toggle', default: false },
+
+/* ═══════════════════════════════════════════════════════════════
+   DASHBOARD VIEW — exact Inoreader /dashboard
+   Single scrollable column, stacked widget cards.
+   Header: "Dashboards" + dropdown + "Add widget" button.
+   Widgets: Read later, What's new, Trending, Cases, Alerts, Stats
+   ═══════════════════════════════════════════════════════════════ */
+
+interface WidgetConfigField {
+  key: string;
+  label: string;
+  type: 'select' | 'number';
+  options?: { value: string; label: string }[];
+  default: string | number;
+  min?: number;
+  max?: number;
+}
+
+interface DashWidgetDef {
+  id: string;
+  title: string;
+  icon: typeof Activity;
+  configFields?: WidgetConfigField[];
+}
+
+const ARTICLE_CONFIG: WidgetConfigField[] = [
+  { key: 'source', label: 'Source', type: 'select', options: [{ value: 'all', label: 'Toutes les sources' }], default: 'all' },
+  { key: 'view', label: 'Vue', type: 'select', options: [{ value: 'list', label: 'Liste' }, { value: 'magazine', label: 'Magazine' }, { value: 'compact', label: 'Compact' }], default: 'list' },
+  { key: 'count', label: "Nombre d'articles", type: 'number', default: 8, min: 3, max: 20 },
+  { key: 'sort', label: 'Tri', type: 'select', options: [{ value: 'recent', label: 'Plus récent' }, { value: 'popular', label: 'Populaire' }], default: 'recent' },
 ];
 
-const DASH_WIDGETS: WDef2[] = [
-  // Getting started
-  { id: 'checklist',        title: 'Checklist profil',           icon: Activity,      category: 'Démarrage',  defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  // Content
-  { id: 'whats-new',        title: "Quoi de neuf",               icon: Newspaper,     category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 4, minW: 4, configFields: ARTICLE_CONFIG },
-  { id: 'new-articles',     title: 'Nouveaux articles',          icon: Rss,           category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 4, minW: 4, configFields: ARTICLE_CONFIG },
-  { id: 'read-later',       title: 'Lire plus tard',             icon: FolderOpen,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4, configFields: ARTICLE_CONFIG },
-  { id: 'trending',         title: 'Tendances',                  icon: TrendingUp,    category: 'Contenu',    defaultW: 6,  defaultH: 8,  minH: 3, minW: 4, configFields: ARTICLE_CONFIG },
-  { id: 'recently-read',    title: 'Articles lus récemment',     icon: Activity,      category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4, configFields: ARTICLE_CONFIG },
-  { id: 'cases',            title: 'Cases suivis',               icon: FolderOpen,    category: 'Contenu',    defaultW: 6,  defaultH: 6,  minH: 3, minW: 4 },
-  // Data & usage
-  { id: 'stats',            title: 'Statistiques',               icon: BarChart2,     category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4,
-    configFields: [{ key: 'type', label: 'Type', type: 'select', options: [{ value: 'overview', label: 'Vue d\'ensemble' }, { value: 'read', label: 'Lu vs Non lu' }, { value: 'sources', label: 'Par source' }], default: 'overview' }] },
-  { id: 'rules-log',        title: 'Journal des rules',          icon: Zap,           category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  { id: 'inactive-feeds',   title: 'Feeds inactifs',             icon: AlertTriangle, category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  { id: 'failing-feeds',    title: 'Feeds en erreur',            icon: AlertTriangle, category: 'Données',    defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  // Intelligence (WorldMonitor unique)
-  { id: 'map',              title: 'Cartographie',               icon: Globe,         category: 'Intelligence', defaultW: 8,  defaultH: 8,  minH: 4, minW: 4 },
-  { id: 'alerts',           title: 'Alertes menaces',            icon: AlertTriangle, category: 'Intelligence', defaultW: 6,  defaultH: 8,  minH: 3, minW: 3, configFields: ARTICLE_CONFIG },
-  { id: 'sentiment',        title: 'Sentiment Global',           icon: TrendingUp,    category: 'Intelligence', defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
-  { id: 'themes',           title: 'Thématiques',                icon: BarChart2,     category: 'Intelligence', defaultW: 6,  defaultH: 5,  minH: 3, minW: 4 },
+// Widget TYPES available in the wizard — each instance gets a unique ID
+const WIDGET_TYPES: DashWidgetDef[] = [
+  { id: 'articles',      title: 'Articles',                 icon: Newspaper, configFields: ARTICLE_CONFIG },
+  { id: 'read-later',    title: 'Lire plus tard',           icon: BookmarkPlus, configFields: ARTICLE_CONFIG },
+  { id: 'trending',      title: 'Tendances',                icon: TrendingUp, configFields: ARTICLE_CONFIG },
+  { id: 'cases',         title: 'Cases suivis',             icon: FolderOpen },
+  { id: 'alerts',        title: 'Alertes menaces',          icon: AlertTriangle, configFields: ARTICLE_CONFIG },
+  { id: 'stats',         title: 'Statistiques',             icon: BarChart2,
+    configFields: [{ key: 'type', label: 'Type', type: 'select', options: [{ value: 'overview', label: "Vue d'ensemble" }, { value: 'sources', label: 'Par source' }, { value: 'threats', label: 'Par menace' }], default: 'overview' }] },
 ];
 
-const DASH_DEFAULTS: WS2[] = [
-  { id: 'read-later', w: 6, h: 6 },
-  { id: 'whats-new', w: 6, h: 8 },
-  { id: 'trending', w: 6, h: 8 },
-  { id: 'cases', w: 6, h: 6 },
-];
+// For backward compat — map old IDs to widget types
+function getWidgetType(instanceId: string): DashWidgetDef | undefined {
+  const typeId = instanceId.replace(/-\d+$/, ''); // "articles-2" → "articles"
+  return WIDGET_TYPES.find(w => w.id === typeId) || WIDGET_TYPES.find(w => w.id === instanceId);
+}
 
-/* ═══ Dashboard Widget Content ═══ */
-function DashContent({ id, stats, articles, cases, alertArticles, sentimentData, thematicData }: {
-  id: string; stats: Stats | null; articles: Article[]; cases: CaseData[];
-  alertArticles: Article[]; sentimentData: any[]; thematicData: any[];
+// Legacy support
+const ALL_DASH_WIDGETS = WIDGET_TYPES;
+
+// Which column each widget defaults to (left=0, right=1)
+const WIDGET_COLUMN: Record<string, number> = {
+  'read-later': 0, 'whats-new': 0, 'trending': 0,
+  'cases': 1, 'alerts': 1, 'stats': 1,
+};
+
+const DASH_STORAGE_KEY = 'wm-dash-widgets-v2';
+
+function loadDashWidgets(): string[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DASH_STORAGE_KEY) || 'null');
+    if (Array.isArray(stored)) return stored;
+  } catch { /* ignore */ }
+  return ['read-later', 'whats-new', 'trending', 'cases'];
+}
+
+function saveDashWidgets(ids: string[]) {
+  localStorage.setItem(DASH_STORAGE_KEY, JSON.stringify(ids));
+}
+
+function DashboardView({ articles, stats, cases, loading, onRefresh, onOpenArticle }: {
+  articles: Article[];
+  stats: Stats | null;
+  cases: CaseData[];
+  loading: boolean;
+  onRefresh: () => void;
+  onOpenArticle: (id: string) => void;
 }) {
-  const setReadingArticleId = useContext(ArticleReaderContext);
-  switch (id) {
-    case 'checklist': {
-      const steps = [
-        { label: 'Créer un compte', done: true },
-        { label: 'Ajouter votre premier feed', done: articles.length > 0 },
-        { label: 'Créer un dossier', done: false },
-        { label: 'Sauvegarder un article', done: false },
-        { label: 'Créer un case', done: cases.length > 0 },
-        { label: 'Configurer une rule', done: false },
-        { label: 'Installer les raccourcis clavier', done: true },
-      ];
-      const done = steps.filter(s => s.done).length;
-      const pct = Math.round((done / steps.length) * 100);
-      return (
-        <div className="p-4 h-full overflow-y-auto">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="text-[18px] font-bold" style={{ color: '#4d8cf5' }}>{pct}%</div>
-            <div className="flex-1 h-2 rounded-full" style={{ background: '#0f1923' }}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: '#4d8cf5' }} />
+  const [widgetIds, setWidgetIds] = useState(loadDashWidgets);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [widgetConfigs, setWidgetConfigs] = useState<Record<string, Record<string, any>>>(() => {
+    try { return JSON.parse(localStorage.getItem('wm-dash-widget-configs') || '{}'); } catch { return {}; }
+  });
+
+  const updateWidgetConfig = (widgetId: string, key: string, value: any) => {
+    setWidgetConfigs(prev => {
+      const next = { ...prev, [widgetId]: { ...prev[widgetId], [key]: value } };
+      localStorage.setItem('wm-dash-widget-configs', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const getConfig = (widgetId: string, key: string, fallback: any) => {
+    return widgetConfigs[widgetId]?.[key] ?? fallback;
+  };
+
+  // Fetch read-later & trending from API
+  const [readLaterArticles, setReadLaterArticles] = useState<ArticleSummary[]>([]);
+  const [trendingArticles, setTrendingArticles] = useState<ArticleSummary[]>([]);
+
+  useEffect(() => {
+    listReadLater(10).then(d => setReadLaterArticles(d.articles)).catch(() => {});
+    getTrending('day', 10).then(d => setTrendingArticles(d.articles)).catch(() => {});
+  }, []);
+
+  const toggleCollapse = (id: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const removeWidget = (id: string) => {
+    const next = widgetIds.filter(w => w !== id);
+    setWidgetIds(next);
+    saveDashWidgets(next);
+  };
+
+  const addWidget = (id: string) => {
+    if (widgetIds.includes(id)) return;
+    const next = [...widgetIds, id];
+    setWidgetIds(next);
+    saveDashWidgets(next);
+    setShowAddMenu(false);
+  };
+
+  const alertArticles = articles.filter(a => a.threat_level === 'critical' || a.threat_level === 'high');
+  const availableToAdd = ALL_DASH_WIDGETS.filter(w => !widgetIds.includes(w.id));
+
+  function formatSource(s: string) {
+    return s.replace(/^catalog_|^gnews_|^gdelt_|^plugin_\w+_/g, '').replace(/_/g, ' ');
+  }
+
+  /* Article row — exact Inoreader style: large thumbnail left, title + source + time right */
+  function ArticleRow({ a }: { a: Article | ArticleSummary }) {
+    const imgUrl = (a as any).image_url;
+    return (
+      <button
+        onClick={() => onOpenArticle(a.id)}
+        className="group flex items-start gap-4 w-full text-left px-5 py-3.5 transition-all duration-150"
+        style={{ borderBottom: `1px solid ${BORDER}` }}
+        onMouseOver={e => { e.currentTarget.style.background = '#1a2d3f'; }}
+        onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
+      >
+        {/* Thumbnail — 100x70px like Inoreader */}
+        <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 100, height: 70, background: '#0f1923' }}>
+          {imgUrl && <img src={imgUrl} alt="" className="w-full h-full object-cover" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+        </div>
+        <div className="flex-1 min-w-0 py-0.5">
+          <p className="text-[15px] font-bold line-clamp-2 leading-snug" style={{ color: TEXT_HEADING }}>{a.title}</p>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[12px] font-medium" style={{ color: ACCENT }}>
+              {formatSource((a as any).source_id || '')}
+            </span>
+            <ExternalLink size={10} style={{ color: ACCENT, opacity: 0.7 }} />
+            {(a as any).pub_date && (
+              <>
+                <span className="text-[12px]" style={{ color: TEXT_SECONDARY }}>·</span>
+                <span className="text-[12px]" style={{ color: TEXT_SECONDARY }}>
+                  {timeAgo((a as any).pub_date)}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        {/* Actions — visible on hover */}
+        <div className="flex items-center gap-0.5 shrink-0 pt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="p-1.5 rounded-md hover:bg-white/5 cursor-pointer" style={{ color: '#4a5a6a' }}><BookmarkPlus size={14} /></span>
+          <span className="p-1.5 rounded-md hover:bg-white/5 cursor-pointer" style={{ color: '#4a5a6a' }}><Eye size={14} /></span>
+          <span className="p-1.5 rounded-md hover:bg-white/5 cursor-pointer" style={{ color: '#4a5a6a' }}><MoreHorizontal size={14} /></span>
+        </div>
+      </button>
+    );
+  }
+
+  /* Trending featured article — big image card like Inoreader */
+  function TrendingFeatured({ a }: { a: Article | ArticleSummary }) {
+    const imgUrl = (a as any).image_url;
+    return (
+      <button
+        onClick={() => onOpenArticle(a.id)}
+        className="w-full rounded-xl overflow-hidden cursor-pointer transition-all text-left"
+        style={{ background: '#0f1923' }}
+        onMouseOver={e => { e.currentTarget.style.opacity = '0.9'; }}
+        onMouseOut={e => { e.currentTarget.style.opacity = '1'; }}
+      >
+        <div className="relative h-48 overflow-hidden">
+          {imgUrl && <img src={imgUrl} alt="" className="w-full h-full object-cover" loading="lazy" />}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }} />
+          <div className="absolute bottom-0 left-0 right-0 p-4">
+            <h3 className="text-[16px] font-bold leading-snug line-clamp-2 text-white mb-1">{a.title}</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-medium" style={{ color: '#7cb3f5' }}>{formatSource((a as any).source_id || '')}</span>
+              <ExternalLink size={10} style={{ color: '#7cb3f5' }} />
             </div>
           </div>
-          <div className="space-y-2">
-            {steps.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 py-1.5">
-                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{
-                  background: s.done ? '#42d3a5' : '#1e2d3d',
-                  color: s.done ? '#fff' : '#556677',
-                }}>
-                  {s.done ? '✓' : <span className="text-[10px]">{i + 1}</span>}
+        </div>
+      </button>
+    );
+  }
+
+  function renderWidgetContent(id: string) {
+    const count = getConfig(id, 'count', 8) as number;
+
+    switch (id) {
+      case 'read-later':
+        return readLaterArticles.length === 0
+          ? <div className="px-4 py-6 text-center text-[12px]" style={{ color: TEXT_SECONDARY }}>Aucun article sauvegardé</div>
+          : readLaterArticles.slice(0, count).map(a => <ArticleRow key={a.id} a={a} />);
+
+      case 'whats-new':
+        return articles.length === 0
+          ? <div className="px-4 py-6 text-center text-[12px]" style={{ color: TEXT_SECONDARY }}>Aucun article</div>
+          : articles.slice(0, count).map(a => <ArticleRow key={a.id} a={a} />);
+
+      case 'trending':
+        if (trendingArticles.length === 0 && articles.length === 0) {
+          return <div className="px-4 py-6 text-center text-[12px]" style={{ color: TEXT_SECONDARY }}>Aucune tendance</div>;
+        }
+        const tItems = trendingArticles.length > 0 ? trendingArticles : [...articles].sort((a, b) => {
+          const o: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+          return (o[a.threat_level] ?? 5) - (o[b.threat_level] ?? 5);
+        }).slice(0, count);
+        return (
+          <div>
+            {tItems[0] && <div className="p-3"><TrendingFeatured a={tItems[0]} /></div>}
+            {tItems.slice(1).map(a => <ArticleRow key={a.id} a={a} />)}
+          </div>
+        );
+
+      case 'cases':
+        return cases.length === 0
+          ? <div className="px-4 py-6 text-center text-[12px]" style={{ color: TEXT_SECONDARY }}>Aucun case — créez-en dans l'onglet Cases</div>
+          : (
+            <div className="p-3 space-y-1">
+              {cases.map(c => (
+                <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer"
+                  onMouseOver={e => { e.currentTarget.style.background = '#1e2f40'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: BG_APP, color: TEXT_SECONDARY }}>
+                    {c.type === 'company' ? <Building size={14} /> : c.type === 'country' ? <Globe size={14} /> : <Activity size={14} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold truncate" style={{ color: TEXT_HEADING }}>{c.name}</div>
+                    <div className="text-[11px]" style={{ color: TEXT_SECONDARY }}>{c.article_count} articles · {c.type}</div>
+                  </div>
+                  {c.alert_count > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: '#ef4444', background: '#2d1515' }}>{c.alert_count}</span>
+                  )}
                 </div>
-                <span className="text-[12px]" style={{ color: s.done ? '#556677' : '#b0bec9', textDecoration: s.done ? 'line-through' : 'none' }}>{s.label}</span>
+              ))}
+            </div>
+          );
+
+      case 'alerts':
+        return alertArticles.length === 0
+          ? <div className="px-4 py-6 text-center text-[12px]" style={{ color: TEXT_SECONDARY }}>Aucune alerte</div>
+          : alertArticles.slice(0, 8).map(a => <ArticleRow key={a.id} a={a} />);
+
+      case 'stats':
+        return (
+          <div className="p-4 space-y-3">
+            {[
+              { l: "Articles aujourd'hui", v: articles.filter(a => a.pub_date && (Date.now() - new Date(a.pub_date).getTime()) < 86400000).length },
+              { l: 'Sources actives', v: new Set(articles.map(a => a.source_id)).size },
+              { l: 'Pays couverts', v: new Set(articles.flatMap(a => a.country_codes)).size },
+              { l: 'Thèmes', v: new Set(articles.map(a => a.theme).filter(Boolean)).size },
+              { l: 'Alertes (24h)', v: alertArticles.filter(a => a.pub_date && (Date.now() - new Date(a.pub_date).getTime()) < 86400000).length },
+            ].map((s, i) => (
+              <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${BORDER}` }}>
+                <span className="text-[13px]" style={{ color: TEXT_SECONDARY }}>{s.l}</span>
+                <span className="text-[15px] font-bold" style={{ color: ACCENT }}>{s.v}</span>
               </div>
             ))}
           </div>
-        </div>
-      );
+        );
+
+      default:
+        return <div className="px-4 py-6 text-center text-[12px]" style={{ color: TEXT_SECONDARY }}>Widget inconnu</div>;
     }
-    case 'whats-new':
-    case 'new-articles':
-    case 'read-later':
-    case 'recently-read':
-      return (
-        <div className="overflow-y-auto h-full p-2 space-y-0.5">
-          {(id === 'whats-new' ? articles.slice(0, 8) : id === 'trending' ? [...articles].sort((a, b) => { const o: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }; return (o[a.threat_level] ?? 5) - (o[b.threat_level] ?? 5); }).slice(0, 8) : articles.slice(0, 8)).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-              <div className="w-16 h-12 rounded-lg shrink-0 overflow-hidden" style={{ background: '#0f1923' }}>
-                {(a as any).image_url && <img src={(a as any).image_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-medium" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
-                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
-                </div>
-              </div>
-            </button>
-          ))}
-          {articles.length === 0 && <div className="text-center py-6 text-[11px]" style={{ color: '#556677' }}>Aucun article</div>}
+  }
+
+  return (
+    <div className="h-full overflow-y-auto" style={{ background: BG_APP }}>
+      {/* Header — Inoreader exact: "Dashboards" title + dropdown + Add widget */}
+      <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
+        <div className="flex items-center gap-3">
+          <h1 className="text-[24px] font-bold" style={{ color: TEXT_HEADING }}>Dashboards</h1>
+          <ChevronDown size={16} style={{ color: TEXT_SECONDARY }} />
         </div>
-      );
-    case 'cases':
-      return (
-        <div className="overflow-y-auto h-full p-2.5 space-y-1">
-          {cases.length === 0 && <div className="text-center text-xs py-8" style={{ color: '#6b7d93' }}>Aucun case — créez-en dans l'onglet Cases</div>}
-          {cases.map((c, i) => (
-            <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg transition-all cursor-pointer" style={{ ':hover': { background: '#162230' } }} onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#131d2a', color: '#6b7d93' }}>
-                {c.type === 'company' ? <Building size={14} /> : c.type === 'country' ? <Globe size={14} /> : <Activity size={14} />}
+        <div className="flex items-center gap-2">
+          <button onClick={onRefresh} className="p-2 rounded-lg transition-colors" style={{ color: TEXT_SECONDARY }} title="Actualiser">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </div>
+
+      {/* Dashboard subtitle */}
+      <div className="flex items-center gap-2 px-6 py-2">
+        <span className="text-[12px] font-medium" style={{ color: TEXT_SECONDARY }}>DEFAULT DASHBOARD</span>
+      </div>
+
+      {/* Widgets — 2 column grid like Inoreader (60/40 split) */}
+      <div className="px-6 pb-8" style={{ display: 'grid', gridTemplateColumns: '1fr minmax(300px, 380px)', gap: '16px', alignItems: 'start' }}>
+
+        {/* ── Left column ── */}
+        <div className="space-y-4">
+          {widgetIds.filter(id => (WIDGET_COLUMN[id] ?? 0) === 0).map(widgetId => (
+            <WidgetCard key={widgetId} widgetId={widgetId} collapsed={collapsed} toggleCollapse={toggleCollapse} removeWidget={removeWidget} renderContent={renderWidgetContent} widgetConfigs={widgetConfigs} updateWidgetConfig={updateWidgetConfig} />
+          ))}
+        </div>
+
+        {/* ── Right column ── */}
+        <div className="space-y-4">
+          {widgetIds.filter(id => (WIDGET_COLUMN[id] ?? 0) === 1).map(widgetId => (
+            <WidgetCard key={widgetId} widgetId={widgetId} collapsed={collapsed} toggleCollapse={toggleCollapse} removeWidget={removeWidget} renderContent={renderWidgetContent} widgetConfigs={widgetConfigs} updateWidgetConfig={updateWidgetConfig} />
+          ))}
+
+          {/* Add widget button — bottom right like Inoreader */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAddMenu(!showAddMenu)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-medium transition-colors"
+              style={{ color: ACCENT, border: `1px dashed ${BORDER}`, background: showAddMenu ? `${ACCENT}10` : 'transparent' }}
+            >
+              <Plus size={16} />
+              Add widget
+            </button>
+
+            {showAddMenu && availableToAdd.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20 shadow-lg" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+                {availableToAdd.map(w => (
+                  <button
+                    key={w.id}
+                    onClick={() => addWidget(w.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                    onMouseOver={e => { e.currentTarget.style.background = '#1e2f40'; }}
+                    onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <w.icon size={16} style={{ color: ACCENT }} />
+                    <span className="text-[13px] font-medium" style={{ color: TEXT_HEADING }}>{w.title}</span>
+                  </button>
+                ))}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[12px] font-semibold truncate" style={{ color: '#e2e8f0' }}>{c.name}</div>
-                <div className="text-[10px]" style={{ color: '#6b7d93' }}>{c.article_count} articles · {c.type}</div>
-              </div>
-              {c.alert_count > 0 && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ color: '#ef4444', background: '#2d1515' }}>{c.alert_count} alertes</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ── Widget Card component with config panel ── */
+function WidgetCard({ widgetId, collapsed, toggleCollapse, removeWidget, renderContent, widgetConfigs, updateWidgetConfig }: {
+  widgetId: string;
+  collapsed: Set<string>;
+  toggleCollapse: (id: string) => void;
+  removeWidget: (id: string) => void;
+  renderContent: (id: string) => React.ReactNode;
+  widgetConfigs: Record<string, Record<string, any>>;
+  updateWidgetConfig: (widgetId: string, key: string, value: any) => void;
+}) {
+  const [showConfig, setShowConfig] = useState(false);
+  const def = ALL_DASH_WIDGETS.find(w => w.id === widgetId);
+  if (!def) return null;
+  const isCollapsed = collapsed.has(widgetId);
+  const Icon = def.icon;
+  const configs = widgetConfigs[widgetId] || {};
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer"
+        style={{ borderBottom: isCollapsed && !showConfig ? 'none' : `1px solid ${BORDER}` }}
+        onClick={() => toggleCollapse(widgetId)}
+      >
+        <div className="flex items-center gap-2.5">
+          <Icon size={16} style={{ color: ACCENT }} />
+          <span className="text-[14px] font-semibold" style={{ color: TEXT_HEADING }}>{def.title}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {def.configFields && (
+            <button
+              onClick={e => { e.stopPropagation(); setShowConfig(!showConfig); }}
+              className="p-1.5 rounded-md transition-colors"
+              style={{ color: showConfig ? ACCENT : TEXT_SECONDARY, background: showConfig ? `${ACCENT}15` : 'transparent' }}
+              title="Configurer"
+            >
+              <Settings size={13} />
+            </button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); removeWidget(widgetId); }}
+            className="p-1.5 rounded-md transition-colors"
+            style={{ color: TEXT_SECONDARY }}
+            title="Retirer"
+          >
+            <MoreHorizontal size={13} />
+          </button>
+          {isCollapsed
+            ? <ChevronDown size={14} style={{ color: TEXT_SECONDARY }} />
+            : <ChevronUp size={14} style={{ color: TEXT_SECONDARY }} />
+          }
+        </div>
+      </div>
+
+      {/* Config panel — Inoreader style dropdown */}
+      {showConfig && def.configFields && (
+        <div className="px-4 py-3 space-y-3" style={{ background: '#0f1923', borderBottom: `1px solid ${BORDER}` }}>
+          {def.configFields.map(field => (
+            <div key={field.key} className="flex items-center justify-between gap-3">
+              <label className="text-[12px] font-medium" style={{ color: TEXT_PRIMARY }}>{field.label}</label>
+              {field.type === 'select' && field.options && (
+                <select
+                  value={configs[field.key] ?? field.default}
+                  onChange={e => updateWidgetConfig(widgetId, field.key, e.target.value)}
+                  className="px-2 py-1 rounded-lg text-[12px] outline-none"
+                  style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_PRIMARY }}
+                >
+                  {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              )}
+              {field.type === 'number' && (
+                <input
+                  type="number"
+                  value={configs[field.key] ?? field.default}
+                  min={field.min}
+                  max={field.max}
+                  onChange={e => updateWidgetConfig(widgetId, field.key, parseInt(e.target.value) || field.default)}
+                  className="w-16 px-2 py-1 rounded-lg text-[12px] text-right outline-none"
+                  style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_PRIMARY }}
+                />
               )}
             </div>
           ))}
         </div>
-      );
-    case 'map':
-      return <div className="p-1 h-full">{articles.length > 0 ? <LiveMap articles={articles} /> : <div className="w-full h-full rounded-lg flex items-center justify-center text-xs" style={{ background: '#0f1923', color: '#6b7d93' }}>Chargement...</div>}</div>;
-    case 'alerts':
-      return (
-        <div className="overflow-y-auto h-full p-2 space-y-0.5">
-          {alertArticles.slice(0, 12).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-              {/* Thumbnail placeholder */}
-              <div className="w-16 h-12 rounded-lg shrink-0 flex items-center justify-center" style={{
-                background: a.threat_level === 'critical' ? 'linear-gradient(135deg, #2d1515, #1a0808)' : 'linear-gradient(135deg, #2d1f0e, #1a1508)',
-              }}>
-                <span className="text-[8px] font-bold uppercase" style={{
-                  color: a.threat_level === 'critical' ? '#ef4444' : '#f97316',
-                }}>{a.threat_level}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px]" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
-                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
-                </div>
-              </div>
-            </button>
-          ))}
-          {alertArticles.length === 0 && <div className="text-center text-xs py-6" style={{ color: '#556677' }}>Aucune alerte</div>}
-        </div>
-      );
-    case 'news':
-      return (
-        <div className="overflow-y-auto h-full p-2 space-y-0.5">
-          {articles.slice(0, 15).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-              {/* Thumbnail placeholder */}
-              <div className="w-14 h-10 rounded shrink-0" style={{
-                background: `linear-gradient(135deg, #1a2836, #0f1923)`,
-              }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-medium line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px]" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
-                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      );
-    case 'sentiment':
-      return (
-        <div className="p-2 h-full">
-          <ResponsiveContainer>
-            <AreaChart data={sentimentData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="dgP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.3} /><stop offset="95%" stopColor="#34d399" stopOpacity={0} /></linearGradient>
-                <linearGradient id="dgN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.3} /><stop offset="95%" stopColor="#f87171" stopOpacity={0} /></linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e2d3d" />
-              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7d93' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7d93' }} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #1e2d3d', background: '#131d2a', color: '#c8d6e5', fontSize: 12 }} />
-              <Area type="monotone" dataKey="positive" stroke="#34d399" fill="url(#dgP)" strokeWidth={2} />
-              <Area type="monotone" dataKey="negative" stroke="#f87171" fill="url(#dgN)" strokeWidth={2} />
-              <Area type="monotone" dataKey="neutral" stroke="#4a5c6f" fill="none" strokeDasharray="4 4" strokeWidth={1.5} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    case 'themes':
-      return (
-        <div className="p-2 h-full">
-          <ResponsiveContainer>
-            <BarChart data={thematicData} layout="vertical" margin={{ top: 0, right: 15, left: 5, bottom: 0 }} barSize={12}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#1e2d3d" />
-              <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#c8d6e5', fontWeight: 500 }} width={65} />
-              <Tooltip cursor={{ fill: '#162230' }} contentStyle={{ borderRadius: 10, border: '1px solid #1e2d3d', background: '#131d2a', color: '#c8d6e5', fontSize: 12 }} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {thematicData.map((_: any, i: number) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    case 'trending':
-      return (
-        <div className="overflow-y-auto h-full p-2 space-y-0.5">
-          {[...articles].sort((a, b) => {
-            const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-            return (order[a.threat_level] ?? 5) - (order[b.threat_level] ?? 5);
-          }).slice(0, 12).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-              <div className="w-14 h-10 rounded shrink-0 overflow-hidden" style={{ background: '#0f1923' }}>
-                {(a as any).image_url && <img src={(a as any).image_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-medium line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px]" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
-                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      );
-    case 'stats':
-      return (
-        <div className="p-4 h-full space-y-3 overflow-y-auto">
-          {[
-            { l: 'Articles aujourd\'hui', v: articles.filter(a => a.pub_date && (Date.now() - new Date(a.pub_date).getTime()) < 86400000).length },
-            { l: 'Sources actives', v: new Set(articles.map(a => a.source_id)).size },
-            { l: 'Pays couverts', v: new Set(articles.flatMap(a => a.country_codes)).size },
-            { l: 'Thèmes', v: new Set(articles.map(a => a.theme).filter(Boolean)).size },
-            { l: 'Alertes (24h)', v: articles.filter(a => (a.threat_level === 'critical' || a.threat_level === 'high') && a.pub_date && (Date.now() - new Date(a.pub_date).getTime()) < 86400000).length },
-          ].map((s, i) => (
-            <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid #1e2d3d' }}>
-              <span className="text-[12px]" style={{ color: '#6b7d93' }}>{s.l}</span>
-              <span className="text-[14px] font-bold" style={{ color: '#4d8cf5' }}>{s.v}</span>
-            </div>
-          ))}
-        </div>
-      );
-    case 'rules-log':
-      return (
-        <div className="flex items-center justify-center h-full text-center px-4">
-          <div>
-            <Zap size={24} style={{ color: '#3a4a5a' }} className="mx-auto mb-2" />
-            <p className="text-[12px]" style={{ color: '#6b7d93' }}>Les règles d'automatisation s'afficheront ici</p>
-            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Créez des rules dans l'onglet Automate</p>
-          </div>
-        </div>
-      );
-    case 'inactive-feeds':
-      return (
-        <div className="flex items-center justify-center h-full text-center px-4">
-          <div>
-            <Rss size={24} style={{ color: '#3a4a5a' }} className="mx-auto mb-2" />
-            <p className="text-[12px]" style={{ color: '#6b7d93' }}>Feeds qui n'ont pas publié depuis longtemps</p>
-            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Aucun feed inactif détecté</p>
-          </div>
-        </div>
-      );
-    case 'failing-feeds':
-      return (
-        <div className="flex items-center justify-center h-full text-center px-4">
-          <div>
-            <AlertTriangle size={24} style={{ color: '#3a4a5a' }} className="mx-auto mb-2" />
-            <p className="text-[12px]" style={{ color: '#6b7d93' }}>Feeds qui retournent des erreurs</p>
-            <p className="text-[10px] mt-1" style={{ color: '#445566' }}>Aucune erreur de feed détectée</p>
-          </div>
-        </div>
-      );
-    default:
-      return <div className="flex items-center justify-center h-full text-sm" style={{ color: '#556677' }}>Widget inconnu</div>;
-  }
+      )}
+
+      {/* Content */}
+      {!isCollapsed && <div>{renderContent(widgetId)}</div>}
+    </div>
+  );
 }
 
-
-/* ═══ Settings View with Tabs ═══ */
+/* ═══════════════════════════════════════════════════════════════
+   SETTINGS VIEW
+   ═══════════════════════════════════════════════════════════════ */
 type SettingsTab = 'sources' | 'intel-models' | 'apis' | 'display' | 'account';
 
 function DisplaySettings() {
@@ -609,14 +708,14 @@ function DisplaySettings() {
 
   return (
     <div className="max-w-lg space-y-4">
-      <div className="bg-white rounded-xl border border-slate-200/60 p-5">
-        <h3 className="font-bold text-slate-900 text-sm mb-4">Limites d'affichage</h3>
+      <div className="rounded-xl p-5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+        <h3 className="font-bold text-sm mb-4" style={{ color: TEXT_HEADING }}>Limites d'affichage</h3>
         <div className="space-y-4">
           {fields.map(f => (
             <div key={f.key} className="flex items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-slate-700">{f.label}</div>
-                <div className="text-[10px] text-slate-400">{f.desc}</div>
+                <div className="text-sm font-medium" style={{ color: TEXT_PRIMARY }}>{f.label}</div>
+                <div className="text-[10px]" style={{ color: TEXT_SECONDARY }}>{f.desc}</div>
               </div>
               <input
                 type="number"
@@ -624,20 +723,22 @@ function DisplaySettings() {
                 min={f.min}
                 max={f.max}
                 onChange={e => save(f.key, Math.max(f.min, Math.min(f.max, parseInt(e.target.value) || f.min)))}
-                className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5]"
+                className="w-20 px-2 py-1 text-sm text-right rounded-lg outline-none"
+                style={{ background: BG_SIDEBAR, border: `1px solid ${BORDER}`, color: TEXT_PRIMARY }}
               />
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-slate-400 mt-4">Les changements sont appliqués immédiatement et sauvegardés dans le navigateur.</p>
+        <p className="text-[10px] mt-4" style={{ color: TEXT_SECONDARY }}>Les changements sont appliqués immédiatement.</p>
       </div>
     </div>
   );
 }
+
 function SettingsView({ user, stats, cases, onLogout }: {
   user: { email: string; org_name: string };
   stats: Stats | null;
-  cases: CaseData[];
+  cases: any[];
   onLogout: () => void;
 }) {
   const [tab, setTab] = useState<SettingsTab>('sources');
@@ -650,44 +751,41 @@ function SettingsView({ user, stats, cases, onLogout }: {
   ];
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 rounded-lg p-1 w-fit" style={{ background: BG_CARD }}>
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            className="px-4 py-1.5 text-xs font-medium rounded-md transition-colors"
+            style={{ background: tab === t.key ? ACCENT : 'transparent', color: tab === t.key ? '#fff' : TEXT_SECONDARY }}
           >
             {t.label}
           </button>
         ))}
       </div>
-
       {tab === 'sources' && <SourceManager />}
       {tab === 'intel-models' && <IntelModelsManager />}
       {tab === 'apis' && <ApiServices />}
       {tab === 'display' && <DisplaySettings />}
       {tab === 'account' && (
         <div className="max-w-lg space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200/60 p-5">
-            <h3 className="font-bold text-slate-900 text-sm mb-3">Compte</h3>
+          <div className="rounded-xl p-5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+            <h3 className="font-bold text-sm mb-3" style={{ color: TEXT_HEADING }}>Compte</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="font-medium">{user.email}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Organisation</span><span className="font-medium">{user.org_name}</span></div>
+              <div className="flex justify-between"><span style={{ color: TEXT_SECONDARY }}>Email</span><span className="font-medium" style={{ color: TEXT_PRIMARY }}>{user.email}</span></div>
+              <div className="flex justify-between"><span style={{ color: TEXT_SECONDARY }}>Organisation</span><span className="font-medium" style={{ color: TEXT_PRIMARY }}>{user.org_name}</span></div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200/60 p-5">
-            <h3 className="font-bold text-slate-900 text-sm mb-3">Backend API</h3>
+          <div className="rounded-xl p-5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+            <h3 className="font-bold text-sm mb-3" style={{ color: TEXT_HEADING }}>Backend API</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">URL</span><span className="font-mono text-xs">localhost:8000/api</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Documents</span><span className="font-medium">{stats?.total || 0}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Sources</span><span className="font-medium">{Object.keys(stats?.by_source || {}).length}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Thématiques</span><span className="font-medium">{Object.keys(stats?.by_theme || {}).length}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Cases</span><span className="font-medium">{cases.length}</span></div>
+              <div className="flex justify-between"><span style={{ color: TEXT_SECONDARY }}>URL</span><span className="font-mono text-xs" style={{ color: TEXT_PRIMARY }}>localhost:8000/api</span></div>
+              <div className="flex justify-between"><span style={{ color: TEXT_SECONDARY }}>Documents</span><span className="font-medium" style={{ color: ACCENT }}>{stats?.total || 0}</span></div>
+              <div className="flex justify-between"><span style={{ color: TEXT_SECONDARY }}>Sources</span><span className="font-medium" style={{ color: ACCENT }}>{Object.keys(stats?.by_source || {}).length}</span></div>
+              <div className="flex justify-between"><span style={{ color: TEXT_SECONDARY }}>Cases</span><span className="font-medium" style={{ color: ACCENT }}>{cases.length}</span></div>
             </div>
           </div>
-          <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+          <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm rounded-xl transition-colors" style={{ color: '#ef4444', border: '1px solid #3b1515' }}>
             <LogOut size={14} /> Se déconnecter
           </button>
         </div>

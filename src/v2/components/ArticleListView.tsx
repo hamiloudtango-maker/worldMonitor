@@ -1,20 +1,22 @@
 // src/v2/components/ArticleListView.tsx
-// Inoreader-style article list — list/card modes, read/star/read-later, keyboard nav
+// Inoreader-exact article grid — magazine cards (image + title overlay + source + actions)
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Star, BookmarkPlus, Check, ExternalLink, Shield, Clock,
-  ChevronRight, Eye, LayoutList, LayoutGrid, MoreHorizontal,
+  Star, BookmarkPlus, Check, ExternalLink, Eye,
+  LayoutList, LayoutGrid, MoreHorizontal, Search,
+  ChevronDown, Columns3, ListFilter, ArrowUpDown,
 } from 'lucide-react';
 import { useArticleReader } from '@/v2/hooks/useArticleReader';
 import { markRead, toggleStar, toggleReadLater, type ArticleSummary } from '@/v2/lib/sources-api';
 
-const THREAT_DOT: Record<string, string> = {
-  critical: 'bg-red-500',
-  high: 'bg-orange-400',
-  medium: 'bg-yellow-400',
-  low: 'bg-blue-300',
-  info: 'bg-slate-300',
-};
+/* ── Constants ── */
+const BG_APP = '#131d2a';
+const BG_CARD = '#1a2836';
+const BORDER = '#1e2d3d';
+const ACCENT = '#4d8cf5';
+const TEXT_PRIMARY = '#b0bec9';
+const TEXT_SECONDARY = '#6b7d93';
+const TEXT_MUTED = '#3a4a5a';
 
 function timeAgo(dateStr?: string) {
   if (!dateStr) return '';
@@ -38,17 +40,23 @@ interface Props {
   loading?: boolean;
   onLoadMore?: () => void;
   hasMore?: boolean;
+  /** Total unread count to show in filter badge */
+  unreadCount?: number;
+  /** Search handler */
+  onSearch?: (q: string) => void;
 }
 
-export default function ArticleListView({ articles, title, loading, onLoadMore, hasMore }: Props) {
+export default function ArticleListView({ articles, title, loading, onLoadMore, hasMore, unreadCount, onSearch }: Props) {
   const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [readLaterIds, setReadLaterIds] = useState<Set<string>>(new Set());
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showUnreadOnly, setShowUnreadOnly] = useState(true);
   const openArticle = useArticleReader();
   const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Keyboard navigation (j/k/o/s/r)
   useEffect(() => {
@@ -80,12 +88,6 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
     return () => window.removeEventListener('keydown', handler);
   }, [selectedIdx, articles, openArticle]);
 
-  // Scroll selected into view
-  useEffect(() => {
-    const el = document.getElementById(`article-item-${selectedIdx}`);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [selectedIdx]);
-
   const handleMarkRead = useCallback((id: string) => {
     setReadIds(prev => new Set(prev).add(id));
     markRead(id).catch(() => {});
@@ -115,180 +117,287 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
     handleMarkRead(article.id);
   }, [openArticle, handleMarkRead]);
 
-  // Bulk select
-  const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
+  // Filter unread
+  const displayedArticles = showUnreadOnly
+    ? articles.filter(a => !readIds.has(a.id))
+    : articles;
 
-  const bulkMarkRead = useCallback(() => {
-    selectedIds.forEach(id => handleMarkRead(id));
-    setSelectedIds(new Set());
-  }, [selectedIds, handleMarkRead]);
-
-  const bulkStar = useCallback(() => {
-    selectedIds.forEach(id => handleToggleStar(id));
-    setSelectedIds(new Set());
-  }, [selectedIds, handleToggleStar]);
+  const displayCount = showUnreadOnly
+    ? (unreadCount ?? displayedArticles.length)
+    : articles.length;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #1e2d3d', background: '#131d2a' }}>
-        <div className="flex items-center gap-3">
-          {title && <h2 className="text-[14px] font-bold" style={{ color: '#b0bec9' }}>{title}</h2>}
-          <span className="text-[10px]" style={{ color: '#6b7d93' }}>{articles.length} articles</span>
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2 ml-2">
-              <span className="text-[10px] font-medium text-[#42d3a5]">{selectedIds.size} sélectionnés</span>
-              <button onClick={bulkMarkRead} className="text-[10px] text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded bg-slate-50">
-                <Eye size={10} className="inline mr-1" />Lu
-              </button>
-              <button onClick={bulkStar} className="text-[10px] text-slate-500 hover:text-slate-700 px-2 py-0.5 rounded bg-slate-50">
-                <Star size={10} className="inline mr-1" />Star
-              </button>
-            </div>
+
+      {/* ── Toolbar — exact Inoreader: title ▾ | "Non lus (N)" pill | search | view toggles ── */}
+      <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ borderBottom: `1px solid ${BORDER}`, background: BG_APP }}>
+
+        {/* Left: title + unread filter */}
+        <div className="flex items-center gap-4">
+          {title && (
+            <h2 className="text-[18px] font-bold flex items-center gap-1.5" style={{ color: '#e2e8f0' }}>
+              {title}
+              <ChevronDown size={16} style={{ color: TEXT_SECONDARY }} />
+            </h2>
           )}
-        </div>
-        <div className="flex items-center gap-1">
           <button
-            onClick={() => setViewMode('list')}
-            className={`p-1.5 rounded transition-colors ${viewMode === 'list' ? 'text-[#42d3a5] bg-teal-50' : 'text-slate-300 hover:text-slate-500'}`}
+            onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors"
+            style={{
+              background: showUnreadOnly ? `${ACCENT}20` : '#1a2836',
+              color: showUnreadOnly ? ACCENT : TEXT_SECONDARY,
+              border: `1px solid ${showUnreadOnly ? `${ACCENT}40` : BORDER}`,
+            }}
           >
-            <LayoutList size={14} />
+            {showUnreadOnly ? `Non lus (${displayCount})` : `Tous (${displayCount})`}
+            <ChevronDown size={12} />
           </button>
+        </div>
+
+        {/* Right: search + view toggles */}
+        <div className="flex items-center gap-2">
+          {/* Search in articles */}
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: TEXT_SECONDARY }} />
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder="Search in articles"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); onSearch?.(e.target.value); }}
+              className="pl-8 pr-3 py-1.5 rounded-lg text-[12px] outline-none w-52 transition-colors"
+              style={{ background: '#1a2836', border: `1px solid ${BORDER}`, color: TEXT_PRIMARY }}
+              onFocus={e => { e.target.style.borderColor = ACCENT; }}
+              onBlur={e => { e.target.style.borderColor = BORDER; }}
+            />
+          </div>
+
+          {/* Mark all read */}
           <button
-            onClick={() => setViewMode('card')}
-            className={`p-1.5 rounded transition-colors ${viewMode === 'card' ? 'text-[#42d3a5] bg-teal-50' : 'text-slate-300 hover:text-slate-500'}`}
+            className="p-1.5 rounded-lg transition-colors group"
+            style={{ color: TEXT_SECONDARY }}
+            title="Tout marquer comme lu"
           >
-            <LayoutGrid size={14} />
+            <Check size={16} />
+          </button>
+
+          {/* View toggles — Inoreader has: list, magazine, card, column */}
+          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
+            <button
+              onClick={() => setViewMode('list')}
+              className="p-1.5 transition-colors"
+              style={{
+                background: viewMode === 'list' ? `${ACCENT}20` : 'transparent',
+                color: viewMode === 'list' ? ACCENT : TEXT_SECONDARY,
+              }}
+              title="Liste"
+            >
+              <LayoutList size={15} />
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className="p-1.5 transition-colors"
+              style={{
+                background: viewMode === 'card' ? `${ACCENT}20` : 'transparent',
+                color: viewMode === 'card' ? ACCENT : TEXT_SECONDARY,
+                borderLeft: `1px solid ${BORDER}`,
+              }}
+              title="Magazine"
+            >
+              <LayoutGrid size={15} />
+            </button>
+          </div>
+
+          {/* Sort */}
+          <button
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: TEXT_SECONDARY }}
+            title="Trier"
+          >
+            <ArrowUpDown size={15} />
+          </button>
+
+          {/* Settings */}
+          <button
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: TEXT_SECONDARY }}
+            title="Personnaliser la vue"
+          >
+            <ListFilter size={15} />
           </button>
         </div>
       </div>
 
-      {/* Keyboard hints removed — shortcuts work silently like Inoreader */}
-
-      {/* Article list */}
-      <div ref={listRef} className="flex-1 overflow-y-auto">
-        {viewMode === 'list' ? (
-          // ── List mode ──
-          <div>
-            {articles.map((a, idx) => {
+      {/* ── Article content ── */}
+      <div ref={listRef} className="flex-1 overflow-y-auto" style={{ background: BG_APP }}>
+        {viewMode === 'card' ? (
+          /* ══════════════════════════════════════════════════════
+             CARD MODE — Inoreader exact: responsive grid,
+             image fills card, title + source overlay at bottom,
+             actions bar below image
+             ══════════════════════════════════════════════════════ */
+          <div
+            className="grid gap-3 p-4"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+            }}
+          >
+            {displayedArticles.map((a, idx) => {
               const isRead = readIds.has(a.id);
               const isStarred = starredIds.has(a.id);
-              const isSelected = idx === selectedIdx;
-              const isChecked = selectedIds.has(a.id);
-
+              const isReadLater = readLaterIds.has(a.id);
+              const imgUrl = a.image_url;
               return (
                 <div
                   key={a.id}
-                  id={`article-item-${idx}`}
                   onClick={() => handleClick(a, idx)}
-                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors ${isRead ? 'opacity-50' : ''}`}
+                  className="rounded-xl overflow-hidden cursor-pointer transition-all group"
                   style={{
-                    borderBottom: '1px solid #1e2d3d',
-                    background: isSelected ? '#1a2836' : 'transparent',
-                    borderLeft: isSelected ? '2px solid #4d8cf5' : '2px solid transparent',
+                    background: BG_CARD,
+                    opacity: isRead ? 0.45 : 1,
                   }}
                 >
-                  {/* Checkbox */}
-                  <button
-                    onClick={e => toggleSelect(a.id, e)}
-                    className={`mt-1 w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors ${
-                      isChecked ? 'bg-[#42d3a5] border-[#42d3a5] text-white' : 'border-slate-200 hover:border-slate-400'
-                    }`}
-                  >
-                    {isChecked && <Check size={10} />}
-                  </button>
-
-                  {/* Threat dot */}
-                  <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${THREAT_DOT[a.threat_level || ''] || 'bg-slate-200'}`} />
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] leading-snug line-clamp-2 font-medium" style={{ color: isRead ? '#6b7d93' : '#e2e8f0' }}>
-                      {a.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: '#6b7d93' }}>
-                      <span className="truncate max-w-[120px] font-medium">{formatSource(a.source_id)}</span>
-                      {a.pub_date && <><span className="text-slate-200">·</span><span>{timeAgo(a.pub_date)}</span></>}
-                      {a.family && <><span className="text-slate-200">·</span><span className="text-slate-500">{a.family}</span></>}
-                      {a.countries?.length > 0 && (
-                        <><span className="text-slate-200">·</span><span>{a.countries.slice(0, 3).join(', ')}</span></>
-                      )}
+                  {/* Image area with gradient + title overlay */}
+                  <div className="relative overflow-hidden" style={{ paddingBottom: '65%', background: '#0f1923' }}>
+                    {imgUrl && (
+                      <img
+                        src={imgUrl}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    )}
+                    {/* Gradient overlay */}
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background: 'linear-gradient(0deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.05) 100%)',
+                      }}
+                    />
+                    {/* Title + source */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <h3 className="text-[13px] font-bold leading-snug line-clamp-2 text-white mb-1">
+                        {a.title}
+                      </h3>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium" style={{ color: '#7cb3f5' }}>
+                          {formatSource(a.source_id)}
+                        </span>
+                        <ExternalLink size={9} style={{ color: '#7cb3f5' }} />
+                      </div>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100" style={{ opacity: isSelected ? 1 : undefined }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }}
-                      className={`p-1 rounded transition-colors ${isStarred ? 'text-amber-400' : 'text-slate-200 hover:text-amber-400'}`}
-                      title="Favoris"
-                    >
-                      <Star size={13} fill={isStarred ? 'currentColor' : 'none'} />
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }}
-                      className={`p-1 rounded transition-colors ${readLaterIds.has(a.id) ? 'text-blue-500' : 'text-slate-200 hover:text-blue-400'}`}
-                      title="Lire plus tard"
-                    >
-                      <BookmarkPlus size={13} />
-                    </button>
+                  {/* Bottom bar: time + actions — exact Inoreader */}
+                  <div className="flex items-center justify-between px-3 py-2" style={{ borderTop: `1px solid ${BORDER}` }}>
+                    <span className="text-[11px]" style={{ color: TEXT_SECONDARY }}>
+                      {timeAgo(a.pub_date)}
+                    </span>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }}
+                        className="p-1 rounded transition-colors"
+                        style={{ color: isStarred ? '#d4a843' : TEXT_MUTED }}
+                        title="Favoris"
+                      >
+                        <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }}
+                        className="p-1 rounded transition-colors"
+                        style={{ color: isReadLater ? ACCENT : TEXT_MUTED }}
+                        title="Lire plus tard"
+                      >
+                        <BookmarkPlus size={14} />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleMarkRead(a.id); }}
+                        className="p-1 rounded transition-colors"
+                        style={{ color: isRead ? '#42d3a5' : TEXT_MUTED }}
+                        title="Marquer comme lu"
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
+                        onClick={e => e.stopPropagation()}
+                        className="p-1 rounded transition-colors"
+                        style={{ color: TEXT_MUTED }}
+                        title="Plus"
+                      >
+                        <MoreHorizontal size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          // ── Card mode — Inoreader: image + title overlay + source + actions ──
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
-            {articles.map((a, idx) => {
+          /* ══════════════════════════════════════════════════════
+             LIST MODE — compact rows
+             ══════════════════════════════════════════════════════ */
+          <div>
+            {displayedArticles.map((a, idx) => {
               const isRead = readIds.has(a.id);
               const isStarred = starredIds.has(a.id);
-              const imgUrl = (a as any).image_url;
+              const isSelected = idx === selectedIdx;
+
               return (
                 <div
                   key={a.id}
+                  id={`article-item-${idx}`}
                   onClick={() => handleClick(a, idx)}
-                  className={`rounded-xl overflow-hidden cursor-pointer transition-all ${isRead ? 'opacity-40' : ''}`}
-                  style={{ background: '#1a2836' }}
+                  className="flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors"
+                  style={{
+                    borderBottom: `1px solid ${BORDER}`,
+                    background: isSelected ? BG_CARD : 'transparent',
+                    borderLeft: isSelected ? `2px solid ${ACCENT}` : '2px solid transparent',
+                    opacity: isRead ? 0.45 : 1,
+                  }}
                 >
-                  {/* Image with gradient overlay + title on top */}
-                  <div className="relative h-52 overflow-hidden" style={{ background: '#0f1923' }}>
-                    {imgUrl && (
-                      <img src={imgUrl} alt="" className="w-full h-full object-cover" loading="lazy"
+                  {/* Thumbnail */}
+                  {a.image_url && (
+                    <div className="w-20 h-14 rounded-lg shrink-0 overflow-hidden" style={{ background: '#0f1923' }}>
+                      <img src={a.image_url} alt="" className="w-full h-full object-cover" loading="lazy"
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    )}
-                    <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }} />
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <h3 className="text-[15px] font-bold leading-snug line-clamp-2 text-white mb-1">{a.title}</h3>
-                      <span className="text-[11px] font-medium" style={{ color: '#7cb3f5' }}>{formatSource(a.source_id)}</span>
                     </div>
-                    {a.threat_level && (a.threat_level === 'critical' || a.threat_level === 'high') && (
-                      <span className="absolute top-2.5 left-2.5 text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-sm text-white" style={{
-                        background: a.threat_level === 'critical' ? '#dc2626' : '#ea580c',
-                      }}>{a.threat_level}</span>
-                    )}
+                  )}
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] leading-snug line-clamp-2 font-medium" style={{ color: isRead ? TEXT_SECONDARY : '#e2e8f0' }}>
+                      {a.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: TEXT_SECONDARY }}>
+                      <span className="font-medium" style={{ color: '#7cb3f5' }}>{formatSource(a.source_id)}</span>
+                      {a.pub_date && <><span style={{ color: TEXT_MUTED }}>·</span><span>{timeAgo(a.pub_date)}</span></>}
+                    </div>
                   </div>
-                  {/* Bottom: time + bookmark + eye + menu */}
-                  <div className="flex items-center justify-between px-4 py-2">
-                    <span className="text-[10px]" style={{ color: '#556677' }}>{timeAgo(a.pub_date)}</span>
-                    <div className="flex items-center gap-1">
-                      <button onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }} className="p-1 rounded" style={{ color: isStarred ? '#d4a843' : '#3a4a5a' }}>
-                        <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
-                      </button>
-                      <button onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }} className="p-1 rounded" style={{ color: readLaterIds.has(a.id) ? '#4d8cf5' : '#3a4a5a' }}>
-                        <BookmarkPlus size={14} />
-                      </button>
-                      <button onClick={e => e.stopPropagation()} className="p-1 rounded" style={{ color: '#3a4a5a' }}>
-                        <MoreHorizontal size={14} />
-                      </button>
-                    </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-0.5 shrink-0" style={{ opacity: isSelected ? 1 : 0.3 }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }}
+                      className="p-1 rounded transition-colors"
+                      style={{ color: isStarred ? '#d4a843' : TEXT_MUTED }}
+                    >
+                      <Star size={13} fill={isStarred ? 'currentColor' : 'none'} />
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }}
+                      className="p-1 rounded transition-colors"
+                      style={{ color: readLaterIds.has(a.id) ? ACCENT : TEXT_MUTED }}
+                    >
+                      <BookmarkPlus size={13} />
+                    </button>
+                    <button
+                      onClick={e => e.stopPropagation()}
+                      className="p-1 rounded transition-colors"
+                      style={{ color: TEXT_MUTED }}
+                    >
+                      <MoreHorizontal size={13} />
+                    </button>
                   </div>
                 </div>
               );
@@ -301,7 +410,8 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
           <div className="flex justify-center py-4">
             <button
               onClick={onLoadMore}
-              className="px-4 py-2 text-xs font-medium text-[#42d3a5] bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
+              className="px-4 py-2 text-xs font-medium rounded-lg transition-colors"
+              style={{ color: ACCENT, background: `${ACCENT}15` }}
             >
               Charger plus d'articles
             </button>
@@ -310,13 +420,13 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
 
         {loading && (
           <div className="flex justify-center py-6">
-            <div className="w-5 h-5 border-2 border-[#42d3a5] border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${ACCENT} transparent transparent transparent` }} />
           </div>
         )}
 
-        {!loading && articles.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <LayoutList size={32} className="mb-3 text-slate-200" />
+        {!loading && displayedArticles.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16" style={{ color: TEXT_SECONDARY }}>
+            <LayoutList size={32} className="mb-3" style={{ color: TEXT_MUTED }} />
             <p className="text-sm">Aucun article</p>
           </div>
         )}

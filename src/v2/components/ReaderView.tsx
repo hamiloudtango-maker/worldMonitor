@@ -15,10 +15,11 @@ import AddSourceModal from './AddSourceModal';
 
 const ACCENT = '#4d8cf5';
 const BG_APP = '#131d2a';
-const BG_CARD = '#1a2836';
+const BG_SIDEBAR = '#0f1923';
 const BORDER = '#1e2d3d';
-const TEXT_PRIMARY = '#c8d6e5';
+const TEXT_PRIMARY = '#b0bec9';
 const TEXT_SECONDARY = '#6b7d93';
+const TEXT_MUTED = '#3a4a5a';
 
 type SidebarSection = 'all' | 'starred' | 'read-later' | 'trending' | { folder: FolderData };
 
@@ -43,7 +44,7 @@ export default function ReaderView() {
     setLoading(true);
     try {
       if (section === 'all') {
-        const data = await api('/articles/v1/search?limit=100');
+        const data = await api('/articles/v1/search?limit=200');
         setArticles((data as any).articles || []);
         setTotal((data as any).total || 0);
       } else if (section === 'starred') {
@@ -59,7 +60,7 @@ export default function ReaderView() {
         setArticles(data.articles);
         setTotal(data.articles.length);
       } else if (typeof section === 'object' && 'folder' in section) {
-        const data = await folderArticles(section.folder.id, { limit: 100 });
+        const data = await folderArticles(section.folder.id, { limit: 200 });
         setArticles(data.articles);
         setTotal(data.total);
       }
@@ -80,7 +81,7 @@ export default function ReaderView() {
     });
   };
 
-  const sectionTitle = section === 'all' ? 'Tous les articles'
+  const sectionTitle = section === 'all' ? 'Fil d\'actualité'
     : section === 'starred' ? 'Favoris'
     : section === 'read-later' ? 'Lire plus tard'
     : section === 'trending' ? 'Tendances'
@@ -89,12 +90,18 @@ export default function ReaderView() {
   return (
     <div className="flex h-full">
 
-      {/* ── Left sidebar: folders & quick access ─────────── */}
-      <aside className="w-56 flex flex-col shrink-0" style={{ background: BG_APP, borderRight: `1px solid ${BORDER}` }}>
+      {/* ── Left sidebar: Inoreader dark — folders & quick access ─────────── */}
+      <aside className="w-56 flex flex-col shrink-0" style={{ background: BG_SIDEBAR, borderRight: `1px solid ${BORDER}` }}>
+
+        {/* Header */}
+        <div className="px-3 py-3 shrink-0" style={{ borderBottom: `1px solid ${BORDER}` }}>
+          <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: TEXT_SECONDARY }}>Flux</div>
+        </div>
+
         {/* Quick access */}
-        <div className="px-3 py-3 space-y-0.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
+        <div className="px-2 py-2 space-y-0.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
           <SidebarItem
-            icon={Inbox} label="Tous les articles"
+            icon={Inbox} label="Fil d'actualité"
             active={section === 'all'}
             onClick={() => setSection('all')}
             count={total}
@@ -119,15 +126,14 @@ export default function ReaderView() {
           />
         </div>
 
-        <div className="mx-3 border-t border-slate-100" />
-
         {/* Folders */}
-        <div className="flex-1 overflow-y-auto px-3 py-3">
-          <div className="flex items-center justify-between mb-2">
+        <div className="flex-1 overflow-y-auto px-2 py-3">
+          <div className="flex items-center justify-between mb-2 px-1">
             <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: TEXT_SECONDARY }}>Dossiers</span>
             <button
               onClick={() => setShowAddSource(true)}
-              className="p-0.5 text-slate-400 hover:text-[#42d3a5] rounded transition-colors"
+              className="p-0.5 rounded transition-colors"
+              style={{ color: TEXT_SECONDARY }}
               title="Ajouter une source"
             >
               <Plus size={14} />
@@ -136,61 +142,70 @@ export default function ReaderView() {
 
           {folders.length === 0 && (
             <div className="text-center py-4">
-              <p className="text-[11px] text-slate-400">Aucun dossier</p>
+              <p className="text-[11px]" style={{ color: TEXT_SECONDARY }}>Aucun dossier</p>
               <button
                 onClick={() => setShowAddSource(true)}
-                className="mt-2 text-[11px] text-[#42d3a5] hover:underline"
+                className="mt-2 text-[11px] hover:underline"
+                style={{ color: ACCENT }}
               >
                 + Ajouter une source
               </button>
             </div>
           )}
 
-          {folders.map(folder => (
-            <div key={folder.id} className="mb-1">
-              <button
-                onClick={() => {
-                  toggleFolder(folder.id);
-                  setSection({ folder });
-                }}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[12px] transition-colors ${
-                  typeof section === 'object' && 'folder' in section && section.folder.id === folder.id
-                    ? 'bg-teal-50 text-[#2a9d7e] font-semibold'
-                    : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {expandedFolders.has(folder.id)
-                  ? <ChevronDown size={12} className="text-slate-400 shrink-0" />
-                  : <ChevronRight size={12} className="text-slate-400 shrink-0" />
-                }
-                <FolderOpen size={13} className="shrink-0" style={{ color: folder.color || '#94a3b8' }} />
-                <span className="flex-1 truncate">{folder.name}</span>
-                {folder.source_count > 0 && (
-                  <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                    {folder.source_count}
-                  </span>
-                )}
-              </button>
+          {folders.map(folder => {
+            const isActive = typeof section === 'object' && 'folder' in section && section.folder.id === folder.id;
+            return (
+              <div key={folder.id} className="mb-0.5">
+                <button
+                  onClick={() => {
+                    toggleFolder(folder.id);
+                    setSection({ folder });
+                  }}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[12px] transition-colors"
+                  style={{
+                    background: isActive ? `${ACCENT}18` : 'transparent',
+                    color: isActive ? ACCENT : TEXT_PRIMARY,
+                    fontWeight: isActive ? 600 : 400,
+                  }}
+                >
+                  {expandedFolders.has(folder.id)
+                    ? <ChevronDown size={12} style={{ color: TEXT_SECONDARY }} className="shrink-0" />
+                    : <ChevronRight size={12} style={{ color: TEXT_SECONDARY }} className="shrink-0" />
+                  }
+                  <FolderOpen size={13} className="shrink-0" style={{ color: folder.color || TEXT_SECONDARY }} />
+                  <span className="flex-1 truncate">{folder.name}</span>
+                  {folder.source_count > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ color: TEXT_SECONDARY, background: '#1a2836' }}>
+                      {folder.source_count}
+                    </span>
+                  )}
+                </button>
 
-              {/* Expanded: show sources in folder */}
-              {expandedFolders.has(folder.id) && folder.source_ids?.length > 0 && (
-                <div className="ml-7 mt-0.5 space-y-0.5">
-                  {folder.source_ids.map(sid => (
-                    <div key={sid} className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-slate-500 rounded hover:bg-slate-50">
-                      <Rss size={9} className="text-orange-400 shrink-0" />
-                      <span className="truncate">
-                        {sid.replace(/^plugin_\w+_|^catalog_/g, '').replace(/_/g, ' ')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                {/* Expanded: show sources in folder */}
+                {expandedFolders.has(folder.id) && folder.source_ids?.length > 0 && (
+                  <div className="ml-7 mt-0.5 space-y-0.5">
+                    {folder.source_ids.map(sid => (
+                      <div key={sid} className="flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors"
+                        style={{ color: TEXT_SECONDARY }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#1a2836'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <Rss size={9} className="shrink-0" style={{ color: '#f97316' }} />
+                        <span className="truncate">
+                          {sid.replace(/^plugin_\w+_|^catalog_/g, '').replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Add source button */}
-        <div className="px-3 py-3 border-t border-slate-100 shrink-0">
+        <div className="px-3 py-3 shrink-0" style={{ borderTop: `1px solid ${BORDER}` }}>
           <button
             onClick={() => setShowAddSource(true)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[12px] font-medium text-white rounded-lg transition-colors"
@@ -210,6 +225,7 @@ export default function ReaderView() {
           loading={loading}
           hasMore={articles.length < total}
           onLoadMore={loadArticles}
+          unreadCount={total}
         />
       </div>
 
@@ -223,7 +239,7 @@ export default function ReaderView() {
   );
 }
 
-/* ── Sidebar Item ─── */
+/* ── Sidebar Item — Inoreader dark ─── */
 function SidebarItem({ icon: Icon, label, active, onClick, count, color }: {
   icon: typeof Inbox;
   label: string;
@@ -235,16 +251,18 @@ function SidebarItem({ icon: Icon, label, active, onClick, count, color }: {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] transition-colors text-left ${
-        active
-          ? 'bg-teal-50 text-[#2a9d7e] font-semibold'
-          : 'text-slate-600 hover:bg-slate-50'
-      }`}
+      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] transition-colors text-left"
+      style={{
+        background: active ? `${ACCENT}18` : 'transparent',
+        color: active ? ACCENT : TEXT_PRIMARY,
+        fontWeight: active ? 600 : 400,
+      }}
     >
-      <Icon size={15} style={{ color: active ? ACCENT : (color || '#94a3b8') }} />
+      <Icon size={15} style={{ color: active ? ACCENT : (color || '#6b7d93') }} />
       <span className="flex-1">{label}</span>
       {count !== undefined && count > 0 && (
-        <span className="text-[9px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
+          style={{ color: TEXT_SECONDARY, background: '#1a2836' }}>
           {count > 999 ? '999+' : count}
         </span>
       )}

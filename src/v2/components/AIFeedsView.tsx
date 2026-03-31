@@ -150,7 +150,7 @@ export default function AIFeedsView() {
                     {selected.name}
                   </h2>
                 )}
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px]" style={{ color: '#6b7d93' }}>
                   {previewCount || selected.result_count} articles · {selected.status}
                   {selected.description && <span className="ml-1">— {selected.description}</span>}
                 </p>
@@ -158,7 +158,8 @@ export default function AIFeedsView() {
               <div className="flex gap-2">
                 <button
                   onClick={handleRefresh}
-                  className="px-3 py-1.5 text-[11px] font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  className="px-3 py-1.5 text-[11px] font-medium rounded-lg transition-colors"
+                  style={{ color: '#b0bec9', border: '1px solid #1e2d3d' }}
                 >
                   Rafraichir
                 </button>
@@ -176,7 +177,7 @@ export default function AIFeedsView() {
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <ModelQueryBuilder layers={localModelLayers} onChange={handleModelLayersChange} />
-              <div className="border-t border-slate-100 pt-4">
+              <div className="pt-4" style={{ borderTop: '1px solid #1e2d3d' }}>
                 <FeedPreview feedId={selected.id} onCountChange={setPreviewCount} refreshKey={previewKey} />
               </div>
             </div>
@@ -186,13 +187,13 @@ export default function AIFeedsView() {
         /* Empty state — prompt to create */
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-50 to-emerald-50 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-[#42d3a5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #1a2836, #0f1923)' }}>
+              <svg className="w-8 h-8" style={{ color: '#42d3a5' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 110-2 1 1 0 010 2z" />
               </svg>
             </div>
-            <h3 className="text-sm font-bold text-[#b0bec9] mb-1">AI Feeds</h3>
-            <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+            <h3 className="text-sm font-bold mb-1" style={{ color: '#e2e8f0' }}>AI Feeds</h3>
+            <p className="text-[11px] leading-relaxed mb-4" style={{ color: '#6b7d93' }}>
               Créez un feed intelligent pour surveiller les sujets qui comptent. L'IA configure automatiquement vos filtres et sources.
             </p>
             <button
