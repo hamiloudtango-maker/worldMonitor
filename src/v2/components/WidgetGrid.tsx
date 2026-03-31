@@ -262,7 +262,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
       {showCatalog && (
         <div className="rounded-xl p-4 shadow-lg max-h-[60vh] overflow-y-auto" style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}>
           <div className="flex items-center justify-between mb-2 sticky top-0 bg-white pb-2 z-10">
-            <h3 className="text-sm font-bold" style={{ color: '#e2e8f0' }}>Ajouter un widget</h3>
+            <h3 className="text-sm font-bold" style={{ color: '#b0bec9' }}>Ajouter un widget</h3>
             <button onClick={() => { setShowCatalog(false); setCatalogSearch(''); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
           </div>
           <div className="relative mb-3 sticky top-8 bg-white z-10">

@@ -51,7 +51,7 @@ const BG_APP       = '#131d2a';
 const BG_SIDEBAR   = '#0f1923';
 const BG_CARD      = '#1a2836';
 const ACCENT       = '#4d8cf5';
-const TEXT_PRIMARY  = '#c8d6e5';
+const TEXT_PRIMARY  = '#b0bec9';
 const TEXT_SECONDARY= '#6b7d93';
 const BORDER       = '#1e2d3d';
 const CHART_COLORS = ['#4d8cf5', '#42d3a5', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
@@ -182,11 +182,11 @@ function DashboardInner({ user, onLogout }: Props) {
         {/* Logo */}
         <div className="h-14 flex items-center justify-center shrink-0" style={{ borderBottom: `1px solid ${BORDER}` }}>
           <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${ACCENT}, #6366f1)` }}>
-            <Globe size={15} className="text-white" />
+            <Globe size={15} className="text-[#b0bec9]" />
           </div>
           {sidebarExpanded && (
             <div className="ml-2.5 leading-tight">
-              <div className="font-extrabold text-[12px] text-white tracking-tight">WorldMonitor</div>
+              <div className="font-extrabold text-[12px] text-[#b0bec9] tracking-tight">WorldMonitor</div>
             </div>
           )}
         </div>
@@ -212,13 +212,13 @@ function DashboardInner({ user, onLogout }: Props) {
                   <span className="text-[9px] font-medium mt-1 truncate w-full text-center">{item.label}</span>
                   {/* Badge */}
                   {item.key === 'reader' && alertArticles.length > 0 && (
-                    <span className="absolute bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
+                    <span className="absolute bg-red-500 text-[#b0bec9] text-[8px] font-bold rounded-full flex items-center justify-center"
                       style={{ width: 16, height: 16, top: 2, right: 2 }}>
                       {Math.min(alertArticles.length, 99)}
                     </span>
                   )}
                   {item.key === 'cases' && cases.length > 0 && (
-                    <span className="absolute bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
+                    <span className="absolute bg-red-500 text-[#b0bec9] text-[8px] font-bold rounded-full flex items-center justify-center"
                       style={{ width: 16, height: 16, top: 2, right: 2 }}>
                       {cases.length}
                     </span>
@@ -236,7 +236,7 @@ function DashboardInner({ user, onLogout }: Props) {
           </div>
           {/* User avatar */}
           <div className="flex items-center justify-center py-2">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white cursor-pointer" style={{ background: '#e91e8c' }} title={user.email} onClick={onLogout}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-[#b0bec9] cursor-pointer" style={{ background: '#e91e8c' }} title={user.email} onClick={onLogout}>
               {user.org_name.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -264,7 +264,7 @@ function DashboardInner({ user, onLogout }: Props) {
               {/* View header */}
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-[22px] font-bold text-white">
+                  <h1 className="text-[22px] font-bold text-[#b0bec9]">
                     {NAV_ITEMS.find(n => n.key === nav)?.label || ''}
                   </h1>
                   {!loading && (
@@ -331,7 +331,7 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
   switch (id) {
     case 'kpis':
       return (
-        <div className="flex gap-2 p-2.5 h-full items-center">
+        <div className="flex gap-2 p-3 h-full items-center">
           {[
             { l: 'Documents', v: stats?.total || 0, color: '#4d8cf5' },
             { l: 'Cases', v: cases.length, color: '#42d3a5' },
@@ -339,9 +339,9 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
             { l: 'Élevées', v: stats?.by_threat['high'] || 0, color: '#f97316' },
             { l: 'Sources', v: Object.keys(stats?.by_source || {}).length, color: '#8b5cf6' },
           ].map((k, i) => (
-            <div key={i} className="flex-1 rounded-lg py-3 px-3 text-center" style={{ background: '#131d2a' }}>
+            <div key={i} className="flex-1 rounded-lg py-3 px-3 text-center" style={{ background: '#0f1923' }}>
               <div className="text-xl font-extrabold" style={{ color: k.color }}>{k.v.toLocaleString()}</div>
-              <div className="text-[9px] font-medium uppercase tracking-wider" style={{ color: '#6b7d93' }}>{k.l}</div>
+              <div className="text-[9px] font-medium uppercase tracking-wider" style={{ color: '#556677' }}>{k.l}</div>
             </div>
           ))}
         </div>
@@ -370,32 +370,44 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
       return <div className="p-1 h-full">{articles.length > 0 ? <LiveMap articles={articles} /> : <div className="w-full h-full rounded-lg flex items-center justify-center text-xs" style={{ background: '#0f1923', color: '#6b7d93' }}>Chargement...</div>}</div>;
     case 'alerts':
       return (
-        <div className="overflow-y-auto h-full p-2.5 space-y-1.5">
-          {alertArticles.slice(0, 10).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left p-3 rounded-lg transition-colors cursor-pointer" style={{ border: '1px solid #1e2d3d' }} onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded" style={{
-                  background: a.threat_level === 'critical' ? '#3b1111' : '#2d1f0e',
+        <div className="overflow-y-auto h-full p-2 space-y-0.5">
+          {alertArticles.slice(0, 12).map(a => (
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+              {/* Thumbnail placeholder */}
+              <div className="w-16 h-12 rounded-lg shrink-0 flex items-center justify-center" style={{
+                background: a.threat_level === 'critical' ? 'linear-gradient(135deg, #2d1515, #1a0808)' : 'linear-gradient(135deg, #2d1f0e, #1a1508)',
+              }}>
+                <span className="text-[8px] font-bold uppercase" style={{
                   color: a.threat_level === 'critical' ? '#ef4444' : '#f97316',
                 }}>{a.threat_level}</span>
-                <span className="text-[9px] ml-auto" style={{ color: '#6b7d93' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
               </div>
-              <p className="text-[11px] font-medium line-clamp-2" style={{ color: '#c8d6e5' }}>{a.title}</p>
-              <p className="text-[9px] mt-1" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px]" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
+                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+                </div>
+              </div>
             </button>
           ))}
-          {alertArticles.length === 0 && <div className="text-center text-xs py-6" style={{ color: '#6b7d93' }}>Aucune alerte</div>}
+          {alertArticles.length === 0 && <div className="text-center text-xs py-6" style={{ color: '#556677' }}>Aucune alerte</div>}
         </div>
       );
     case 'news':
       return (
-        <div className="overflow-y-auto h-full p-2.5 space-y-0.5">
+        <div className="overflow-y-auto h-full p-2 space-y-0.5">
           {articles.slice(0, 15).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-              <p className="text-[11px] font-medium line-clamp-1" style={{ color: '#c8d6e5' }}>{a.title}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[9px] font-medium" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
-                <span className="text-[9px]" style={{ color: '#4a5c6f' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="flex items-start gap-3 w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+              {/* Thumbnail placeholder */}
+              <div className="w-14 h-10 rounded shrink-0" style={{
+                background: `linear-gradient(135deg, #1a2836, #0f1923)`,
+              }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium line-clamp-2 leading-snug" style={{ color: '#b0bec9' }}>{a.title}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px]" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
+                  <span className="text-[10px]" style={{ color: '#445566' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+                </div>
               </div>
             </button>
           ))}
