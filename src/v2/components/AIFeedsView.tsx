@@ -94,9 +94,9 @@ export default function AIFeedsView() {
 
 
   return (
-    <div className="flex h-full -m-5 bg-white rounded-xl border border-slate-200/60 overflow-hidden">
+    <div className="flex h-full -m-5 rounded-xl overflow-hidden" style={{ background: '#131d2a', border: '1px solid #1e2d3d' }}>
       {/* Left: Feed list + RSS bulk add */}
-      <div className="w-72 border-r border-slate-200/60 bg-white flex flex-col shrink-0">
+      <div className="w-72 flex flex-col shrink-0" style={{ borderRight: '1px solid #1e2d3d', background: '#0f1923' }}>
         <div className="flex-1 overflow-hidden">
           <FeedList
             feeds={feeds}
@@ -121,7 +121,7 @@ export default function AIFeedsView() {
         <>
           {/* Center: Query builder + Preview */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1e2d3d' }}>
               <div>
                 {editingName ? (
                   <input
@@ -139,11 +139,11 @@ export default function AIFeedsView() {
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                       if (e.key === 'Escape') setEditingName(false);
                     }}
-                    className="text-sm font-bold text-slate-900 bg-transparent border-b border-[#42d3a5] focus:outline-none px-0 py-0"
+                    className="text-sm font-bold text-[#b0bec9] bg-transparent border-b border-[#42d3a5] focus:outline-none px-0 py-0"
                   />
                 ) : (
                   <h2
-                    className="text-sm font-bold text-slate-900 cursor-pointer hover:text-[#42d3a5] transition-colors"
+                    className="text-sm font-bold text-[#b0bec9] cursor-pointer hover:text-[#42d3a5] transition-colors"
                     onClick={() => { setEditName(selected.name); setEditingName(true); }}
                     title="Cliquer pour renommer"
                   >
@@ -191,7 +191,7 @@ export default function AIFeedsView() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 110-2 1 1 0 010 2z" />
               </svg>
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mb-1">AI Feeds</h3>
+            <h3 className="text-sm font-bold text-[#b0bec9] mb-1">AI Feeds</h3>
             <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
               Créez un feed intelligent pour surveiller les sujets qui comptent. L'IA configure automatiquement vos filtres et sources.
             </p>
