@@ -48,6 +48,8 @@ ROUTERS = [
     "app.notifications.router",
     # Rules engine
     "app.rules_engine.router",
+    # Unified sources v2
+    "app.domains.sources.router",
 ]
 
 
@@ -337,6 +339,8 @@ async def lifespan(app: FastAPI):
         import app.plugins.models  # noqa: F401 — register PluginInstance
         import app.notifications.models  # noqa: F401 — register Notification
         import app.rules_engine.models  # noqa: F401 — register AutomationRule
+        import app.models.folder  # noqa: F401 — register Folder
+        import app.models.user_article  # noqa: F401 — register UserArticleState
 
         await create_all_tables()
 
