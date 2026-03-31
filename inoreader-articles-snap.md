@@ -1,0 +1,54 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - text: 
+      - generic [ref=e4]:
+        - navigation [ref=e5]:
+          - list [ref=e6]
+          - list [ref=e30]
+        - generic [ref=e49]:
+          - generic [ref=e50]
+          - text:                                                        
+      - generic [ref=e81]:
+        - generic [ref=e83]:
+          - heading "Newsfeed " [level=2] [ref=e85]
+          - generic [ref=e91]
+        - generic [active] [ref=e127]:
+          - generic [ref=e128]
+          - generic [ref=e153]
+          - generic [ref=e178]
+          - generic [ref=e203]
+          - generic [ref=e228]
+          - generic [ref=e253]
+          - generic [ref=e278]
+          - generic [ref=e303]
+          - generic [ref=e328]
+          - generic [ref=e353]
+          - generic [ref=e378]
+          - generic [ref=e403]
+          - generic [ref=e428]
+          - generic [ref=e450]
+          - generic [ref=e475]
+          - generic [ref=e500]
+          - generic [ref=e525]
+          - generic [ref=e550]
+          - generic [ref=e575]
+          - generic [ref=e600]
+          - generic [ref=e625]
+          - generic [ref=e650]
+          - generic [ref=e675]
+          - generic [ref=e700]
+          - generic [ref=e726]: Loading...
+      - text:  
+      - generic [ref=e727]:
+        - button "" [ref=e728] [cursor=pointer]:
+          - generic [ref=e729]: 
+        - button "" [ref=e730] [cursor=pointer]:
+          - generic [ref=e731]: 
+    - generic:    
+  - text: 
+  - generic [ref=e732]:
+    - generic "Remove selection" [ref=e735] [cursor=pointer]:
+      - generic [ref=e736]: 
+    - text: 
+  - text:  

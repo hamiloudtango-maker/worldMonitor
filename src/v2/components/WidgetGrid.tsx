@@ -260,9 +260,9 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
 
       {/* Catalog */}
       {showCatalog && (
-        <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-lg max-h-[60vh] overflow-y-auto">
+        <div className="rounded-xl p-4 shadow-lg max-h-[60vh] overflow-y-auto" style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}>
           <div className="flex items-center justify-between mb-2 sticky top-0 bg-white pb-2 z-10">
-            <h3 className="text-sm font-bold text-slate-900">Ajouter un widget</h3>
+            <h3 className="text-sm font-bold" style={{ color: '#e2e8f0' }}>Ajouter un widget</h3>
             <button onClick={() => { setShowCatalog(false); setCatalogSearch(''); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
           </div>
           <div className="relative mb-3 sticky top-8 bg-white z-10">
@@ -348,12 +348,12 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
               const Icon = def.icon;
               const hasConfig = def.configFields && def.configFields.length > 0;
               return (
-                <div key={item.i} className="bg-white rounded-xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden group relative">
+                <div key={item.i} className="rounded-xl shadow-sm flex flex-col overflow-hidden group relative" style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}>
                   {/* Header — drag handle */}
-                  <div className="wg-drag px-3 py-1.5 border-b border-slate-100 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none">
+                  <div className="wg-drag px-3 py-1.5 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none" style={{ borderBottom: '1px solid #1e2d3d' }}>
                     <div className="flex items-center gap-2">
                       <Icon size={13} style={{ color: ACCENT }} />
-                      <span className="text-[12px] font-bold text-slate-900">{def.title}</span>
+                      <span className="text-[12px] font-bold" style={{ color: '#c8d6e5' }}>{def.title}</span>
                     </div>
                     <div className="flex items-center gap-0.5">
                       {hasConfig && (
@@ -400,7 +400,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
           ))}
         </>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200/60 p-12 text-center">
+        <div className="rounded-xl p-12 text-center" style={{ background: '#1a2836', border: '1px dashed #1e2d3d' }}>
           <p className="text-sm text-slate-500 mb-4">Aucun widget.</p>
           <button onClick={() => setShowCatalog(true)} className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl" style={{ background: ACCENT }}>
             <Plus size={16} /> Ajouter

@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - text: 
+      - generic [ref=e4]:
+        - navigation [ref=e5]:
+          - list [ref=e6]
+          - list [ref=e30]
+        - text:                                                                
+      - generic [ref=e50]:
+        - generic [ref=e52]:
+          - heading "Dashboards  " [level=2] [ref=e54]
+          - list [ref=e66] [cursor=pointer]
+        - generic [ref=e69]:
+          - generic: 
+          - generic [ref=e70]
+      - text:    
+    - generic:    
+  - text: 
+  - generic [ref=e649]:
+    - generic "Remove selection" [ref=e652] [cursor=pointer]:
+      - generic [ref=e653]: 
+    - text: 
+  - text:  

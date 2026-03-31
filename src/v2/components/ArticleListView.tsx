@@ -41,7 +41,7 @@ interface Props {
 }
 
 export default function ArticleListView({ articles, title, loading, onLoadMore, hasMore }: Props) {
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [readLaterIds, setReadLaterIds] = useState<Set<string>>(new Set());
@@ -138,10 +138,10 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-white shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #1e2d3d', background: '#131d2a' }}>
         <div className="flex items-center gap-3">
-          {title && <h2 className="text-sm font-bold text-slate-900">{title}</h2>}
-          <span className="text-[10px] text-slate-400">{articles.length} articles</span>
+          {title && <h2 className="text-[14px] font-bold" style={{ color: '#e2e8f0' }}>{title}</h2>}
+          <span className="text-[10px]" style={{ color: '#6b7d93' }}>{articles.length} articles</span>
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2 ml-2">
               <span className="text-[10px] font-medium text-[#42d3a5]">{selectedIds.size} sélectionnés</span>
@@ -170,14 +170,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
         </div>
       </div>
 
-      {/* Keyboard hint */}
-      <div className="px-4 py-1 bg-slate-50/50 border-b border-slate-100 text-[9px] text-slate-300 flex gap-3 shrink-0">
-        <span><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[8px]">j</kbd>/<kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[8px]">k</kbd> naviguer</span>
-        <span><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[8px]">o</kbd> ouvrir</span>
-        <span><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[8px]">s</kbd> star</span>
-        <span><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[8px]">r</kbd> read later</span>
-        <span><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[8px]">m</kbd> lu</span>
-      </div>
+      {/* Keyboard hints removed — shortcuts work silently like Inoreader */}
 
       {/* Article list */}
       <div ref={listRef} className="flex-1 overflow-y-auto">
@@ -195,9 +188,12 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                   key={a.id}
                   id={`article-item-${idx}`}
                   onClick={() => handleClick(a, idx)}
-                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-slate-50 transition-colors ${
-                    isSelected ? 'bg-teal-50/60 border-l-2 border-l-[#42d3a5]' : 'hover:bg-slate-50/80'
-                  } ${isRead ? 'opacity-60' : ''}`}
+                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors ${isRead ? 'opacity-50' : ''}`}
+                  style={{
+                    borderBottom: '1px solid #1e2d3d',
+                    background: isSelected ? '#1a2836' : 'transparent',
+                    borderLeft: isSelected ? '2px solid #4d8cf5' : '2px solid transparent',
+                  }}
                 >
                   {/* Checkbox */}
                   <button
@@ -214,10 +210,10 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-[13px] leading-snug line-clamp-2 ${isRead ? 'text-slate-500' : 'text-slate-900 font-medium'}`}>
+                    <p className="text-[13px] leading-snug line-clamp-2 font-medium" style={{ color: isRead ? '#6b7d93' : '#e2e8f0' }}>
                       {a.title}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+                    <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: '#6b7d93' }}>
                       <span className="truncate max-w-[120px] font-medium">{formatSource(a.source_id)}</span>
                       {a.pub_date && <><span className="text-slate-200">·</span><span>{timeAgo(a.pub_date)}</span></>}
                       {a.family && <><span className="text-slate-200">·</span><span className="text-slate-500">{a.family}</span></>}
@@ -249,34 +245,85 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
             })}
           </div>
         ) : (
-          // ── Card mode ──
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+          // ── Card mode (Inoreader-style: image + title + source + desc + actions) ──
+          <div className="p-4 space-y-4">
             {articles.map((a, idx) => {
               const isRead = readIds.has(a.id);
+              const isStarred = starredIds.has(a.id);
               return (
                 <div
                   key={a.id}
                   onClick={() => handleClick(a, idx)}
-                  className={`bg-white rounded-xl border border-slate-200/60 p-4 cursor-pointer hover:shadow-md transition-shadow ${isRead ? 'opacity-60' : ''}`}
+                  className={`rounded-xl overflow-hidden cursor-pointer transition-all ${isRead ? 'opacity-50' : ''}`}
+                  style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}
                 >
-                  <div className="flex items-start gap-2 mb-2">
-                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${THREAT_DOT[a.threat_level || ''] || 'bg-slate-200'}`} />
-                    <h3 className="text-[13px] font-medium text-slate-900 leading-snug line-clamp-3 flex-1">{a.title}</h3>
-                  </div>
-                  {a.description && (
-                    <p className="text-[11px] text-slate-500 line-clamp-2 mb-2">{a.description}</p>
-                  )}
-                  <div className="flex items-center justify-between text-[10px] text-slate-400">
-                    <span className="truncate max-w-[150px]">{formatSource(a.source_id)}</span>
-                    <span>{timeAgo(a.pub_date)}</span>
-                  </div>
-                  {a.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {a.tags.slice(0, 3).map(t => (
-                        <span key={t} className="px-1.5 py-0.5 text-[9px] bg-teal-50 text-teal-600 rounded">{t}</span>
-                      ))}
+                  {/* Threat + family header bar */}
+                  <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                    <div className="flex items-center gap-2">
+                      {a.threat_level && (a.threat_level === 'critical' || a.threat_level === 'high') && (
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded" style={{
+                          background: a.threat_level === 'critical' ? '#3b1111' : '#2d1f0e',
+                          color: a.threat_level === 'critical' ? '#ef4444' : '#f97316',
+                        }}>{a.threat_level}</span>
+                      )}
+                      {a.family && (
+                        <span className="text-[10px] font-medium" style={{ color: '#4d8cf5' }}>
+                          {a.family}{a.section ? ` › ${a.section}` : ''}
+                        </span>
+                      )}
                     </div>
-                  )}
+                    {a.countries?.length > 0 && (
+                      <div className="flex gap-1">
+                        {a.countries.slice(0, 3).map(c => (
+                          <span key={c} className="text-[9px] font-medium px-1 py-0.5 rounded" style={{ background: '#131d2a', color: '#6b7d93' }}>{c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="px-4 pb-4 pt-2">
+                    <h3 className="text-[16px] font-bold leading-snug line-clamp-2 mb-2" style={{ color: '#e2e8f0' }}>
+                      {a.title}
+                    </h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[12px] font-medium" style={{ color: '#4d8cf5' }}>{formatSource(a.source_id)}</span>
+                      <span style={{ color: '#4a5c6f' }}>·</span>
+                      {a.sentiment && (
+                        <span className="text-[11px]" style={{ color: a.sentiment === 'negative' ? '#ef4444' : a.sentiment === 'positive' ? '#22c55e' : '#6b7d93' }}>
+                          {a.sentiment === 'negative' ? '▼ négatif' : a.sentiment === 'positive' ? '▲ positif' : '— neutre'}
+                        </span>
+                      )}
+                    </div>
+                    {a.description && (
+                      <p className="text-[13px] line-clamp-3 mb-3" style={{ color: '#8899aa', lineHeight: '1.6' }}>
+                        {a.description}
+                      </p>
+                    )}
+
+                    {/* Bottom: time + actions */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px]" style={{ color: '#6b7d93' }}>{timeAgo(a.pub_date)}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: isStarred ? '#d4a843' : '#4a5c6f' }}
+                          title="Favoris"
+                        >
+                          <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: readLaterIds.has(a.id) ? '#4d8cf5' : '#4a5c6f' }}
+                          title="Lire plus tard"
+                        >
+                          <BookmarkPlus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })}

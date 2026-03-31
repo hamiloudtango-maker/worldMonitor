@@ -14,6 +14,11 @@ import ArticleListView from './ArticleListView';
 import AddSourceModal from './AddSourceModal';
 
 const ACCENT = '#4d8cf5';
+const BG_APP = '#131d2a';
+const BG_CARD = '#1a2836';
+const BORDER = '#1e2d3d';
+const TEXT_PRIMARY = '#c8d6e5';
+const TEXT_SECONDARY = '#6b7d93';
 
 type SidebarSection = 'all' | 'starred' | 'read-later' | 'trending' | { folder: FolderData };
 
@@ -85,9 +90,9 @@ export default function ReaderView() {
     <div className="flex h-full">
 
       {/* ── Left sidebar: folders & quick access ─────────── */}
-      <aside className="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0">
+      <aside className="w-56 flex flex-col shrink-0" style={{ background: BG_APP, borderRight: `1px solid ${BORDER}` }}>
         {/* Quick access */}
-        <div className="px-3 py-3 space-y-0.5">
+        <div className="px-3 py-3 space-y-0.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
           <SidebarItem
             icon={Inbox} label="Tous les articles"
             active={section === 'all'}
@@ -119,7 +124,7 @@ export default function ReaderView() {
         {/* Folders */}
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dossiers</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: TEXT_SECONDARY }}>Dossiers</span>
             <button
               onClick={() => setShowAddSource(true)}
               className="p-0.5 text-slate-400 hover:text-[#42d3a5] rounded transition-colors"
@@ -198,7 +203,7 @@ export default function ReaderView() {
       </aside>
 
       {/* ── Main: article list ───────────────────────────── */}
-      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ background: BG_APP }}>
         <ArticleListView
           articles={articles}
           title={sectionTitle}

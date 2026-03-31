@@ -46,8 +46,14 @@ type NavKey = 'dashboard' | 'reader' | 'cases' | 'ai-feeds' | 'world' | 'reports
 /* ═══════════════════════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════════════════════ */
-const ACCENT       = '#4d8cf5';  // Inoreader-style blue
-const ACCENT_LIGHT = '#eef4ff';
+// Inoreader dark theme tokens
+const BG_APP       = '#131d2a';
+const BG_SIDEBAR   = '#0f1923';
+const BG_CARD      = '#1a2836';
+const ACCENT       = '#4d8cf5';
+const TEXT_PRIMARY  = '#c8d6e5';
+const TEXT_SECONDARY= '#6b7d93';
+const BORDER       = '#1e2d3d';
 const CHART_COLORS = ['#4d8cf5', '#42d3a5', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
 
 
@@ -162,106 +168,133 @@ function DashboardInner({ user, onLogout }: Props) {
      RENDER
      ═══════════════════════════════════════════════════════════════ */
 
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+
   return (
     <ArticleReaderContext.Provider value={setReadingArticleId}>
-    <div className="flex flex-col h-screen bg-white text-slate-800 overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}>
+    <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif", background: BG_APP, color: TEXT_PRIMARY }}>
 
-      {/* ───────── TOP BAR (Inoreader-style) ───────── */}
-      <header className="h-12 bg-white border-b border-slate-200 flex items-center px-4 shrink-0 z-20">
+      {/* ───────── SIDEBAR (Inoreader-style: dark, icons) ───────── */}
+      <aside
+        className="flex flex-col shrink-0 z-10 transition-all duration-200"
+        style={{ background: BG_SIDEBAR, width: sidebarExpanded ? 220 : 52, borderRight: `1px solid ${BORDER}` }}
+      >
         {/* Logo */}
-        <div className="flex items-center gap-2.5 mr-6">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${ACCENT}, #6366f1)` }}>
-            <Globe size={14} className="text-white" />
+        <div className="h-14 flex items-center justify-center shrink-0" style={{ borderBottom: `1px solid ${BORDER}` }}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${ACCENT}, #6366f1)` }}>
+            <Globe size={15} className="text-white" />
           </div>
-          <span className="font-extrabold text-[15px] text-slate-900 tracking-tight">WorldMonitor</span>
+          {sidebarExpanded && (
+            <div className="ml-2.5 leading-tight">
+              <div className="font-extrabold text-[12px] text-white tracking-tight">WorldMonitor</div>
+            </div>
+          )}
         </div>
 
-        {/* Tab bar (Inoreader-style horizontal tabs) */}
-        <nav className="flex items-center gap-0.5 flex-1">
+        {/* Nav icons with labels (Inoreader-style) */}
+        <nav className="flex-1 py-2 space-y-0.5 overflow-y-auto px-1.5">
           {NAV_ITEMS.map(item => {
             const isActive = nav === item.key;
             return (
-              <button
-                key={item.key}
-                onClick={() => setNav(item.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
-                  isActive
-                    ? 'text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                }`}
-                style={isActive ? { background: ACCENT } : undefined}
-              >
-                <item.icon size={14} />
-                <span className="hidden md:inline">{item.label}</span>
-                {item.key === 'cases' && cases.length > 0 && (
-                  <span className={`text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ${isActive ? 'bg-white/30 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                    {cases.length}
-                  </span>
-                )}
-                {item.key === 'reader' && alertArticles.length > 0 && (
-                  <span className="bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                    {Math.min(alertArticles.length, 99)}
-                  </span>
-                )}
-              </button>
+              <div key={item.key}>
+                {item.sep && <div className="my-2 mx-1" style={{ borderTop: `1px solid ${BORDER}` }} />}
+                <button
+                  onClick={() => setNav(item.key)}
+                  className="w-full flex flex-col items-center rounded-lg transition-all relative"
+                  style={{
+                    padding: '8px 4px 5px',
+                    background: isActive ? `${ACCENT}18` : 'transparent',
+                    color: isActive ? ACCENT : TEXT_SECONDARY,
+                  }}
+                  title={item.label}
+                >
+                  <item.icon size={20} />
+                  <span className="text-[9px] font-medium mt-1 truncate w-full text-center">{item.label}</span>
+                  {/* Badge */}
+                  {item.key === 'reader' && alertArticles.length > 0 && (
+                    <span className="absolute bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
+                      style={{ width: 16, height: 16, top: 2, right: 2 }}>
+                      {Math.min(alertArticles.length, 99)}
+                    </span>
+                  )}
+                  {item.key === 'cases' && cases.length > 0 && (
+                    <span className="absolute bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center"
+                      style={{ width: 16, height: 16, top: 2, right: 2 }}>
+                      {cases.length}
+                    </span>
+                  )}
+                </button>
+              </div>
             );
           })}
         </nav>
 
-        {/* Right actions */}
-        <div className="flex items-center gap-1.5">
-          <GlobalSearch />
-          <button onClick={load} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-50 transition-colors" title="Actualiser">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <NotificationBell onOpenArticle={setReadingArticleId} />
+        {/* Bottom: notifications, settings, user, collapse */}
+        <div className="shrink-0 space-y-1 pb-3" style={{ padding: sidebarExpanded ? '0 8px 12px' : '0 6px 12px', borderTop: `1px solid ${BORDER}` }}>
+          <div className="pt-3">
+            <NotificationBell onOpenArticle={setReadingArticleId} />
+          </div>
           {/* User avatar */}
-          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-slate-200">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: ACCENT }}>
+          <div className="flex items-center justify-center py-2">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white cursor-pointer" style={{ background: '#e91e8c' }} title={user.email} onClick={onLogout}>
               {user.org_name.charAt(0).toUpperCase()}
             </div>
-            <button onClick={onLogout} className="text-slate-400 hover:text-red-500 p-1 rounded transition-colors" title="Déconnexion">
-              <LogOut size={13} />
-            </button>
           </div>
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setSidebarExpanded(!sidebarExpanded)}
+            className="w-full flex items-center justify-center py-1.5 rounded transition-colors"
+            style={{ color: TEXT_SECONDARY }}
+            title={sidebarExpanded ? 'Réduire' : 'Étendre'}
+          >
+            {sidebarExpanded ? '«' : '»'}
+          </button>
         </div>
-      </header>
+      </aside>
 
-      {/* ───────── CONTENT ───────── */}
-      <div className="flex-1 overflow-hidden">
+      {/* ───────── MAIN ───────── */}
+      <main className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Reader = full height, no padding (has its own sidebar) */}
-        {nav === 'reader' && <ReaderView />}
+        {/* Content — no top header bar (Inoreader puts title inside each view) */}
+        <div className="flex-1 overflow-hidden">
+          {nav === 'reader' && <ReaderView />}
 
-        {/* Other views with standard padding */}
-        {nav !== 'reader' && (
-          <div className="h-full overflow-y-auto p-5 space-y-4 bg-slate-50">
+          {nav !== 'reader' && (
+            <div className="h-full overflow-y-auto" style={{ background: BG_APP }}>
+              {/* View header */}
+              <div className="flex items-center justify-between px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-[22px] font-bold text-white">
+                    {NAV_ITEMS.find(n => n.key === nav)?.label || ''}
+                  </h1>
+                  {!loading && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ background: '#0f2d1a', color: '#22c55e' }}>
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <GlobalSearch />
+                  <button onClick={load} className="p-2 rounded-lg transition-colors" style={{ color: TEXT_SECONDARY }} title="Actualiser">
+                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              </div>
 
-            {nav === 'dashboard' && (
-              <WidgetGrid
-                catalog={catalog}
-                storageKey="wm-dash-v3"
-                defaultWidgets={DASH_DEFAULTS}
-                renderContent={dashRenderContent}
-              />
-            )}
-
-            {nav === 'cases' && (
-              <CasesView
-                cases={cases}
-                loading={casesLoading}
-                onAdd={addCase}
-                onRemove={removeCase}
-              />
-            )}
-
-            {nav === 'ai-feeds' && <AIFeedsView />}
-            {nav === 'world' && <WorldView />}
-            {nav === 'reports' && <ReportsView />}
-            {nav === 'settings' && <SettingsView user={user} stats={stats} cases={cases} onLogout={onLogout} />}
-          </div>
-        )}
-      </div>
+              <div className="px-6 pb-6 space-y-4">
+                {nav === 'dashboard' && (
+                  <WidgetGrid catalog={catalog} storageKey="wm-dash-v3" defaultWidgets={DASH_DEFAULTS} renderContent={dashRenderContent} />
+                )}
+                {nav === 'cases' && <CasesView cases={cases} loading={casesLoading} onAdd={addCase} onRemove={removeCase} />}
+                {nav === 'ai-feeds' && <AIFeedsView />}
+                {nav === 'world' && <WorldView />}
+                {nav === 'reports' && <ReportsView />}
+                {nav === 'settings' && <SettingsView user={user} stats={stats} cases={cases} onLogout={onLogout} />}
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
 
       <ArticleReader articleId={readingArticleId} onClose={() => setReadingArticleId(null)} />
     </div>
@@ -298,65 +331,72 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
   switch (id) {
     case 'kpis':
       return (
-        <div className="flex gap-2 p-2 h-full items-center">
+        <div className="flex gap-2 p-2.5 h-full items-center">
           {[
-            { l: 'Documents', v: stats?.total || 0 }, { l: 'Cases', v: cases.length },
-            { l: 'Critiques', v: stats?.by_threat['critical'] || 0 },
-            { l: 'Élevées', v: stats?.by_threat['high'] || 0 },
-            { l: 'Pays', v: Object.keys(stats?.by_source || {}).length },
+            { l: 'Documents', v: stats?.total || 0, color: '#4d8cf5' },
+            { l: 'Cases', v: cases.length, color: '#42d3a5' },
+            { l: 'Critiques', v: stats?.by_threat['critical'] || 0, color: '#ef4444' },
+            { l: 'Élevées', v: stats?.by_threat['high'] || 0, color: '#f97316' },
+            { l: 'Sources', v: Object.keys(stats?.by_source || {}).length, color: '#8b5cf6' },
           ].map((k, i) => (
-            <div key={i} className="flex-1 bg-slate-50 rounded-lg py-2 px-3 text-center">
-              <div className="text-lg font-extrabold text-slate-900">{k.v.toLocaleString()}</div>
-              <div className="text-[9px] font-medium uppercase tracking-wide text-slate-400">{k.l}</div>
+            <div key={i} className="flex-1 rounded-lg py-3 px-3 text-center" style={{ background: '#131d2a' }}>
+              <div className="text-xl font-extrabold" style={{ color: k.color }}>{k.v.toLocaleString()}</div>
+              <div className="text-[9px] font-medium uppercase tracking-wider" style={{ color: '#6b7d93' }}>{k.l}</div>
             </div>
           ))}
         </div>
       );
     case 'cases':
       return (
-        <div className="overflow-y-auto h-full p-2 space-y-1.5">
-          {cases.length === 0 && <div className="text-center text-xs text-slate-400 py-8">Aucun case — créez-en dans l'onglet Cases</div>}
+        <div className="overflow-y-auto h-full p-2.5 space-y-1">
+          {cases.length === 0 && <div className="text-center text-xs py-8" style={{ color: '#6b7d93' }}>Aucun case — créez-en dans l'onglet Cases</div>}
           {cases.map((c, i) => (
-            <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
-              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+            <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg transition-all cursor-pointer" style={{ ':hover': { background: '#162230' } }} onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#131d2a', color: '#6b7d93' }}>
                 {c.type === 'company' ? <Building size={14} /> : c.type === 'country' ? <Globe size={14} /> : <Activity size={14} />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[12px] font-semibold text-slate-900 truncate">{c.name}</div>
-                <div className="text-[10px] text-slate-400">{c.article_count} articles · {c.type}</div>
+                <div className="text-[12px] font-semibold truncate" style={{ color: '#e2e8f0' }}>{c.name}</div>
+                <div className="text-[10px]" style={{ color: '#6b7d93' }}>{c.article_count} articles · {c.type}</div>
               </div>
               {c.alert_count > 0 && (
-                <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">{c.alert_count}</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ color: '#ef4444', background: '#2d1515' }}>{c.alert_count} alertes</span>
               )}
             </div>
           ))}
         </div>
       );
     case 'map':
-      return <div className="p-1 h-full">{articles.length > 0 ? <LiveMap articles={articles} /> : <div className="w-full h-full bg-slate-900 rounded-lg flex items-center justify-center text-slate-500 text-xs">Chargement...</div>}</div>;
+      return <div className="p-1 h-full">{articles.length > 0 ? <LiveMap articles={articles} /> : <div className="w-full h-full rounded-lg flex items-center justify-center text-xs" style={{ background: '#0f1923', color: '#6b7d93' }}>Chargement...</div>}</div>;
     case 'alerts':
       return (
-        <div className="overflow-y-auto h-full p-2 space-y-1.5">
+        <div className="overflow-y-auto h-full p-2.5 space-y-1.5">
           {alertArticles.slice(0, 10).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left p-2 rounded-lg border border-slate-100 hover:border-red-200 transition-colors cursor-pointer">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${a.threat_level === 'critical' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{a.threat_level}</span>
-                <span className="text-[9px] text-slate-400 ml-auto">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left p-3 rounded-lg transition-colors cursor-pointer" style={{ border: '1px solid #1e2d3d' }} onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded" style={{
+                  background: a.threat_level === 'critical' ? '#3b1111' : '#2d1f0e',
+                  color: a.threat_level === 'critical' ? '#ef4444' : '#f97316',
+                }}>{a.threat_level}</span>
+                <span className="text-[9px] ml-auto" style={{ color: '#6b7d93' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
               </div>
-              <p className="text-[10px] text-slate-700 font-medium line-clamp-2">{a.title}</p>
+              <p className="text-[11px] font-medium line-clamp-2" style={{ color: '#c8d6e5' }}>{a.title}</p>
+              <p className="text-[9px] mt-1" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</p>
             </button>
           ))}
-          {alertArticles.length === 0 && <div className="text-center text-xs text-slate-400 py-6">Aucune alerte</div>}
+          {alertArticles.length === 0 && <div className="text-center text-xs py-6" style={{ color: '#6b7d93' }}>Aucune alerte</div>}
         </div>
       );
     case 'news':
       return (
-        <div className="overflow-y-auto h-full p-2 space-y-1.5">
+        <div className="overflow-y-auto h-full p-2.5 space-y-0.5">
           {articles.slice(0, 15).map(a => (
-            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left pl-2.5 border-l-2 border-slate-100 hover:border-[#42d3a5] pb-1.5 transition-colors cursor-pointer">
-              <p className="text-[10px] text-slate-600 line-clamp-1 font-medium">{a.title}</p>
-              <span className="text-[8px] font-semibold uppercase text-[#42d3a5]">{a.theme}</span>
-              <span className="text-[8px] text-slate-400 ml-2">{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+            <button key={a.id} onClick={() => setReadingArticleId(a.id)} className="block w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer" onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+              <p className="text-[11px] font-medium line-clamp-1" style={{ color: '#c8d6e5' }}>{a.title}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[9px] font-medium" style={{ color: '#4d8cf5' }}>{a.source_id?.replace(/^catalog_|^gnews_/g, '').replace(/_/g, ' ')}</span>
+                <span className="text-[9px]" style={{ color: '#4a5c6f' }}>{a.pub_date ? timeAgo(a.pub_date) : ''}</span>
+              </div>
             </button>
           ))}
         </div>
@@ -367,16 +407,16 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
           <ResponsiveContainer>
             <AreaChart data={sentimentData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <defs>
-                <linearGradient id="dgP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.25} /><stop offset="95%" stopColor="#34d399" stopOpacity={0} /></linearGradient>
-                <linearGradient id="dgN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.25} /><stop offset="95%" stopColor="#f87171" stopOpacity={0} /></linearGradient>
+                <linearGradient id="dgP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.3} /><stop offset="95%" stopColor="#34d399" stopOpacity={0} /></linearGradient>
+                <linearGradient id="dgN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.3} /><stop offset="95%" stopColor="#f87171" stopOpacity={0} /></linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e2d3d" />
+              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7d93' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b7d93' }} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #1e2d3d', background: '#131d2a', color: '#c8d6e5', fontSize: 12 }} />
               <Area type="monotone" dataKey="positive" stroke="#34d399" fill="url(#dgP)" strokeWidth={2} />
               <Area type="monotone" dataKey="negative" stroke="#f87171" fill="url(#dgN)" strokeWidth={2} />
-              <Area type="monotone" dataKey="neutral" stroke="#cbd5e1" fill="none" strokeDasharray="4 4" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="neutral" stroke="#4a5c6f" fill="none" strokeDasharray="4 4" strokeWidth={1.5} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -386,10 +426,10 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
         <div className="p-2 h-full">
           <ResponsiveContainer>
             <BarChart data={thematicData} layout="vertical" margin={{ top: 0, right: 15, left: 5, bottom: 0 }} barSize={12}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#1e2d3d" />
               <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#475569', fontWeight: 500 }} width={65} />
-              <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#c8d6e5', fontWeight: 500 }} width={65} />
+              <Tooltip cursor={{ fill: '#162230' }} contentStyle={{ borderRadius: 10, border: '1px solid #1e2d3d', background: '#131d2a', color: '#c8d6e5', fontSize: 12 }} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                 {thematicData.map((_: any, i: number) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
               </Bar>
@@ -398,7 +438,7 @@ function DashContent({ id, stats, articles, cases, alertArticles, sentimentData,
         </div>
       );
     default:
-      return <div className="flex items-center justify-center h-full text-sm text-slate-400">Widget inconnu</div>;
+      return <div className="flex items-center justify-center h-full text-sm" style={{ color: '#6b7d93' }}>Widget inconnu</div>;
   }
 }
 
