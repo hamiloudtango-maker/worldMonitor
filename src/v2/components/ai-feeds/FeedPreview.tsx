@@ -1,6 +1,7 @@
 // src/v2/components/ai-feeds/FeedPreview.tsx
+// Inoreader-style grid view for feed articles
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Star, BookmarkPlus, MoreHorizontal } from 'lucide-react';
 import { listFeedArticles } from '@/v2/lib/ai-feeds-api';
 import type { AIFeedArticle, PreviewArticle } from '@/v2/lib/ai-feeds-api';
 import { timeAgo } from '@/v2/lib/constants';
@@ -12,12 +13,9 @@ interface Props {
   refreshKey?: number;
 }
 
-const THREAT_COLORS: Record<string, string> = {
-  critical: 'bg-red-100 text-red-600',
-  high: 'bg-orange-100 text-orange-600',
-  medium: 'bg-yellow-100 text-yellow-700',
-  low: 'bg-green-100 text-green-600',
-};
+function formatSource(s: string) {
+  return s.replace(/^catalog_|^gnews_|^gdelt_|^plugin_\w+_/g, '').replace(/_/g, ' ');
+}
 
 export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props) {
   const openArticle = useArticleReader();
@@ -42,7 +40,7 @@ export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props
 
   if (!feedId) {
     return (
-      <div className="text-center py-4 text-xs text-slate-400">
+      <div className="text-center py-8 text-xs" style={{ color: '#556677' }}>
         Ajoutez des filtres pour voir l'aperçu
       </div>
     );
@@ -50,55 +48,88 @@ export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-[11px] font-bold text-slate-900">
-          Aperçu{total > 0 && ` (${total} articles)`}
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-[12px] font-bold" style={{ color: '#b0bec9' }}>
+          Aperçu{total > 0 && ` · ${total} articles`}
         </h4>
-        <button onClick={load} disabled={loading} className="p-1 text-slate-400 hover:text-[#42d3a5] transition-colors">
-          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+        <button onClick={load} disabled={loading} className="p-1.5 rounded transition-colors" style={{ color: '#556677' }}>
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
-      <div className="space-y-1.5">
-        {articles.map((a, i) => (
-          <button
-            key={i}
-            onClick={() => { const id = 'id' in a ? a.id : ''; if (id) openArticle(id); }}
-            className="block w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-[#42d3a5]/30 transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-1.5 mb-1">
-              {'threat_level' in a && a.threat_level && (
-                <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${THREAT_COLORS[a.threat_level] || 'bg-slate-100 text-slate-500'}`}>
-                  {a.threat_level}
-                </span>
-              )}
-              <span className="text-[9px] font-semibold text-[#42d3a5]">{a.source_name}</span>
-              <span className="text-[8px] text-slate-400 ml-auto">{a.published_at ? timeAgo(a.published_at) : ''}</span>
-              {'relevance_score' in a && (
-                <span className="text-[9px] font-bold text-blue-500">{Math.round(a.relevance_score)}%</span>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-700 font-medium line-clamp-2">{a.title}</p>
-            {a.summary && <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{a.summary}</p>}
-            {'entities' in a && a.entities && a.entities.length > 0 && (
-              <div className="flex gap-1 mt-1 flex-wrap">
-                {a.entities.slice(0, 5).map((e, j) => (
-                  <span key={j} className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{e}</span>
-                ))}
+
+      {/* Grid of article cards — Inoreader-style */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {articles.map((a, i) => {
+          const id = 'id' in a ? a.id : '';
+          const threatLevel = 'threat_level' in a ? a.threat_level : '';
+          const imageUrl = 'image_url' in a ? (a as any).image_url : null;
+
+          return (
+            <div
+              key={i}
+              onClick={() => { if (id) openArticle(id); }}
+              className="rounded-xl overflow-hidden cursor-pointer transition-all"
+              style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}
+              onMouseOver={e => (e.currentTarget.style.borderColor = '#2a3f52')}
+              onMouseOut={e => (e.currentTarget.style.borderColor = '#1e2d3d')}
+            >
+              {/* Image */}
+              <div className="h-36 relative overflow-hidden" style={{ background: '#0f1923' }}>
+                {imageUrl ? (
+                  <img src={imageUrl} alt="" className="w-full h-full object-cover" loading="lazy"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                ) : null}
+                {threatLevel && (threatLevel === 'critical' || threatLevel === 'high') && (
+                  <div className="absolute top-2 left-2">
+                    <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded" style={{
+                      background: threatLevel === 'critical' ? '#ef444490' : '#f9731690',
+                      color: '#fff', backdropFilter: 'blur(4px)',
+                    }}>{threatLevel}</span>
+                  </div>
+                )}
               </div>
-            )}
-          </button>
-        ))}
-        {articles.length === 0 && !loading && (
-          <div className="text-center py-6 text-xs text-slate-400">
-            {feedId ? 'Pas encore d\'articles — ajoutez des sources et lancez un refresh' : 'Aucun article trouvé — essayez d\'autres filtres'}
-          </div>
-        )}
-        {loading && (
-          <div className="text-center py-6 text-xs text-slate-400">
-            Recherche d'articles en cours...
-          </div>
-        )}
+
+              {/* Content */}
+              <div className="p-3">
+                <h3 className="text-[13px] font-semibold leading-snug line-clamp-2 mb-1.5" style={{ color: '#b0bec9' }}>
+                  {a.title}
+                </h3>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-[10px] font-medium" style={{ color: '#4d8cf5' }}>{formatSource(a.source_name)}</span>
+                  {'relevance_score' in a && (
+                    <>
+                      <span style={{ color: '#3a4a5a' }}>·</span>
+                      <span className="text-[10px] font-bold" style={{ color: '#42d3a5' }}>{Math.round(a.relevance_score)}%</span>
+                    </>
+                  )}
+                </div>
+                {a.summary && (
+                  <p className="text-[11px] line-clamp-2 mb-2" style={{ color: '#6b7d93', lineHeight: '1.4' }}>{a.summary}</p>
+                )}
+                <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid #1e2d3d' }}>
+                  <span className="text-[10px]" style={{ color: '#556677' }}>{a.published_at ? timeAgo(a.published_at) : ''}</span>
+                  <div className="flex items-center gap-0.5">
+                    <button className="p-1 rounded" style={{ color: '#3a4a5a' }}><Star size={12} /></button>
+                    <button className="p-1 rounded" style={{ color: '#3a4a5a' }}><BookmarkPlus size={12} /></button>
+                    <button className="p-1 rounded" style={{ color: '#3a4a5a' }}><MoreHorizontal size={12} /></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {articles.length === 0 && !loading && (
+        <div className="text-center py-10 text-xs" style={{ color: '#556677' }}>
+          {feedId ? 'Pas encore d\'articles — ajoutez des sources et lancez un refresh' : 'Aucun article trouvé'}
+        </div>
+      )}
+      {loading && (
+        <div className="flex justify-center py-10">
+          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#4d8cf5', borderTopColor: 'transparent' }} />
+        </div>
+      )}
     </div>
   );
 }
