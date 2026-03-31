@@ -261,14 +261,14 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
       {/* Catalog */}
       {showCatalog && (
         <div className="rounded-xl p-4 shadow-lg max-h-[60vh] overflow-y-auto" style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}>
-          <div className="flex items-center justify-between mb-2 sticky top-0 bg-white pb-2 z-10">
+          <div className="flex items-center justify-between mb-3 sticky top-0 pb-2 z-10" style={{ background: '#1a2836' }}>
             <h3 className="text-sm font-bold" style={{ color: '#b0bec9' }}>Ajouter un widget</h3>
-            <button onClick={() => { setShowCatalog(false); setCatalogSearch(''); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            <button onClick={() => { setShowCatalog(false); setCatalogSearch(''); }} style={{ color: '#556677' }}><X size={16} /></button>
           </div>
-          <div className="relative mb-3 sticky top-8 bg-white z-10">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+          <div className="relative mb-3 sticky top-8 z-10" style={{ background: '#1a2836' }}>
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2" size={13} style={{ color: '#556677' }} />
             <input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Rechercher..."
-              className="w-full pl-8 pr-3 py-1.5 text-[12px] border border-slate-200 rounded-lg focus:outline-none focus:border-[#42d3a5]" autoFocus />
+              className="w-full pl-8 pr-3 py-1.5 text-[12px] rounded-lg focus:outline-none" style={{ background: '#0f1923', border: '1px solid #1e2d3d', color: '#b0bec9' }} autoFocus />
           </div>
           {available.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-4">Tous les widgets sont affichés</p>
@@ -285,11 +285,17 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4">
                   {coreCategories.map(cat => (
                     <div key={cat} className="break-inside-avoid mb-3">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{cat}</div>
-                      <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#556677' }}>{cat}</div>
+                      <div className="space-y-1">
                         {filtered.filter(w => w.category === cat).map(w => (
-                          <button key={w.id} onClick={() => addWidget(w.id)} className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-[11px] text-slate-600 hover:bg-[#42d3a5]/5 hover:text-[#2a9d7e] transition-colors">
-                            <w.icon size={12} className="shrink-0" /> <span className="truncate">{w.title}</span>
+                          <button key={w.id} onClick={() => addWidget(w.id)} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors" style={{ color: '#8899aa' }} onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#0f1923' }}>
+                              <w.icon size={13} style={{ color: '#4d8cf5' }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[11px] font-medium block truncate" style={{ color: '#b0bec9' }}>{w.title}</span>
+                            </div>
+                            <Plus size={14} style={{ color: '#556677' }} />
                           </button>
                         ))}
                       </div>
