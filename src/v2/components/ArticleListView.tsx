@@ -245,92 +245,49 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
             })}
           </div>
         ) : (
-          // ── Card mode (Inoreader-style: full-screen grid of image cards) ──
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4">
+          // ── Card mode — Inoreader: image + title overlay + source + actions ──
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
             {articles.map((a, idx) => {
               const isRead = readIds.has(a.id);
               const isStarred = starredIds.has(a.id);
+              const imgUrl = (a as any).image_url;
               return (
                 <div
                   key={a.id}
                   onClick={() => handleClick(a, idx)}
-                  className={`rounded-xl overflow-hidden cursor-pointer transition-all ${isRead ? 'opacity-50' : ''}`}
-                  style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}
+                  className={`rounded-xl overflow-hidden cursor-pointer transition-all ${isRead ? 'opacity-40' : ''}`}
+                  style={{ background: '#1a2836' }}
                 >
-                  {/* Image area */}
-                  <div className="h-44 relative overflow-hidden" style={{
-                    background: '#0f1923',
-                  }}>
-                    {(a as any).image_url ? (
-                      <img
-                        src={(a as any).image_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        loading="lazy"
-                      />
-                    ) : null}
-                    {/* Overlay badges */}
-                    {a.threat_level && (a.threat_level === 'critical' || a.threat_level === 'high') && (
-                      <div className="absolute top-2.5 left-2.5">
-                        <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded" style={{
-                          background: a.threat_level === 'critical' ? '#ef444490' : '#f9731690',
-                          color: '#fff',
-                          backdropFilter: 'blur(4px)',
-                        }}>{a.threat_level}</span>
-                      </div>
+                  {/* Image with gradient overlay + title on top */}
+                  <div className="relative h-52 overflow-hidden" style={{ background: '#0f1923' }}>
+                    {imgUrl && (
+                      <img src={imgUrl} alt="" className="w-full h-full object-cover" loading="lazy"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     )}
-                    {a.countries?.length > 0 && (
-                      <div className="absolute top-2.5 right-2.5 flex gap-1">
-                        {a.countries.slice(0, 2).map(c => (
-                          <span key={c} className="text-[8px] font-medium px-1.5 py-0.5 rounded" style={{ background: '#00000050', color: '#a0b0c0', backdropFilter: 'blur(4px)' }}>{c}</span>
-                        ))}
-                      </div>
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }} />
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                      <h3 className="text-[15px] font-bold leading-snug line-clamp-2 text-white mb-1">{a.title}</h3>
+                      <span className="text-[11px] font-medium" style={{ color: '#7cb3f5' }}>{formatSource(a.source_id)}</span>
+                    </div>
+                    {a.threat_level && (a.threat_level === 'critical' || a.threat_level === 'high') && (
+                      <span className="absolute top-2.5 left-2.5 text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-sm text-white" style={{
+                        background: a.threat_level === 'critical' ? '#dc2626' : '#ea580c',
+                      }}>{a.threat_level}</span>
                     )}
                   </div>
-
-                  {/* Content below image */}
-                  {/* Close image area extra elements if needed */}
-                  <div className="p-4">
-                    <h3 className="text-[15px] font-semibold leading-snug line-clamp-2 mb-2" style={{ color: '#b0bec9' }}>
-                      {a.title}
-                    </h3>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="text-[11px] font-medium" style={{ color: '#4d8cf5' }}>{formatSource(a.source_id)}</span>
-                      <span className="text-[11px]" style={{ color: '#445566' }}>· {a.family || ''}</span>
-                    </div>
-                    {a.description && (
-                      <p className="text-[12px] line-clamp-2 mb-3" style={{ color: '#6b7d93', lineHeight: '1.5' }}>
-                        {a.description}
-                      </p>
-                    )}
-
-                    {/* Bottom: time + actions */}
-                    <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid #1e2d3d' }}>
-                      <span className="text-[10px]" style={{ color: '#556677' }}>{timeAgo(a.pub_date)}</span>
-                      <div className="flex items-center gap-0.5">
-                        <button
-                          onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }}
-                          className="p-1.5 rounded transition-colors"
-                          style={{ color: isStarred ? '#d4a843' : '#3a4a5a' }}
-                        >
-                          <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }}
-                          className="p-1.5 rounded transition-colors"
-                          style={{ color: readLaterIds.has(a.id) ? '#4d8cf5' : '#3a4a5a' }}
-                        >
-                          <BookmarkPlus size={14} />
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); window.open(a.url, '_blank'); }}
-                          className="p-1.5 rounded transition-colors"
-                          style={{ color: '#3a4a5a' }}
-                        >
-                          <MoreHorizontal size={14} />
-                        </button>
-                      </div>
+                  {/* Bottom: time + bookmark + eye + menu */}
+                  <div className="flex items-center justify-between px-4 py-2">
+                    <span className="text-[10px]" style={{ color: '#556677' }}>{timeAgo(a.pub_date)}</span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }} className="p-1 rounded" style={{ color: isStarred ? '#d4a843' : '#3a4a5a' }}>
+                        <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }} className="p-1 rounded" style={{ color: readLaterIds.has(a.id) ? '#4d8cf5' : '#3a4a5a' }}>
+                        <BookmarkPlus size={14} />
+                      </button>
+                      <button onClick={e => e.stopPropagation()} className="p-1 rounded" style={{ color: '#3a4a5a' }}>
+                        <MoreHorizontal size={14} />
+                      </button>
                     </div>
                   </div>
                 </div>
