@@ -3,7 +3,8 @@ import {
   LayoutDashboard, FolderOpen, FileBarChart, Settings, Bell, Search,
   AlertTriangle, Globe, TrendingUp, Building,
   Newspaper, Activity, BarChart2,
-  RefreshCw, LogOut, ExternalLink, Rss, Clock
+  RefreshCw, LogOut, ExternalLink, Rss, Clock,
+  Zap, PlusCircle,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -31,6 +32,8 @@ import ApiServices from './ApiServices';
 import IntelModelsManager from './IntelModelsManager';
 import ReportsView from './ReportsView';
 import ReaderView from './ReaderView';
+import AutomateView from './AutomateView';
+import SearchPageView from './SearchPageView';
 import ArticleReader from './ArticleReader';
 import { ArticleReaderContext } from '@/v2/hooks/useArticleReader';
 
@@ -41,7 +44,7 @@ interface Props {
   user: { email: string; org_name: string };
   onLogout: () => void;
 }
-type NavKey = 'dashboard' | 'reader' | 'cases' | 'ai-feeds' | 'world' | 'reports' | 'settings';
+type NavKey = 'dashboard' | 'reader' | 'cases' | 'ai-feeds' | 'world' | 'automate' | 'search-page' | 'reports' | 'settings';
 
 /* ═══════════════════════════════════════════════════════════════
    CONSTANTS
@@ -58,13 +61,15 @@ const CHART_COLORS = ['#4d8cf5', '#42d3a5', '#f97316', '#8b5cf6', '#ef4444', '#0
 
 
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep?: boolean }[] = [
-  { key: 'reader',    label: 'Lecteur',         icon: Newspaper },
-  { key: 'dashboard', label: 'Dashboard',       icon: LayoutDashboard },
+  { key: 'dashboard', label: 'Accueil',         icon: LayoutDashboard },
+  { key: 'reader',    label: 'Feeds',           icon: Newspaper },
   { key: 'cases',     label: 'Cases',           icon: FolderOpen },
   { key: 'ai-feeds',  label: 'AI Feeds',        icon: Rss },
-  { key: 'world',     label: '360 Mondial',     icon: Globe },
+  { key: 'automate',  label: 'Automate',        icon: Zap },
+  { key: 'search-page', label: 'Recherche',     icon: Search },
+  { key: 'world',     label: '360°',            icon: Globe },
   { key: 'reports',   label: 'Rapports',        icon: FileBarChart },
-  { key: 'settings',  label: 'Configuration',   icon: Settings, sep: true },
+  { key: 'settings',  label: 'Config',          icon: Settings, sep: true },
 ];
 
 /* ═══════════════════════════════════════════════════════════════
@@ -72,7 +77,7 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep
    ═══════════════════════════════════════════════════════════════ */
 function getNavFromHash(): NavKey {
   const raw = window.location.hash.replace('#', '').split(':')[0];
-  const valid: NavKey[] = ['dashboard', 'reader', 'cases', 'ai-feeds', 'world', 'reports', 'settings'];
+  const valid: NavKey[] = ['dashboard', 'reader', 'cases', 'ai-feeds', 'world', 'automate', 'search-page', 'reports', 'settings'];
   return valid.includes(raw as NavKey) ? (raw as NavKey) : 'reader';
 }
 
@@ -287,6 +292,8 @@ function DashboardInner({ user, onLogout }: Props) {
                 )}
                 {nav === 'cases' && <CasesView cases={cases} loading={casesLoading} onAdd={addCase} onRemove={removeCase} />}
                 {nav === 'ai-feeds' && <AIFeedsView />}
+                {nav === 'automate' && <AutomateView />}
+                {nav === 'search-page' && <SearchPageView />}
                 {nav === 'world' && <WorldView />}
                 {nav === 'reports' && <ReportsView />}
                 {nav === 'settings' && <SettingsView user={user} stats={stats} cases={cases} onLogout={onLogout} />}

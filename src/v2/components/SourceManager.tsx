@@ -30,7 +30,7 @@ const STATUS_DOT: Record<string, string> = {
   active: 'bg-green-500',
   degraded: 'bg-yellow-500',
   error: 'bg-red-500',
-  disabled: 'bg-slate-300',
+  disabled: 'bg-[#3a4f63]',
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -231,36 +231,36 @@ export default function SourceManager() {
 
   /* ---- Row ---- */
   const SourceRow = ({ s }: { s: CatalogSource }) => (
-    <tr className="border-b border-slate-100 hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
+    <tr className="border-b border-[#1e2d3d] hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
       <td className="pl-3 pr-1 py-2">
         <input type="checkbox" checked={selected.has(s.id)}
           onChange={() => toggleOne(s.id)} className="accent-blue-600 rounded" />
       </td>
       <td className="px-2 py-2 max-w-[220px]">
-        <span className="truncate block font-medium text-slate-800" title={s.name}>{s.name}</span>
-        <span className="text-[11px] text-slate-400 truncate block" title={s.url}>{s.url}</span>
+        <span className="truncate block font-medium text-[#b0bec9]" title={s.name}>{s.name}</span>
+        <span className="text-[11px] text-[#556677] truncate block" title={s.url}>{s.url}</span>
       </td>
-      <td className="px-2 py-2 text-slate-600 whitespace-nowrap">{s.country ?? '—'}</td>
+      <td className="px-2 py-2 text-[#8899aa] whitespace-nowrap">{s.country ?? '—'}</td>
       <td className="px-2 py-2">
         <div className="flex flex-wrap gap-1">
-          {s.tags.length === 0 && <span className="text-slate-300 text-xs">—</span>}
+          {s.tags.length === 0 && <span className="text-[#3a4f63] text-xs">—</span>}
           {s.tags.map(t => (
-            <span key={t} className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-700">{t}</span>
+            <span key={t} className="px-2 py-0.5 text-xs rounded-full bg-blue-500/10 text-blue-400">{t}</span>
           ))}
         </div>
       </td>
       <td className="px-2 py-2">
-        <span className="px-1.5 py-0.5 text-xs font-mono rounded bg-slate-100 text-slate-600">T{s.tier}</span>
+        <span className="px-1.5 py-0.5 text-xs font-mono rounded bg-[#131d2a] text-[#8899aa]">T{s.tier}</span>
       </td>
       <td className="px-2 py-2">
-        <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-          <span className={`w-2 h-2 rounded-full inline-block ${STATUS_DOT[s.status] ?? 'bg-slate-300'}`} />
+        <span className="inline-flex items-center gap-1.5 text-xs text-[#8899aa]">
+          <span className={`w-2 h-2 rounded-full inline-block ${STATUS_DOT[s.status] ?? 'bg-[#3a4f63]'}`} />
           {STATUS_LABEL[s.status] ?? s.status}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-slate-500 whitespace-nowrap">{timeAgo(s.last_fetched_at)}</td>
+      <td className="px-2 py-2 text-xs text-[#6b7d93] whitespace-nowrap">{timeAgo(s.last_fetched_at)}</td>
       <td className="px-2 py-2 text-xs">
-        <span className={s.fetch_error_count > 0 ? 'text-red-600 font-semibold' : 'text-slate-400'} title={s.last_error || ''}>
+        <span className={s.fetch_error_count > 0 ? 'text-red-600 font-semibold' : 'text-[#556677]'} title={s.last_error || ''}>
           {s.fetch_error_count > 0 ? `${s.fetch_error_count} — ${s.last_error || 'Erreur'}` : '0'}
         </span>
       </td>
@@ -269,19 +269,19 @@ export default function SourceManager() {
           {/* Toggle active */}
           <button onClick={() => handleToggleActive(s)}
             title={s.active ? 'Désactiver' : 'Activer'}
-            className={`p-1 rounded transition-colors ${s.active ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}>
-            <div className={`w-8 h-4 rounded-full relative transition-colors ${s.active ? 'bg-green-500' : 'bg-slate-300'}`}>
+            className={`p-1 rounded transition-colors ${s.active ? 'text-green-600 hover:bg-green-500/10' : 'text-[#556677] hover:bg-[#162230]'}`}>
+            <div className={`w-8 h-4 rounded-full relative transition-colors ${s.active ? 'bg-green-500' : 'bg-[#3a4f63]'}`}>
               <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${s.active ? 'left-[18px]' : 'left-0.5'}`} />
             </div>
           </button>
           {/* Edit */}
           <button onClick={() => setEditSource(s)}
-            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Modifier">
+            className="p-1 text-[#556677] hover:text-blue-600 hover:bg-blue-500/10 rounded transition-colors" title="Modifier">
             <Pencil size={14} />
           </button>
           {/* Delete */}
           <button onClick={() => handleDelete(s.id)}
-            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Supprimer">
+            className="p-1 text-[#556677] hover:text-red-600 hover:bg-red-500/10 rounded transition-colors" title="Supprimer">
             <Trash2 size={14} />
           </button>
         </div>
@@ -292,7 +292,7 @@ export default function SourceManager() {
   /* ---- Table header ---- */
   const TableHead = () => (
     <thead>
-      <tr className="border-b border-slate-200 text-left text-xs text-slate-500 uppercase tracking-wider">
+      <tr className="border-b border-[#1e2d3d] text-left text-xs text-[#6b7d93] uppercase tracking-wider">
         <th className="pl-3 pr-1 py-2 w-8">
           <input type="checkbox"
             checked={filtered.length > 0 && selected.size === filtered.length}
@@ -318,37 +318,37 @@ export default function SourceManager() {
     <div className="space-y-4">
       {/* ---- Header ---- */}
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-[#b0bec9] flex items-center gap-2">
           Sources RSS
-          <span className="text-xs font-normal bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+          <span className="text-xs font-normal bg-[#131d2a] text-[#6b7d93] px-2 py-0.5 rounded-full">
             {filtered.length}
           </span>
         </h2>
 
         {/* Search */}
         <div className="relative ml-auto">
-          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#556677]" />
           <input
             type="text"
             placeholder="Rechercher..."
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 w-56"
+            className="pl-8 pr-3 py-1.5 text-sm border border-[#1e2d3d] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 w-56"
           />
           {searchInput && (
             <button onClick={() => setSearchInput('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#556677] hover:text-[#8899aa]">
               <X size={14} />
             </button>
           )}
         </div>
 
         {/* Group-by toggle */}
-        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
+        <div className="flex rounded-lg border border-[#1e2d3d] overflow-hidden text-xs">
           {([['none', 'Liste'], ['tags', 'Par thématique'], ['country', 'Par pays']] as const).map(([val, label]) => (
             <button key={val}
               onClick={() => { setGroupBy(val); setCollapsed(new Set()); }}
-              className={`px-3 py-1.5 transition-all ${groupBy === val ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:ring-1 hover:ring-[#42d3a5]/30'}`}>
+              className={`px-3 py-1.5 transition-all ${groupBy === val ? 'bg-blue-600 text-white' : 'bg-[#1a2836] text-[#8899aa] hover:ring-1 hover:ring-[#42d3a5]/30'}`}>
               {label}
             </button>
           ))}
@@ -365,35 +365,35 @@ export default function SourceManager() {
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <select value={filters.continent ?? ''}
           onChange={e => setFilters(f => ({ ...f, continent: e.target.value || undefined, country: undefined }))}
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
           <option value="">Continent</option>
           {distinctValues.continents.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
 
         <select value={filters.country ?? ''}
           onChange={e => setFilters(f => ({ ...f, country: e.target.value || undefined }))}
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
           <option value="">Pays</option>
           {countriesForContinent.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
 
         <select value={filters.tag ?? ''}
           onChange={e => setFilters(f => ({ ...f, tag: e.target.value || undefined }))}
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
           <option value="">Tags</option>
           {distinctValues.tags.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
 
         <select value={filters.tier ?? ''}
           onChange={e => setFilters(f => ({ ...f, tier: e.target.value || undefined }))}
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
           <option value="">Tier</option>
           {distinctValues.tiers.map(t => <option key={t} value={String(t)}>T{t}</option>)}
         </select>
 
         <select value={filters.status ?? ''}
           onChange={e => setFilters(f => ({ ...f, status: e.target.value || undefined }))}
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
           <option value="">Statut</option>
           <option value="active">Actif</option>
           <option value="degraded">Dégradé</option>
@@ -410,8 +410,8 @@ export default function SourceManager() {
 
       {/* ---- Bulk action bar ---- */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-sm">
-          <span className="font-medium text-blue-800">{selected.size} sélectionné{selected.size > 1 ? 's' : ''}</span>
+        <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-2 text-sm">
+          <span className="font-medium text-blue-300">{selected.size} sélectionné{selected.size > 1 ? 's' : ''}</span>
           <button onClick={() => handleBulk('activate')}
             className="px-2.5 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs">
             Activer
@@ -428,13 +428,13 @@ export default function SourceManager() {
       )}
 
       {/* ---- Table ---- */}
-      <div className="border border-slate-200/60 rounded-xl bg-white overflow-hidden">
+      <div className="border border-[#1e2d3d]/60 rounded-xl bg-[#1a2836] overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
+          <div className="flex items-center justify-center gap-2 py-16 text-[#556677]">
             <Loader2 size={20} className="animate-spin" /> Chargement des sources...
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-slate-400 text-sm">
+          <div className="text-center py-16 text-[#556677] text-sm">
             Aucune source trouvée.
           </div>
         ) : groupBy === 'none' ? (
@@ -456,10 +456,10 @@ export default function SourceManager() {
               return (
                 <div key={key}>
                   <button onClick={() => toggleCollapse(key)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700 transition-colors border-b border-slate-200/60">
+                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-[#0f1923] hover:bg-[#162230] text-sm font-medium text-[#8899aa] transition-colors border-b border-[#1e2d3d]/60">
                     {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-700">{tag}</span>
-                    <span className="text-xs text-slate-400 ml-1">({list.length})</span>
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/10 text-blue-400">{tag}</span>
+                    <span className="text-xs text-[#556677] ml-1">({list.length})</span>
                   </button>
                   {isOpen && (
                     <div className="overflow-x-auto">
@@ -485,10 +485,10 @@ export default function SourceManager() {
               return (
                 <div key={contKey}>
                   <button onClick={() => toggleCollapse(contKey)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200/80 text-sm font-semibold text-slate-700 transition-colors border-b border-slate-200/60">
+                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-[#131d2a] hover:bg-[#162230] text-sm font-semibold text-[#8899aa] transition-colors border-b border-[#1e2d3d]/60">
                     {contOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     {continent}
-                    <span className="text-xs font-normal text-slate-400">({total})</span>
+                    <span className="text-xs font-normal text-[#556677]">({total})</span>
                   </button>
                   {contOpen && ctries.map(([country, list]) => {
                     const ctryKey = `ctry:${continent}:${country}`;
@@ -496,10 +496,10 @@ export default function SourceManager() {
                     return (
                       <div key={ctryKey}>
                         <button onClick={() => toggleCollapse(ctryKey)}
-                          className="w-full flex items-center gap-2 pl-8 pr-4 py-2 bg-slate-50/80 hover:bg-slate-100 text-sm text-slate-600 transition-colors border-b border-slate-100">
+                          className="w-full flex items-center gap-2 pl-8 pr-4 py-2 bg-[#0f1923]/80 hover:bg-[#162230] text-sm text-[#8899aa] transition-colors border-b border-[#1e2d3d]">
                           {ctryOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                           {country}
-                          <span className="text-xs text-slate-400">({list.length})</span>
+                          <span className="text-xs text-[#556677]">({list.length})</span>
                         </button>
                         {ctryOpen && (
                           <div className="overflow-x-auto">
@@ -580,56 +580,56 @@ function EditModal({ source, onClose, onSave }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200/60 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="font-semibold text-slate-800">Modifier la source</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
+      <div className="bg-[#1a2836] rounded-xl shadow-xl border border-[#1e2d3d]/60 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e2d3d]">
+          <h3 className="font-semibold text-[#b0bec9]">Modifier la source</h3>
+          <button onClick={onClose} className="text-[#556677] hover:text-[#8899aa] transition-colors"><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Read-only */}
-          <div className="grid grid-cols-2 gap-3 text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
-            <div><span className="font-medium text-slate-600">URL:</span> <span className="break-all">{source.url}</span></div>
-            <div><span className="font-medium text-slate-600">Origine:</span> {source.origin}</div>
-            <div><span className="font-medium text-slate-600">Dernier fetch:</span> {timeAgo(source.last_fetched_at)}</div>
-            <div><span className="font-medium text-slate-600">Erreurs:</span> {source.fetch_error_count}{source.last_error && <span className="text-red-500 ml-1">— {source.last_error}</span>}</div>
+          <div className="grid grid-cols-2 gap-3 text-xs text-[#6b7d93] bg-[#0f1923] rounded-lg p-3">
+            <div><span className="font-medium text-[#8899aa]">URL:</span> <span className="break-all">{source.url}</span></div>
+            <div><span className="font-medium text-[#8899aa]">Origine:</span> {source.origin}</div>
+            <div><span className="font-medium text-[#8899aa]">Dernier fetch:</span> {timeAgo(source.last_fetched_at)}</div>
+            <div><span className="font-medium text-[#8899aa]">Erreurs:</span> {source.fetch_error_count}{source.last_error && <span className="text-red-500 ml-1">— {source.last_error}</span>}</div>
           </div>
 
           {/* Name */}
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Nom</span>
+            <span className="text-sm font-medium text-[#8899aa]">Nom</span>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
-              className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
+              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
           </label>
 
           {/* Tags */}
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Tags <span className="text-xs text-slate-400 font-normal">(séparés par des virgules)</span></span>
+            <span className="text-sm font-medium text-[#8899aa]">Tags <span className="text-xs text-[#556677] font-normal">(séparés par des virgules)</span></span>
             <input type="text" value={tagsStr} onChange={e => setTagsStr(e.target.value)}
-              className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
+              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
           </label>
 
           {/* Tier + Country row */}
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-sm font-medium text-slate-700">Tier</span>
+              <span className="text-sm font-medium text-[#8899aa]">Tier</span>
               <select value={tier} onChange={e => setTier(Number(e.target.value))}
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
                 {[1, 2, 3, 4].map(t => <option key={t} value={t}>T{t}</option>)}
               </select>
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-slate-700">Pays</span>
+              <span className="text-sm font-medium text-[#8899aa]">Pays</span>
               <input type="text" value={country} onChange={e => setCountry(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
+                className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
             </label>
           </div>
 
           {/* Continent */}
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Continent</span>
+            <span className="text-sm font-medium text-[#8899aa]">Continent</span>
             <select value={continent} onChange={e => setContinent(e.target.value)}
-              className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
               <option value="">— Aucun —</option>
               {CONTINENTS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -637,13 +637,13 @@ function EditModal({ source, onClose, onSave }: {
 
           {/* Description */}
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Description</span>
+            <span className="text-sm font-medium text-[#8899aa]">Description</span>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" />
+              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" />
           </label>
 
           {/* Active checkbox */}
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-[#8899aa]">
             <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="accent-blue-600 rounded" />
             Source active
           </label>
@@ -651,7 +651,7 @@ function EditModal({ source, onClose, onSave }: {
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+              className="px-4 py-2 text-sm text-[#8899aa] hover:bg-[#162230] rounded-lg transition-colors">
               Annuler
             </button>
             <button type="submit" disabled={saving}
@@ -695,24 +695,24 @@ function AddModal({ onClose, onDone }: { onClose: () => void; onDone: () => void
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200/60 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="font-semibold text-slate-800">Ajouter des sources</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
+      <div className="bg-[#1a2836] rounded-xl shadow-xl border border-[#1e2d3d]/60 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e2d3d]">
+          <h3 className="font-semibold text-[#b0bec9]">Ajouter des sources</h3>
+          <button onClick={onClose} className="text-[#556677] hover:text-[#8899aa] transition-colors"><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-4">
           {!result ? (
             <>
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">URLs RSS <span className="text-xs text-slate-400 font-normal">(une par ligne)</span></span>
+                <span className="text-sm font-medium text-[#8899aa]">URLs RSS <span className="text-xs text-[#556677] font-normal">(une par ligne)</span></span>
                 <textarea value={urls} onChange={e => setUrls(e.target.value)} rows={6}
                   placeholder="https://example.com/rss&#10;https://other.com/feed.xml"
-                  className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" />
+                  className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" />
               </label>
               <div className="flex justify-end gap-2">
                 <button onClick={onClose}
-                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                  className="px-4 py-2 text-sm text-[#8899aa] hover:bg-[#162230] rounded-lg transition-colors">
                   Annuler
                 </button>
                 <button onClick={handleSubmit} disabled={submitting || !urls.trim()}
@@ -729,12 +729,12 @@ function AddModal({ onClose, onDone }: { onClose: () => void; onDone: () => void
                   <h4 className="text-sm font-medium text-green-700 mb-2">
                     {result.added.length} source{result.added.length > 1 ? 's' : ''} ajoutée{result.added.length > 1 ? 's' : ''}
                   </h4>
-                  <ul className="text-xs text-slate-600 space-y-1">
+                  <ul className="text-xs text-[#8899aa] space-y-1">
                     {result.added.map(a => (
                       <li key={a.url} className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
                         <span className="font-medium">{a.name}</span>
-                        <span className="text-slate-400 truncate">{a.url}</span>
+                        <span className="text-[#556677] truncate">{a.url}</span>
                       </li>
                     ))}
                   </ul>

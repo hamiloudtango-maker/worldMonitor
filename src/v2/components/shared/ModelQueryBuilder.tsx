@@ -180,9 +180,9 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
   // ── Render ──
 
   const OP_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-    OR:  { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'OR' },
-    AND: { bg: 'bg-blue-50', text: 'text-blue-700', label: 'AND' },
-    NOT: { bg: 'bg-red-50', text: 'text-red-700', label: 'NOT' },
+    OR:  { bg: 'bg-emerald-500/10', text: 'text-emerald-400', label: 'OR' },
+    AND: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'AND' },
+    NOT: { bg: 'bg-red-500/10', text: 'text-red-400', label: 'NOT' },
   };
 
   return (
@@ -194,19 +194,19 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
           <div key={li} className={`rounded-xl border p-2.5 ${style.bg} border-opacity-50`}>
             <div className="flex items-center gap-2 mb-1.5">
               {li > 0 && <span className={`text-[10px] font-bold ${style.text} px-1.5 py-0.5 rounded`}>{style.label}</span>}
-              <button onClick={() => removeLayer(li)} className="ml-auto p-0.5 text-slate-400 hover:text-red-500">
+              <button onClick={() => removeLayer(li)} className="ml-auto p-0.5 text-[#556677] hover:text-red-500">
                 <X size={12} />
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {layer.model_ids.map(mid => (
                 <div key={mid} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${
-                  layer.operator === 'NOT' ? 'bg-red-100 text-red-700' : 'bg-white text-slate-700 border border-slate-200'
+                  layer.operator === 'NOT' ? 'bg-red-500/15 text-red-400' : 'bg-[#1a2836] text-[#8899aa] border border-[#1e2d3d]'
                 }`}>
                   <Sparkles size={10} className={layer.operator === 'NOT' ? 'text-red-400' : 'text-[#42d3a5]'} />
                   <span>{getModelName(mid)}</span>
-                  <span className="text-[8px] text-slate-400">{getModelMeta(mid)}</span>
-                  <button onClick={() => removeModel(li, mid)} className="p-0.5 text-slate-400 hover:text-red-500">
+                  <span className="text-[8px] text-[#556677]">{getModelMeta(mid)}</span>
+                  <button onClick={() => removeModel(li, mid)} className="p-0.5 text-[#556677] hover:text-red-500">
                     <X size={10} />
                   </button>
                 </div>
@@ -214,7 +214,7 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
               {/* +OR button to add more models to this layer */}
               <button
                 onClick={() => { setAddingOrTo(li); setShowAddBar(true); }}
-                className="text-[10px] text-slate-400 hover:text-[#42d3a5] px-2 py-1 border border-dashed border-slate-300 rounded-lg hover:border-[#42d3a5]/50"
+                className="text-[10px] text-[#556677] hover:text-[#42d3a5] px-2 py-1 border border-dashed border-[#1e2d3d] rounded-lg hover:border-[#42d3a5]/50"
               >
                 +OR
               </button>
@@ -225,37 +225,37 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
 
       {/* Add bar (fuzzy search) */}
       {showAddBar ? (
-        <div ref={addBarRef} className="border border-slate-200 rounded-xl p-3 bg-white">
+        <div ref={addBarRef} className="border border-[#1e2d3d] rounded-xl p-3 bg-[#1a2836]">
           <div className="flex items-center gap-2 mb-2">
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-              addingOrTo !== null ? 'bg-emerald-50 text-emerald-700' : addIsNot ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
+              addingOrTo !== null ? 'bg-emerald-500/10 text-emerald-400' : addIsNot ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'
             }`}>
               {addingOrTo !== null ? '+OR' : addIsNot ? 'NOT' : layers.length === 0 ? 'OR' : 'AND'}
             </span>
-            <span className="text-[10px] text-slate-400">
+            <span className="text-[10px] text-[#556677]">
               {addingOrTo !== null ? 'Ajouter un modèle à cette ligne' : 'Nouvelle ligne de filtre'}
             </span>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#556677]" size={13} />
             <input
               autoFocus
               value={searchInput}
               onChange={e => { setSearchInput(e.target.value); fetchSuggestions(e.target.value); }}
               placeholder="Rechercher un modèle..."
-              className="w-full pl-9 pr-4 py-2 text-[12px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] bg-white"
+              className="w-full pl-9 pr-4 py-2 text-[12px] border border-[#1e2d3d] rounded-xl focus:outline-none focus:border-[#42d3a5] bg-[#1a2836]"
             />
           </div>
           {/* Suggestions */}
           {searching && (
             <div className="flex items-center gap-2 py-3 justify-center">
               <Loader2 size={14} className="animate-spin text-[#42d3a5]" />
-              <span className="text-[11px] text-slate-400">Recherche...</span>
+              <span className="text-[11px] text-[#556677]">Recherche...</span>
             </div>
           )}
           {!searching && searchInput.length >= 2 && suggestions.length === 0 && (
             <div className="py-3 text-center">
-              <p className="text-[11px] text-slate-400 mb-2">Aucun modele existant pour "{searchInput}"</p>
+              <p className="text-[11px] text-[#556677] mb-2">Aucun modele existant pour "{searchInput}"</p>
               <button
                 onClick={handleCreateModel}
                 disabled={creating}
@@ -267,7 +267,7 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
             </div>
           )}
           {suggestions.length > 0 && (
-            <div className="border border-slate-200 rounded-xl mt-2 overflow-hidden max-h-48 overflow-y-auto">
+            <div className="border border-[#1e2d3d] rounded-xl mt-2 overflow-hidden max-h-48 overflow-y-auto">
               {suggestions.map(s => {
                 const alreadyInLayer = addingOrTo !== null && layers[addingOrTo]?.model_ids.includes(s.model_id);
                 return (
@@ -275,32 +275,32 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
                     key={s.model_id}
                     onClick={() => selectSuggestion(s)}
                     disabled={!!alreadyInLayer}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] border-b border-slate-100 last:border-b-0 ${
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] border-b border-[#1e2d3d] last:border-b-0 ${
                       alreadyInLayer ? 'opacity-40' : 'hover:ring-1 hover:ring-[#42d3a5]/30'
                     }`}
                   >
                     <Sparkles size={12} className="text-[#42d3a5] shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <span className="font-medium text-slate-700">{s.model_name}</span>
-                      <span className="text-[9px] text-slate-400 ml-1.5">{s.family}/{s.section}</span>
+                      <span className="font-medium text-[#8899aa]">{s.model_name}</span>
+                      <span className="text-[9px] text-[#556677] ml-1.5">{s.family}/{s.section}</span>
                     </div>
                     {s.matched_term !== s.model_name && (
-                      <span className="text-[9px] text-slate-400 truncate max-w-[80px]">via "{s.matched_term}"</span>
+                      <span className="text-[9px] text-[#556677] truncate max-w-[80px]">via "{s.matched_term}"</span>
                     )}
                   </button>
                 );
               })}
             </div>
           )}
-          <button onClick={resetAddBar} className="mt-2 text-[11px] text-slate-400 hover:text-slate-600">Annuler</button>
+          <button onClick={resetAddBar} className="mt-2 text-[11px] text-[#556677] hover:text-[#8899aa]">Annuler</button>
         </div>
       ) : (
         <div className="flex items-center gap-3 mt-1">
           <button onClick={() => { setAddIsNot(false); setShowAddBar(true); }}
-            className="text-[12px] font-semibold text-slate-500 hover:text-[#42d3a5] flex items-center gap-1">
+            className="text-[12px] font-semibold text-[#6b7d93] hover:text-[#42d3a5] flex items-center gap-1">
             <Plus size={13} /> AND
           </button>
-          <span className="text-slate-300">/</span>
+          <span className="text-[#3a4f63]">/</span>
           <button onClick={() => { setAddIsNot(true); setShowAddBar(true); }}
             className="text-[12px] font-semibold text-red-400 hover:text-red-500 flex items-center gap-1">
             <Minus size={13} /> NOT

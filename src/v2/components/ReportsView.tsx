@@ -54,18 +54,18 @@ const REPORT_TYPES: ReportType[] = [
 // ── Markdown renderer (basic) ─────────────────────────────────
 function renderMarkdown(md: string): string {
   return md
-    .replace(/^### (.+)$/gm, '<h3 class="text-sm font-bold text-slate-900 mt-4 mb-2">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-slate-900 mt-6 mb-2 pb-1 border-b border-slate-200">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 class="text-lg font-bold text-slate-900 mt-6 mb-3">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-800">$1</strong>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-sm font-bold text-[#b0bec9] mt-4 mb-2">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-[#b0bec9] mt-6 mb-2 pb-1 border-b border-[#1e2d3d]">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-lg font-bold text-[#b0bec9] mt-6 mb-3">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-[#b0bec9]">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-[#42d3a5] hover:underline">$1</a>')
-    .replace(/^\d+\.\s+(.+)$/gm, '<li class="ml-4 text-[13px] text-slate-600 leading-relaxed list-decimal mb-1">$1</li>')
-    .replace(/^- (.+)$/gm, '<li class="ml-4 text-[13px] text-slate-600 leading-relaxed list-disc mb-1">$1</li>')
-    .replace(/^---$/gm, '<hr class="my-4 border-slate-200">')
-    .replace(/\n\n/g, '</p><p class="text-[13px] text-slate-600 leading-relaxed mb-3">')
+    .replace(/^\d+\.\s+(.+)$/gm, '<li class="ml-4 text-[13px] text-[#8899aa] leading-relaxed list-decimal mb-1">$1</li>')
+    .replace(/^- (.+)$/gm, '<li class="ml-4 text-[13px] text-[#8899aa] leading-relaxed list-disc mb-1">$1</li>')
+    .replace(/^---$/gm, '<hr class="my-4 border-[#1e2d3d]">')
+    .replace(/\n\n/g, '</p><p class="text-[13px] text-[#8899aa] leading-relaxed mb-3">')
     .replace(/\n/g, '<br>')
-    .replace(/^/, '<p class="text-[13px] text-slate-600 leading-relaxed mb-3">')
+    .replace(/^/, '<p class="text-[13px] text-[#8899aa] leading-relaxed mb-3">')
     .replace(/$/, '</p>');
 }
 
@@ -260,7 +260,7 @@ export default function ReportsView() {
   }
 
   const THREAT_DOT: Record<string, string> = {
-    critical: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-yellow-500', low: 'bg-green-500', info: 'bg-slate-300',
+    critical: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-yellow-500', low: 'bg-green-500', info: 'bg-[#3a4f63]',
   };
 
   // ── Wizard modal ────────────────────────────────────────────
@@ -268,21 +268,21 @@ export default function ReportsView() {
 
   // ── Render ──────────────────────────────────────────────────
   return (
-    <div className="flex h-full -m-5 bg-white rounded-xl border border-slate-200/60 overflow-hidden">
+    <div className="flex h-full -m-5 bg-[#1a2836] rounded-xl border border-[#1e2d3d]/60 overflow-hidden">
 
       {/* ── LEFT: Wizard grid + report list ── */}
-      <div className="w-56 border-r border-slate-200/60 bg-white flex flex-col shrink-0">
+      <div className="w-56 border-r border-[#1e2d3d]/60 bg-[#1a2836] flex flex-col shrink-0">
         {/* Wizard grid */}
-        <div className="p-2 border-b border-slate-100">
+        <div className="p-2 border-b border-[#1e2d3d]">
           <div className="grid grid-cols-2 gap-2">
             {REPORT_TYPES.map(t => (
               <button key={t.key} onClick={() => openWizard(t)} disabled={generating}
-                className="flex flex-col items-center justify-center gap-1.5 p-3 aspect-square rounded-xl border border-slate-100 hover:border-[#42d3a5]/40 hover:bg-[#42d3a5]/5 transition-all group disabled:opacity-50">
+                className="flex flex-col items-center justify-center gap-1.5 p-3 aspect-square rounded-xl border border-[#1e2d3d] hover:border-[#42d3a5]/40 hover:bg-[#42d3a5]/5 transition-all group disabled:opacity-50">
                 {generating && wizardType?.key === t.key
                   ? <Loader2 size={20} className="text-[#42d3a5] animate-spin" />
-                  : <t.icon size={20} className="text-slate-400 group-hover:text-[#42d3a5]" />
+                  : <t.icon size={20} className="text-[#556677] group-hover:text-[#42d3a5]" />
                 }
-                <span className="text-[10px] font-semibold text-slate-500 group-hover:text-[#42d3a5] text-center leading-tight">{t.title}</span>
+                <span className="text-[10px] font-semibold text-[#6b7d93] group-hover:text-[#42d3a5] text-center leading-tight">{t.title}</span>
               </button>
             ))}
           </div>
@@ -290,28 +290,28 @@ export default function ReportsView() {
 
         {/* Report list */}
         <div className="px-2.5 py-1.5">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Rapports ({reports.length})</span>
+          <span className="text-[9px] font-bold text-[#556677] uppercase tracking-wider">Rapports ({reports.length})</span>
         </div>
         <div className="flex-1 overflow-y-auto">
           {reports.map(r => (
             <div key={r.id}
-              className={`flex items-start gap-2 px-2.5 py-2 border-b border-slate-50 cursor-pointer transition-colors ${
-                selectedId === r.id ? 'bg-[#42d3a5]/5 border-l-2 border-l-[#42d3a5]' : 'hover:bg-slate-50'
+              className={`flex items-start gap-2 px-2.5 py-2 border-b border-[#1e2d3d]/50 cursor-pointer transition-colors ${
+                selectedId === r.id ? 'bg-[#42d3a5]/5 border-l-2 border-l-[#42d3a5]' : 'hover:bg-[#162230]'
               }`}
               onClick={() => setSelectedId(r.id)}>
-              <FileText size={12} className={selectedId === r.id ? 'text-[#42d3a5] mt-0.5' : 'text-slate-300 mt-0.5'} />
+              <FileText size={12} className={selectedId === r.id ? 'text-[#42d3a5] mt-0.5' : 'text-[#3a4f63] mt-0.5'} />
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-medium text-slate-700 truncate">{r.title}</div>
-                <div className="text-[9px] text-slate-400">{timeAgo(r.createdAt)}</div>
+                <div className="text-[10px] font-medium text-[#8899aa] truncate">{r.title}</div>
+                <div className="text-[9px] text-[#556677]">{timeAgo(r.createdAt)}</div>
               </div>
               <button onClick={e => { e.stopPropagation(); deleteReport(r.id); }}
-                className="p-0.5 text-slate-300 hover:text-red-400 shrink-0 opacity-0 group-hover:opacity-100">
+                className="p-0.5 text-[#3a4f63] hover:text-red-400 shrink-0 opacity-0 group-hover:opacity-100">
                 <Trash2 size={10} />
               </button>
             </div>
           ))}
           {reports.length === 0 && (
-            <div className="text-center text-[10px] text-slate-400 py-6">Aucun rapport</div>
+            <div className="text-center text-[10px] text-[#556677] py-6">Aucun rapport</div>
           )}
         </div>
       </div>
@@ -320,32 +320,32 @@ export default function ReportsView() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {centerContent ? (
           <>
-            <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between shrink-0">
+            <div className="px-4 py-2 border-b border-[#1e2d3d] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 {centerContent.type === 'article' && selected && (
                   <button onClick={() => setCenterContent({ type: 'report', markdown: selected.markdown, title: selected.title })}
                     className="text-[11px] text-[#42d3a5] hover:underline shrink-0">Rapport</button>
                 )}
-                <span className="text-[11px] font-medium text-slate-600 truncate">{centerContent.title}</span>
+                <span className="text-[11px] font-medium text-[#8899aa] truncate">{centerContent.title}</span>
               </div>
               <div className="flex gap-1.5">
-                <button onClick={copyReport} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded" title="Copier">
+                <button onClick={copyReport} className="p-1.5 text-[#556677] hover:text-[#42d3a5] rounded" title="Copier">
                   {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
                 </button>
-                <button onClick={downloadReport} className="p-1.5 text-slate-400 hover:text-[#42d3a5] rounded" title="Telecharger">
+                <button onClick={downloadReport} className="p-1.5 text-[#556677] hover:text-[#42d3a5] rounded" title="Telecharger">
                   <Download size={13} />
                 </button>
                 {centerContent.type === 'article' && centerContent.articleId && (
                   <button onClick={async () => {
                     await api(`/articles/v1/${centerContent.articleId}/content`, { method: 'DELETE' }).catch(() => {});
                     setCenterContent(prev => prev ? { ...prev, markdown: prev.markdown + '\n\n---\n\n*Cache supprime. Le prochain affichage re-scrapera l\'article.*' } : null);
-                  }} className="p-1.5 text-slate-400 hover:text-red-400 rounded" title="Supprimer le cache scrape">
+                  }} className="p-1.5 text-[#556677] hover:text-red-400 rounded" title="Supprimer le cache scrape">
                     <Trash2 size={13} />
                   </button>
                 )}
                 {centerContent.type === 'report' && selectedId && (
                   <button onClick={() => deleteReport(selectedId)}
-                    className="p-1.5 text-slate-400 hover:text-red-400 rounded" title="Supprimer le rapport">
+                    className="p-1.5 text-[#556677] hover:text-red-400 rounded" title="Supprimer le rapport">
                     <Trash2 size={13} />
                   </button>
                 )}
@@ -358,25 +358,25 @@ export default function ReportsView() {
         ) : generating ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3">
             <Loader2 size={28} className="animate-spin text-[#42d3a5]" />
-            <p className="text-sm font-medium text-slate-600">Generation du rapport...</p>
-            <p className="text-[11px] text-slate-400">Analyse des articles et redaction en cours</p>
+            <p className="text-sm font-medium text-[#8899aa]">Generation du rapport...</p>
+            <p className="text-[11px] text-[#556677]">Analyse des articles et redaction en cours</p>
           </div>
         ) : wizardOpen && wizardType ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="w-full max-w-md p-6">
-              <h3 className="text-base font-bold text-slate-900 mb-4">{wizardType.title}</h3>
+              <h3 className="text-base font-bold text-[#b0bec9] mb-4">{wizardType.title}</h3>
 
               {wizardType.needsCase && (
                 <div className="mb-4">
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1.5">Cases {selectedCaseIds.length > 0 && <span className="text-[#42d3a5]">({selectedCaseIds.length})</span>}</label>
-                  <div className="border border-slate-200 rounded-xl max-h-40 overflow-y-auto">
+                  <label className="block text-[11px] font-medium text-[#6b7d93] mb-1.5">Cases {selectedCaseIds.length > 0 && <span className="text-[#42d3a5]">({selectedCaseIds.length})</span>}</label>
+                  <div className="border border-[#1e2d3d] rounded-xl max-h-40 overflow-y-auto">
                     {cases.map(c => (
-                      <label key={c.id} className={`flex items-center gap-2.5 px-3 py-2 text-[12px] cursor-pointer border-b border-slate-50 last:border-0 ${selectedCaseIds.includes(c.id) ? 'bg-emerald-50/50' : 'hover:bg-slate-50'}`}>
+                      <label key={c.id} className={`flex items-center gap-2.5 px-3 py-2 text-[12px] cursor-pointer border-b border-[#1e2d3d]/50 last:border-0 ${selectedCaseIds.includes(c.id) ? 'bg-emerald-500/10' : 'hover:bg-[#162230]'}`}>
                         <input type="checkbox" checked={selectedCaseIds.includes(c.id)}
                           onChange={() => setSelectedCaseIds(p => p.includes(c.id) ? p.filter(x => x !== c.id) : [...p, c.id])}
-                          className="rounded border-slate-300 text-[#42d3a5]" />
-                        <span className="text-slate-700 flex-1">{c.name}</span>
-                        <span className="text-[10px] text-slate-400">{c.article_count} art.</span>
+                          className="rounded border-[#1e2d3d] text-[#42d3a5]" />
+                        <span className="text-[#8899aa] flex-1">{c.name}</span>
+                        <span className="text-[10px] text-[#556677]">{c.article_count} art.</span>
                       </label>
                     ))}
                   </div>
@@ -385,15 +385,15 @@ export default function ReportsView() {
 
               {wizardType.needsFeed && (
                 <div className="mb-4">
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1.5">Feeds {selectedFeedIds.length > 0 && <span className="text-[#42d3a5]">({selectedFeedIds.length})</span>}</label>
-                  <div className="border border-slate-200 rounded-xl max-h-40 overflow-y-auto">
+                  <label className="block text-[11px] font-medium text-[#6b7d93] mb-1.5">Feeds {selectedFeedIds.length > 0 && <span className="text-[#42d3a5]">({selectedFeedIds.length})</span>}</label>
+                  <div className="border border-[#1e2d3d] rounded-xl max-h-40 overflow-y-auto">
                     {feeds.map(f => (
-                      <label key={f.id} className={`flex items-center gap-2.5 px-3 py-2 text-[12px] cursor-pointer border-b border-slate-50 last:border-0 ${selectedFeedIds.includes(f.id) ? 'bg-violet-50/50' : 'hover:bg-slate-50'}`}>
+                      <label key={f.id} className={`flex items-center gap-2.5 px-3 py-2 text-[12px] cursor-pointer border-b border-[#1e2d3d]/50 last:border-0 ${selectedFeedIds.includes(f.id) ? 'bg-violet-500/10' : 'hover:bg-[#162230]'}`}>
                         <input type="checkbox" checked={selectedFeedIds.includes(f.id)}
                           onChange={() => setSelectedFeedIds(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id])}
-                          className="rounded border-slate-300 text-[#42d3a5]" />
-                        <span className="text-slate-700 flex-1">{f.name}</span>
-                        <span className="text-[10px] text-slate-400">{f.result_count} art.</span>
+                          className="rounded border-[#1e2d3d] text-[#42d3a5]" />
+                        <span className="text-[#8899aa] flex-1">{f.name}</span>
+                        <span className="text-[10px] text-[#556677]">{f.result_count} art.</span>
                       </label>
                     ))}
                   </div>
@@ -402,16 +402,16 @@ export default function ReportsView() {
 
               {wizardType.needsPrompt && (
                 <div className="mb-4">
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1.5">Prompt</label>
+                  <label className="block text-[11px] font-medium text-[#6b7d93] mb-1.5">Prompt</label>
                   <textarea value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} rows={3}
                     placeholder="Ex: Analyse les risques lies a l'energie nucleaire..."
-                    className="w-full px-3 py-2 text-[12px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] resize-none" />
+                    className="w-full px-3 py-2 text-[12px] border border-[#1e2d3d] rounded-xl focus:outline-none focus:border-[#42d3a5] resize-none" />
                 </div>
               )}
 
               <div className="flex gap-2">
                 <button onClick={() => setWizardOpen(false)}
-                  className="flex-1 py-2.5 text-[12px] text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50">Annuler</button>
+                  className="flex-1 py-2.5 text-[12px] text-[#6b7d93] border border-[#1e2d3d] rounded-xl hover:bg-[#162230]">Annuler</button>
                 <button onClick={generate}
                   disabled={generating ||
                     (wizardType.key === 'case-summary' && !selectedCaseIds.length) ||
@@ -428,9 +428,9 @@ export default function ReportsView() {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-xs">
-              <FileText size={36} className="mx-auto text-slate-200 mb-4" />
-              <p className="text-sm font-medium text-slate-500 mb-1">Rapports d'intelligence</p>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <FileText size={36} className="mx-auto text-[#3a4f63] mb-4" />
+              <p className="text-sm font-medium text-[#6b7d93] mb-1">Rapports d'intelligence</p>
+              <p className="text-[11px] text-[#556677] leading-relaxed">
                 {reports.length > 0
                   ? 'Selectionnez un rapport ou creez-en un nouveau.'
                   : 'Cliquez sur un bouton pour generer votre premier rapport.'}
@@ -441,9 +441,9 @@ export default function ReportsView() {
       </div>
 
       {/* ── RIGHT: Source tree ── */}
-      <div className="w-72 border-l border-slate-200/60 bg-white flex flex-col shrink-0">
-        <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sources</h3>
+      <div className="w-72 border-l border-[#1e2d3d]/60 bg-[#1a2836] flex flex-col shrink-0">
+        <div className="px-3 py-2 border-b border-[#1e2d3d] flex items-center justify-between">
+          <h3 className="text-[10px] font-bold text-[#556677] uppercase tracking-wider">Sources</h3>
           {centerContent?.type === 'article' && selected && (
             <button onClick={() => setCenterContent({ type: 'report', markdown: selected.markdown, title: selected.title })}
               className="text-[10px] text-[#42d3a5] hover:underline">Rapport</button>
@@ -451,7 +451,7 @@ export default function ReportsView() {
         </div>
         <div className="flex-1 overflow-y-auto p-1.5">
           {!selected ? (
-            <div className="text-center text-[10px] text-slate-400 py-8">Selectionnez un rapport</div>
+            <div className="text-center text-[10px] text-[#556677] py-8">Selectionnez un rapport</div>
           ) : (
             <div className="space-y-0.5">
               {selected.sources.cases.map(c => {
@@ -460,19 +460,19 @@ export default function ReportsView() {
                 return (
                   <div key={key}>
                     <button onClick={() => toggleGroup(key)}
-                      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg hover:bg-slate-50">
-                      {open ? <ChevronDown size={11} className="text-slate-400" /> : <ChevronRight size={11} className="text-slate-400" />}
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg hover:bg-[#162230]">
+                      {open ? <ChevronDown size={11} className="text-[#556677]" /> : <ChevronRight size={11} className="text-[#556677]" />}
                       <FolderOpen size={11} className="text-[#42d3a5]" />
-                      <span className="text-[10px] font-semibold text-slate-700 flex-1 truncate">{c.name}</span>
-                      <span className="text-[8px] text-slate-400">{c.articles.length}</span>
+                      <span className="text-[10px] font-semibold text-[#8899aa] flex-1 truncate">{c.name}</span>
+                      <span className="text-[8px] text-[#556677]">{c.articles.length}</span>
                     </button>
                     {open && (
                       <div className="ml-5 space-y-0.5">
                         {c.articles.map((a, i) => (
                           <button key={i} onClick={() => viewArticle(a.url, a.title)}
-                            className="w-full flex items-center gap-1.5 px-1.5 py-1 text-left rounded hover:bg-slate-50 group">
+                            className="w-full flex items-center gap-1.5 px-1.5 py-1 text-left rounded hover:bg-[#162230] group">
                             <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${THREAT_DOT[a.threat] || THREAT_DOT.info}`} />
-                            <span className="text-[9px] text-slate-600 truncate group-hover:text-[#42d3a5]">{a.title}</span>
+                            <span className="text-[9px] text-[#8899aa] truncate group-hover:text-[#42d3a5]">{a.title}</span>
                           </button>
                         ))}
                       </div>
@@ -486,19 +486,19 @@ export default function ReportsView() {
                 return (
                   <div key={key}>
                     <button onClick={() => toggleGroup(key)}
-                      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg hover:bg-slate-50">
-                      {open ? <ChevronDown size={11} className="text-slate-400" /> : <ChevronRight size={11} className="text-slate-400" />}
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg hover:bg-[#162230]">
+                      {open ? <ChevronDown size={11} className="text-[#556677]" /> : <ChevronRight size={11} className="text-[#556677]" />}
                       <Rss size={11} className="text-violet-500" />
-                      <span className="text-[10px] font-semibold text-slate-700 flex-1 truncate">{f.name}</span>
-                      <span className="text-[8px] text-slate-400">{f.articles.length}</span>
+                      <span className="text-[10px] font-semibold text-[#8899aa] flex-1 truncate">{f.name}</span>
+                      <span className="text-[8px] text-[#556677]">{f.articles.length}</span>
                     </button>
                     {open && (
                       <div className="ml-5 space-y-0.5">
                         {f.articles.map((a, i) => (
                           <button key={i} onClick={() => viewArticle(a.url, a.title)}
-                            className="w-full flex items-center gap-1.5 px-1.5 py-1 text-left rounded hover:bg-slate-50 group">
+                            className="w-full flex items-center gap-1.5 px-1.5 py-1 text-left rounded hover:bg-[#162230] group">
                             <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${THREAT_DOT[a.threat] || THREAT_DOT.info}`} />
-                            <span className="text-[9px] text-slate-600 truncate group-hover:text-[#42d3a5]">{a.title}</span>
+                            <span className="text-[9px] text-[#8899aa] truncate group-hover:text-[#42d3a5]">{a.title}</span>
                           </button>
                         ))}
                       </div>
@@ -507,7 +507,7 @@ export default function ReportsView() {
                 );
               })}
               {selected.sources.cases.length === 0 && selected.sources.feeds.length === 0 && (
-                <div className="text-center text-[9px] text-slate-400 py-4">Pas de sources</div>
+                <div className="text-center text-[9px] text-[#556677] py-4">Pas de sources</div>
               )}
             </div>
           )}

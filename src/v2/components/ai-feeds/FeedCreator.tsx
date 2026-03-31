@@ -85,7 +85,7 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
       return (
         <div className="flex items-center justify-center gap-2 py-12">
           <Loader2 size={14} className="animate-spin text-[#42d3a5]" />
-          <span className="text-[11px] text-slate-400">Chargement des modèles...</span>
+          <span className="text-[11px] text-[#556677]">Chargement des modèles...</span>
         </div>
       );
     }
@@ -93,19 +93,19 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     // Level 0: families
     if (level.depth === 0) {
       return (
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-[#1e2d3d] rounded-xl overflow-hidden">
           {families
             .filter(f => f.key !== 'mute')
             .filter(f => matchesSearch(f.label) || f.sections.some(s => matchesSearch(s.name)))
             .map((fam, fi) => (
               <button key={fi} onClick={() => setLevel({ depth: 1, familyIdx: fi })}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0 transition-colors">
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#162230] text-left border-b border-[#1e2d3d] last:border-b-0 transition-colors">
                 <div className="w-2 h-2 rounded-full bg-[#42d3a5]" />
                 <div className="flex-1">
-                  <div className="text-[13px] font-semibold text-slate-700">{fam.label}</div>
-                  <div className="text-[10px] text-slate-400">{fam.sections.length} sections · {fam.sections.reduce((n, s) => n + s.models.length, 0)} modèles</div>
+                  <div className="text-[13px] font-semibold text-[#8899aa]">{fam.label}</div>
+                  <div className="text-[10px] text-[#556677]">{fam.sections.length} sections · {fam.sections.reduce((n, s) => n + s.models.length, 0)} modèles</div>
                 </div>
-                <ChevronRight size={14} className="text-slate-300" />
+                <ChevronRight size={14} className="text-[#3a4f63]" />
               </button>
             ))}
         </div>
@@ -118,22 +118,22 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     // Level 1: sections
     if (level.depth === 1) {
       return (
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-[#1e2d3d] rounded-xl overflow-hidden">
           <button onClick={() => setLevel({ depth: 0 })}
-            className="w-full flex items-center gap-2 px-4 py-3 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50">
-            <ChevronLeft size={14} className="text-slate-400" />
-            <span className="text-[13px] font-semibold text-slate-600">{family.label}</span>
+            className="w-full flex items-center gap-2 px-4 py-3 border-b border-[#1e2d3d] hover:bg-[#162230] text-left bg-[#0f1923]">
+            <ChevronLeft size={14} className="text-[#556677]" />
+            <span className="text-[13px] font-semibold text-[#8899aa]">{family.label}</span>
           </button>
           {family.sections
             .filter(s => matchesSearch(s.name) || s.models.some(m => matchesSearch(m.name)))
             .map((sec, si) => (
               <button key={si} onClick={() => setLevel({ depth: 2, familyIdx: level.familyIdx, sectionIdx: si })}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left border-b border-slate-100 last:border-b-0 transition-colors">
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#162230] text-left border-b border-[#1e2d3d] last:border-b-0 transition-colors">
                 <div className="flex-1">
-                  <div className="text-[13px] font-medium text-slate-700">{sec.name}</div>
-                  <div className="text-[10px] text-slate-400">{sec.models.length} modèles</div>
+                  <div className="text-[13px] font-medium text-[#8899aa]">{sec.name}</div>
+                  <div className="text-[10px] text-[#556677]">{sec.models.length} modèles</div>
                 </div>
-                <ChevronRight size={14} className="text-slate-300" />
+                <ChevronRight size={14} className="text-[#3a4f63]" />
               </button>
             ))}
         </div>
@@ -145,11 +145,11 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
     if (!section) return null;
 
     return (
-      <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <div className="border border-[#1e2d3d] rounded-xl overflow-hidden">
         <button onClick={() => setLevel({ depth: 1, familyIdx: level.familyIdx })}
-          className="w-full flex items-center gap-2 px-4 py-3 border-b border-slate-200 hover:bg-slate-50 text-left bg-slate-50">
-          <ChevronLeft size={14} className="text-slate-400" />
-          <span className="text-[13px] font-semibold text-slate-600">{family.label} &gt; {section.name}</span>
+          className="w-full flex items-center gap-2 px-4 py-3 border-b border-[#1e2d3d] hover:bg-[#162230] text-left bg-[#0f1923]">
+          <ChevronLeft size={14} className="text-[#556677]" />
+          <span className="text-[13px] font-semibold text-[#8899aa]">{family.label} &gt; {section.name}</span>
         </button>
         {section.models
           .filter(m => matchesSearch(m.name) || (m.aliases || []).some(a => matchesSearch(a)))
@@ -159,18 +159,18 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
               <button key={mi}
                 onClick={() => { if (!isSelected) addModel(m); }}
                 disabled={isSelected}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-slate-100 last:border-b-0 transition-colors ${
-                  isSelected ? 'bg-emerald-50 opacity-60' : 'hover:bg-slate-50'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-[#1e2d3d] last:border-b-0 transition-colors ${
+                  isSelected ? 'bg-emerald-500/10 opacity-60' : 'hover:bg-[#162230]'
                 }`}>
                 <Sparkles size={14} className={isSelected ? 'text-emerald-500' : 'text-[#42d3a5]'} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium text-slate-700">{m.name}</div>
-                  {m.description && <div className="text-[10px] text-slate-400 truncate">{m.description}</div>}
-                  <div className="text-[9px] text-slate-300 truncate mt-0.5">
+                  <div className="text-[13px] font-medium text-[#8899aa]">{m.name}</div>
+                  {m.description && <div className="text-[10px] text-[#556677] truncate">{m.description}</div>}
+                  <div className="text-[9px] text-[#3a4f63] truncate mt-0.5">
                     {(m.aliases || []).slice(0, 5).join(', ')}{(m.aliases || []).length > 5 ? ` +${m.aliases.length - 5}` : ''}
                   </div>
                 </div>
-                {m.article_count > 0 && <span className="text-[9px] text-slate-400">{m.article_count} articles</span>}
+                {m.article_count > 0 && <span className="text-[9px] text-[#556677]">{m.article_count} articles</span>}
                 {isSelected && <span className="text-[10px] font-bold text-emerald-600">Ajouté</span>}
               </button>
             );
@@ -182,17 +182,17 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="p-4 border-b border-[#1e2d3d] flex items-center justify-between">
         <div className="flex items-center gap-3">
           <input
             value={feedName}
             onChange={e => setFeedName(e.target.value)}
             placeholder="Nom du feed..."
-            className="text-sm font-bold text-slate-900 bg-transparent border-b border-slate-200 focus:border-[#42d3a5] focus:outline-none px-0 py-1 w-64"
+            className="text-sm font-bold text-[#b0bec9] bg-transparent border-b border-[#1e2d3d] focus:border-[#42d3a5] focus:outline-none px-0 py-1 w-64"
           />
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={onCancel} className="text-[12px] font-medium text-slate-500 hover:text-slate-700">Annuler</button>
+          <button onClick={onCancel} className="text-[12px] font-medium text-[#6b7d93] hover:text-[#8899aa]">Annuler</button>
           <button
             onClick={handleSave}
             disabled={saving || modelLayers.length === 0}
@@ -208,25 +208,25 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#556677]" size={13} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher une famille, section ou modèle..."
-              className="w-full pl-9 pr-4 py-2 text-[12px] border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] bg-white"
+              className="w-full pl-9 pr-4 py-2 text-[12px] border border-[#1e2d3d] rounded-xl focus:outline-none focus:border-[#42d3a5] bg-[#1a2836]"
             />
           </div>
 
           {/* Fuzzy search results */}
           {search.length >= 2 && (fuzzySearching || fuzzyResults.length > 0) && (
-            <div className="border border-[#42d3a5]/30 rounded-xl overflow-hidden bg-emerald-50/30">
+            <div className="border border-[#42d3a5]/30 rounded-xl overflow-hidden bg-emerald-500/5">
               <div className="px-3 py-1.5 text-[10px] font-bold text-[#42d3a5] uppercase tracking-wider border-b border-[#42d3a5]/10">
                 Recherche fuzzy
               </div>
               {fuzzySearching && (
                 <div className="flex items-center gap-2 px-4 py-3 justify-center">
                   <Loader2 size={12} className="animate-spin text-[#42d3a5]" />
-                  <span className="text-[11px] text-slate-400">Recherche...</span>
+                  <span className="text-[11px] text-[#556677]">Recherche...</span>
                 </div>
               )}
               {fuzzyResults.map(r => {
@@ -235,18 +235,18 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
                   <button key={r.model_id}
                     onClick={() => { if (!isSelected) addModel({ id: r.model_id, name: r.model_name, aliases: [], description: null, article_count: 0 }); }}
                     disabled={isSelected}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-slate-100 last:border-b-0 ${isSelected ? 'opacity-40' : 'hover:bg-white'}`}>
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-[#1e2d3d] last:border-b-0 ${isSelected ? 'opacity-40' : 'hover:bg-[#1a2836]'}`}>
                     <Sparkles size={12} className="text-[#42d3a5]" />
                     <div className="flex-1 min-w-0">
-                      <span className="text-[12px] font-medium text-slate-700">{r.model_name}</span>
-                      <span className="text-[9px] text-slate-400 ml-1.5">{r.family}/{r.section}</span>
+                      <span className="text-[12px] font-medium text-[#8899aa]">{r.model_name}</span>
+                      <span className="text-[9px] text-[#556677] ml-1.5">{r.family}/{r.section}</span>
                     </div>
                     {isSelected && <span className="text-[9px] font-bold text-emerald-600">Ajout</span>}
                   </button>
                 );
               })}
               {!fuzzySearching && fuzzyResults.length === 0 && (
-                <div className="px-4 py-2.5 text-[11px] text-slate-400">Aucun resultat</div>
+                <div className="px-4 py-2.5 text-[11px] text-[#556677]">Aucun resultat</div>
               )}
             </div>
           )}
@@ -255,10 +255,10 @@ export default function FeedCreator({ onSave, onCancel, saving }: Props) {
         </div>
 
         {/* Right: Current filters */}
-        <div className="w-80 shrink-0 border-l border-slate-200/60 bg-white p-4 overflow-y-auto">
-          <h3 className="text-[12px] font-bold text-slate-900 mb-3">Filtres sélectionnés</h3>
+        <div className="w-80 shrink-0 border-l border-[#1e2d3d]/60 bg-[#1a2836] p-4 overflow-y-auto">
+          <h3 className="text-[12px] font-bold text-[#b0bec9] mb-3">Filtres sélectionnés</h3>
           {modelLayers.length === 0 ? (
-            <p className="text-[11px] text-slate-400">Parcourez la taxonomie et cliquez sur un modèle pour l'ajouter comme filtre.</p>
+            <p className="text-[11px] text-[#556677]">Parcourez la taxonomie et cliquez sur un modèle pour l'ajouter comme filtre.</p>
           ) : (
             <ModelQueryBuilder layers={modelLayers} onChange={setModelLayers} />
           )}
