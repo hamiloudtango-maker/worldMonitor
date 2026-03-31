@@ -18,21 +18,21 @@ interface Props {
 const THREAT_COLORS: Record<string, string> = {
   critical: 'bg-red-600 text-white',
   high: 'bg-orange-500 text-white',
-  medium: 'bg-yellow-500 text-slate-900',
+  medium: 'bg-yellow-500 text-[#b0bec9]',
   low: 'bg-blue-400 text-white',
-  info: 'bg-slate-300 text-slate-700',
+  info: 'bg-slate-300 text-[#8899aa]',
 };
 
 const SENTIMENT_COLORS: Record<string, string> = {
   positive: 'text-emerald-600 bg-emerald-50 border-emerald-200',
   negative: 'text-red-600 bg-red-50 border-red-200',
-  neutral: 'text-slate-500 bg-slate-50 border-slate-200',
+  neutral: 'text-slate-500 bg-[#1a2836] border-[#1e2d3d]',
 };
 
 const CRITICALITY_LABELS: Record<string, { label: string; cls: string }> = {
   breaking: { label: 'BREAKING', cls: 'bg-red-600 text-white animate-pulse' },
   developing: { label: 'EN COURS', cls: 'bg-amber-500 text-white' },
-  background: { label: 'CONTEXTE', cls: 'bg-slate-200 text-slate-600' },
+  background: { label: 'CONTEXTE', cls: 'bg-slate-200 text-[#8899aa]' },
 };
 
 function formatDate(dateStr?: string) {
@@ -113,10 +113,10 @@ export default function ArticleReader({ articleId, onClose }: Props) {
       <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-[2px]" onClick={onClose} />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-full sm:w-[62%] md:w-[56%] lg:w-[50%] xl:w-[44%] bg-white z-50 flex flex-col shadow-2xl">
+      <div className="fixed top-0 right-0 h-full w-full sm:w-[62%] md:w-[56%] lg:w-[50%] xl:w-[44%] z-50 flex flex-col shadow-2xl" style={{ background: '#131d2a' }}>
 
         {/* ── Reading progress bar ──────────────────────── */}
-        <div className="h-[3px] bg-slate-100 shrink-0">
+        <div className="h-[3px] shrink-0" style={{ background: '#1e2d3d' }}>
           <div
             className="h-full bg-gradient-to-r from-[#42d3a5] to-[#36b891] transition-all duration-150"
             style={{ width: `${progress}%` }}
@@ -124,12 +124,12 @@ export default function ArticleReader({ articleId, onClose }: Props) {
         </div>
 
         {/* ── Minimal top bar ────────────────────────────── */}
-        <div className="flex items-center justify-between px-5 py-2 shrink-0 border-b border-slate-100/80">
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 min-w-0">
-            <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center shrink-0">
-              <Globe size={11} className="text-slate-400" />
+        <div className="flex items-center justify-between px-5 py-2 shrink-0" style={{ borderBottom: '1px solid #1e2d3d' }}>
+          <div className="flex items-center gap-2 text-[11px] min-w-0" style={{ color: '#6b7d93' }}>
+            <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: '#1a2836' }}>
+              <Globe size={11} style={{ color: '#6b7d93' }} />
             </div>
-            <span className="font-medium text-slate-600 truncate max-w-[180px]">
+            <span className="font-medium text-[#8899aa] truncate max-w-[180px]">
               {formatSourceName(data?.source_id)}
             </span>
             {data?.pub_date && (
@@ -148,17 +148,17 @@ export default function ArticleReader({ articleId, onClose }: Props) {
           <div className="flex items-center gap-0.5 shrink-0">
             <button
               onClick={handleCopy}
-              className="p-1.5 text-slate-300 hover:text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
+              className="p-1.5 text-slate-300 hover:text-[#8899aa] rounded-md hover:bg-[#1a2836] transition-colors"
               title={copied ? 'Copié !' : 'Copier le lien'}
             >
               <Copy size={13} />
             </button>
             {data?.url && (
-              <a href={data.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-slate-300 hover:text-slate-600 rounded-md hover:bg-slate-50 transition-colors" title="Original">
+              <a href={data.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-slate-300 hover:text-[#8899aa] rounded-md hover:bg-[#1a2836] transition-colors" title="Original">
                 <ExternalLink size={13} />
               </a>
             )}
-            <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-slate-600 rounded-md hover:bg-slate-50 transition-colors ml-1">
+            <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-[#8899aa] rounded-md hover:bg-[#1a2836] transition-colors ml-1">
               <X size={15} />
             </button>
           </div>
@@ -174,12 +174,12 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                 <Loader2 size={16} className="animate-spin" />
                 Extraction du contenu...
               </div>
-              <div className="h-48 bg-slate-50 rounded-2xl animate-pulse mb-6" />
-              <div className="h-7 w-4/5 bg-slate-100 rounded animate-pulse mb-3" />
-              <div className="h-7 w-3/5 bg-slate-100 rounded animate-pulse mb-6" />
+              <div className="h-48 bg-[#1a2836] rounded-2xl animate-pulse mb-6" />
+              <div className="h-7 w-4/5 bg-[#0f1923] rounded animate-pulse mb-3" />
+              <div className="h-7 w-3/5 bg-[#0f1923] rounded animate-pulse mb-6" />
               <div className="space-y-3">
                 {Array.from({ length: 10 }).map((_, i) => (
-                  <div key={i} className="h-4 bg-slate-50 rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
+                  <div key={i} className="h-4 bg-[#1a2836] rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
                 ))}
               </div>
             </div>
@@ -202,7 +202,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
               </div>
               {data.title && (
                 <div className="mt-6">
-                  <h1 className="text-2xl font-bold text-slate-900 leading-snug tracking-tight">{data.title}</h1>
+                  <h1 className="text-2xl font-bold text-[#b0bec9] leading-snug tracking-tight">{data.title}</h1>
                   {data.description && <p className="text-base text-slate-500 leading-relaxed mt-4">{data.description}</p>}
                 </div>
               )}
@@ -214,7 +214,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
             <>
               {/* Hero image */}
               {heroImage && (
-                <div className="w-full bg-slate-50">
+                <div className="w-full bg-[#1a2836]">
                   <img
                     src={heroImage}
                     alt=""
@@ -234,7 +234,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                 )}
 
                 {/* Title */}
-                <h1 className="text-[26px] font-extrabold text-slate-900 leading-[1.25] tracking-tight mb-2">
+                <h1 className="text-[26px] font-extrabold text-[#b0bec9] leading-[1.25] tracking-tight mb-2">
                   {data.title_translated || data.title}
                 </h1>
                 {data.title_translated && data.title !== data.title_translated && (
@@ -259,7 +259,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                     </span>
                   )}
                   {data.lang && data.lang !== 'en' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 bg-slate-50 rounded">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 bg-[#1a2836] rounded">
                       <Languages size={9} />{data.lang.toUpperCase()}
                     </span>
                   )}
@@ -270,7 +270,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                   <div className="flex flex-wrap items-center gap-1.5 mb-5">
                     <MapPin size={11} className="text-slate-300" />
                     {data.countries.map(c => (
-                      <span key={c} className="px-1.5 py-0.5 text-[10px] font-medium text-slate-500 bg-slate-50 rounded border border-slate-100">{c}</span>
+                      <span key={c} className="px-1.5 py-0.5 text-[10px] font-medium text-slate-500 bg-[#1a2836] rounded border border-[#1e2d3d]">{c}</span>
                     ))}
                   </div>
                 )}
@@ -288,13 +288,13 @@ export default function ArticleReader({ articleId, onClose }: Props) {
 
                 {/* Summary */}
                 {data.summary && (
-                  <div className="relative bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-5 mb-8 border border-slate-100">
-                    <div className="absolute top-4 left-5 w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                  <div className="relative bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-5 mb-8 border border-[#1e2d3d]">
+                    <div className="absolute top-4 left-5 w-6 h-6 rounded-lg bg-[#1a2836] shadow-sm flex items-center justify-center">
                       <span className="text-[10px]">✨</span>
                     </div>
                     <div className="pl-9">
                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Résumé IA</p>
-                      <p className="text-[13px] text-slate-700 leading-relaxed">{data.summary}</p>
+                      <p className="text-[13px] text-[#8899aa] leading-relaxed">{data.summary}</p>
                     </div>
                   </div>
                 )}
@@ -309,7 +309,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {data.persons.slice(0, 8).map(p => (
-                            <span key={p} className="px-1.5 py-0.5 bg-white text-blue-700 text-[10px] rounded shadow-sm">{p}</span>
+                            <span key={p} className="px-1.5 py-0.5 bg-[#1a2836] text-blue-700 text-[10px] rounded shadow-sm">{p}</span>
                           ))}
                         </div>
                       </div>
@@ -321,7 +321,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {data.orgs.slice(0, 8).map(o => (
-                            <span key={o} className="px-1.5 py-0.5 bg-white text-violet-700 text-[10px] rounded shadow-sm">{o}</span>
+                            <span key={o} className="px-1.5 py-0.5 bg-[#1a2836] text-violet-700 text-[10px] rounded shadow-sm">{o}</span>
                           ))}
                         </div>
                       </div>
@@ -330,26 +330,26 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                 )}
 
                 {/* Separator */}
-                <hr className="border-slate-100 mb-8" />
+                <hr className="border-[#1e2d3d] mb-8" />
 
                 {/* ── Full content ─────────────────────────── */}
                 {data.content_md && (
                   <article className="
-                    prose prose-slate max-w-none
-                    prose-headings:text-slate-900 prose-headings:font-bold prose-headings:tracking-tight
+                    prose prose-invert max-w-none
+                    prose-headings:text-[#b0bec9] prose-headings:font-bold prose-headings:tracking-tight
                     prose-h1:text-[22px] prose-h1:mt-10 prose-h1:mb-4
                     prose-h2:text-[18px] prose-h2:mt-8 prose-h2:mb-3
                     prose-h3:text-[15px] prose-h3:mt-6 prose-h3:mb-2
-                    prose-p:text-[15px] prose-p:text-slate-700 prose-p:leading-[1.8] prose-p:my-4
+                    prose-p:text-[15px] prose-p:text-[#8899aa] prose-p:leading-[1.8] prose-p:my-4
                     prose-a:text-[#42d3a5] prose-a:font-medium prose-a:no-underline hover:prose-a:underline
-                    prose-strong:text-slate-900 prose-strong:font-semibold
-                    prose-blockquote:border-l-[3px] prose-blockquote:border-[#42d3a5] prose-blockquote:bg-slate-50/70
+                    prose-strong:text-[#b0bec9] prose-strong:font-semibold
+                    prose-blockquote:border-l-[3px] prose-blockquote:border-[#42d3a5] prose-blockquote:bg-[#1a2836]/70
                     prose-blockquote:rounded-r-xl prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:my-6
-                    prose-blockquote:not-italic prose-blockquote:text-[14px] prose-blockquote:text-slate-600
-                    prose-code:text-xs prose-code:bg-slate-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-                    prose-li:text-[15px] prose-li:text-slate-700 prose-li:leading-[1.7]
+                    prose-blockquote:not-italic prose-blockquote:text-[14px] prose-blockquote:text-[#8899aa]
+                    prose-code:text-xs prose-code:bg-[#0f1923] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+                    prose-li:text-[15px] prose-li:text-[#8899aa] prose-li:leading-[1.7]
                     prose-ul:my-4 prose-ol:my-4
-                    prose-hr:border-slate-100 prose-hr:my-8
+                    prose-hr:border-[#1e2d3d] prose-hr:my-8
                     prose-img:rounded-2xl prose-img:shadow-sm prose-img:my-6
                   ">
                     <Markdown
@@ -382,7 +382,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                 {/* Fallback description */}
                 {!data.content_md && data.description && (
                   <div className="mt-2">
-                    <p className="text-[15px] text-slate-600 leading-[1.8]">{data.description}</p>
+                    <p className="text-[15px] text-[#8899aa] leading-[1.8]">{data.description}</p>
                     {data.url && (
                       <a href={data.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[#42d3a5] font-medium hover:underline mt-4">
                         Lire l'article complet <ExternalLink size={13} />
@@ -402,7 +402,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
         {showScrollTop && (
           <button
             onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="absolute bottom-16 right-6 p-2.5 bg-white text-slate-400 rounded-full shadow-lg border border-slate-200 hover:text-slate-600 transition-colors z-10"
+            className="absolute bottom-16 right-6 p-2.5 bg-[#1a2836] text-slate-400 rounded-full shadow-lg border border-[#1e2d3d] hover:text-[#8899aa] transition-colors z-10"
           >
             <ArrowUp size={16} />
           </button>
@@ -410,7 +410,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
 
         {/* ── Bottom bar ────────────────────────────────── */}
         {data && !loading && (
-          <div className="flex items-center justify-between px-5 py-2 border-t border-slate-100 bg-white shrink-0">
+          <div className="flex items-center justify-between px-5 py-2 shrink-0" style={{ borderTop: '1px solid #1e2d3d', background: '#0f1923' }}>
             <div className="flex items-center gap-3 text-[10px] text-slate-400">
               {data.word_count && <span>{data.word_count.toLocaleString('fr-FR')} mots</span>}
               {data.cached !== undefined && (

@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import { X, Plus, Search, Settings, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Plus, Search, Settings, RotateCcw, Maximize2, Minimize2, ChevronUp, RefreshCw, MoreHorizontal } from 'lucide-react';
 import ErrorBoundary from './shared/ErrorBoundary';
 
 const ACCENT = '#42d3a5';
@@ -349,33 +349,21 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
               const hasConfig = def.configFields && def.configFields.length > 0;
               return (
                 <div key={item.i} className="rounded-xl shadow-sm flex flex-col overflow-hidden group relative" style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}>
-                  {/* Header — drag handle */}
-                  <div className="wg-drag px-3 py-1.5 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none" style={{ borderBottom: '1px solid #1e2d3d' }}>
+                  {/* Header — Inoreader-style */}
+                  <div className="wg-drag px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none" style={{ borderBottom: '1px solid #1e2d3d' }}>
                     <div className="flex items-center gap-2">
-                      <Icon size={13} style={{ color: ACCENT }} />
-                      <span className="text-[12px] font-bold" style={{ color: '#c8d6e5' }}>{def.title}</span>
+                      <Icon size={14} style={{ color: '#4d8cf5' }} />
+                      <span className="text-[13px] font-semibold" style={{ color: '#b0bec9' }}>{def.title}</span>
                     </div>
-                    <div className="flex items-center gap-0.5">
-                      {hasConfig && (
-                        <button
-                          onMouseDown={e => e.stopPropagation()}
-                          onClick={() => setSettingsOpen(settingsOpen === item.i ? null : item.i)}
-                          className={`p-1 rounded transition-all ${
-                            settingsOpen === item.i
-                              ? 'text-[#42d3a5] bg-teal-50'
-                              : 'text-slate-300 hover:text-slate-500 opacity-0 group-hover:opacity-100'
-                          }`}
-                          title="Configurer"
-                        >
-                          <Settings size={12} />
-                        </button>
-                      )}
-                      <button
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={() => removeWidget(item.i)}
-                        className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <X size={12} />
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onMouseDown={e => e.stopPropagation()} className="p-1 rounded" style={{ color: '#556677' }} title="Réduire">
+                        <ChevronUp size={13} />
+                      </button>
+                      <button onMouseDown={e => e.stopPropagation()} className="p-1 rounded" style={{ color: '#556677' }} title="Rafraîchir">
+                        <RefreshCw size={13} />
+                      </button>
+                      <button onMouseDown={e => e.stopPropagation()} onClick={() => removeWidget(item.i)} className="p-1 rounded" style={{ color: '#556677' }} title="Menu">
+                        <MoreHorizontal size={13} />
                       </button>
                     </div>
                   </div>
