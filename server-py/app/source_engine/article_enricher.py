@@ -173,6 +173,7 @@ async def _crawl4ai_fetch(url: str) -> dict | None:
     import json as _json
     try:
         _fix_win_encoding()
+        logger.info(f"crawl4ai subprocess starting for: {url}")
         proc = await asyncio.create_subprocess_exec(
             sys.executable, "-c", _crawl4ai_subprocess_script(), url,
             stdout=asyncio.subprocess.PIPE,
@@ -209,7 +210,7 @@ async def _crawl4ai_fetch(url: str) -> dict | None:
         logger.warning(f"crawl4ai timeout: {url}")
         return None
     except Exception as e:
-        logger.warning(f"crawl4ai failed: {url} — {e}")
+        logger.error(f"crawl4ai EXCEPTION: {url} — {type(e).__name__}: {e}", exc_info=True)
         return None
 
 
