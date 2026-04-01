@@ -15,6 +15,7 @@ import ModelQueryBuilder, { type ModelLayer } from './shared/ModelQueryBuilder';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
 import { FULL_CATALOG, renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
 import { getLimit } from '@/v2/lib/display-settings';
+import { useTheme } from '@/v2/lib/theme';
 
 interface Props {
   caseData: CaseData;
@@ -39,6 +40,7 @@ const CASE_DEFAULTS: WidgetState[] = [
 ];
 
 export default function CaseBoard({ caseData, onBack }: Props) {
+  const { t } = useTheme();
   const [articles, setArticles] = useState<Article[]>([]);
   const [stats, setStats] = useState<CaseStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +67,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
       const s = await getCaseStats(caseData.id);
       console.log('[CaseBoard.load]', a.articles.length, 'articles, total:', s.total);
       setStats(s);
-    } catch (err) { console.error('[CaseBoard.load] FAILED', err); }
+    } catch (err) { console.error(`[CaseBoard.load] FAILED`, err); }
     setLoading(false);
   }, [caseData.id]);
 
@@ -81,7 +83,7 @@ export default function CaseBoard({ caseData, onBack }: Props) {
       await updateCase(currentCase.id, { query: { model_layers: queryLayers } });
       await load();
     } catch (err) {
-      console.error('[CaseBoard] save failed', err);
+      console.error(`[CaseBoard] save failed`, err);
     }
     setSaving(false);
   }
@@ -107,24 +109,24 @@ export default function CaseBoard({ caseData, onBack }: Props) {
   const caseStats = stats ? { total: stats.total, by_theme: stats.by_theme, by_threat: stats.by_threat, by_source: stats.by_source || {} } : null;
 
   return (
-    <div className="h-full bg-[#131d2a] flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: t.bgApp }}>
       {/* Header */}
-      <header className="h-14 bg-[#1a2836] border-b border-[#1e2d3d] flex items-center justify-between px-5 shrink-0">
+      <header className="h-14 border-b flex items-center justify-between px-5 shrink-0" style={{ background: t.bgCard, borderColor: t.border }}>
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 rounded-lg text-[#556677] hover:text-[#8899aa] hover:bg-[#162230] transition-colors">
+          <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-[#162230] transition-colors" style={{ color: t.textSecondary }}>
             <ArrowLeft size={18} />
           </button>
           <div className="flex items-center gap-2">
             <Icon size={18} className="text-[#42d3a5]" />
-            <h1 className="text-base font-bold text-[#b0bec9]">{currentCase.name}</h1>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#131d2a] text-[#6b7d93] uppercase tracking-wide">
+            <h1 className="text-base font-bold" style={{ color: t.textPrimary }}>{currentCase.name}</h1>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wide" style={{ background: t.bgApp, color: t.textSecondary }}>
               {TYPE_LABEL[currentCase.type] ?? currentCase.type}
             </span>
           </div>
-          {loading && <Loader2 size={16} className="animate-spin text-[#556677]" />}
+          {loading && <Loader2 size={16} className="animate-spin" style={{ color: t.textSecondary }} />}
         </div>
         <button onClick={handleIngest} disabled={ingesting}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-[#1e2d3d] text-[#8899aa] hover:ring-1 hover:ring-[#42d3a5]/30 transition-colors disabled:opacity-50">
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border hover:ring-1 hover:ring-[#42d3a5]/30 transition-colors disabled:opacity-50" style={{ borderColor: t.border, color: t.textSecondary }}>
           <RefreshCw size={14} className={ingesting ? 'animate-spin' : ''} />
           {ingesting ? 'Ingestion...' : 'Actualiser'}
         </button>
@@ -137,11 +139,11 @@ export default function CaseBoard({ caseData, onBack }: Props) {
           <div className="w-80 shrink-0">
             <IdentityCard card={currentCase.identity_card} caseName={currentCase.name} />
           </div>
-          <div className="flex-1 bg-[#1a2836] rounded-xl border border-[#1e2d3d]/60 p-4">
+          <div className="flex-1 rounded-xl border p-4" style={{ background: t.bgCard, borderColor: `${t.border}99` }}>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-[12px] font-bold text-[#b0bec9]">Perimetre de veille</h3>
+              <h3 className="text-[12px] font-bold" style={{ color: t.textPrimary }}>Perimetre de veille</h3>
               {!editingDesc && (
-                <button onClick={() => { setDescDraft(currentCase.identity_card?.description || ''); setEditingDesc(true); }}
+                <button onClick={() => { setDescDraft(currentCase.identity_card?.description || ``); setEditingDesc(true); }}
                   className="text-[11px] text-[#42d3a5] hover:underline">Modifier</button>
               )}
             </div>
@@ -149,18 +151,18 @@ export default function CaseBoard({ caseData, onBack }: Props) {
               <div className="space-y-2">
                 <textarea value={descDraft} onChange={e => setDescDraft(e.target.value)} rows={4}
                   placeholder="Decrivez le perimetre de veille..."
-                  className="w-full px-3 py-2 bg-[#0f1923] border border-[#1e2d3d] rounded-lg text-[12px] text-[#8899aa] outline-none focus:border-[#42d3a5] resize-none" />
+                  className="w-full px-3 py-2 border rounded-lg text-[12px] outline-none focus:border-[#42d3a5] resize-none" style={{ background: t.bgSidebar, borderColor: t.border, color: t.textSecondary }} />
                 <div className="flex gap-2">
-                  <button onClick={() => setEditingDesc(false)} className="px-3 py-1.5 text-[11px] text-[#6b7d93] border border-[#1e2d3d] rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30">Annuler</button>
+                  <button onClick={() => setEditingDesc(false)} className="px-3 py-1.5 text-[11px] border rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30" style={{ color: t.textSecondary, borderColor: t.border }}>Annuler</button>
                   <button onClick={handleUpdateDescription} disabled={regenerating}
-                    className="px-3 py-1.5 text-[11px] text-white font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1" style={{ background: '#42d3a5' }}>
-                    {regenerating ? <><Loader2 size={12} className="animate-spin" /> Regeneration...</> : 'Sauver & Regenerer'}
+                    className="px-3 py-1.5 text-[11px] text-white font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1" style={{ background: `#42d3a5` }}>
+                    {regenerating ? <><Loader2 size={12} className="animate-spin" /> Regeneration...</> : `Sauver & Regenerer`}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-[12px] text-[#8899aa] leading-relaxed">{currentCase.identity_card?.description || 'Aucune description.'}</p>
+                <p className="text-[12px] leading-relaxed" style={{ color: t.textSecondary }}>{currentCase.identity_card?.description || `Aucune description.`}</p>
                 <ModelQueryBuilder layers={queryLayers} onChange={setQueryLayers} />
                 <div className="flex items-center gap-2 mt-2">
                   <button onClick={handleSaveQuery} disabled={saving}
@@ -179,8 +181,8 @@ export default function CaseBoard({ caseData, onBack }: Props) {
           storageKey={`wm-case-${currentCase.id}-v3`}
           defaultWidgets={CASE_DEFAULTS}
           renderContent={id => {
-            const shared = renderSharedWidget(id, articles, caseStats, 'cb');
-            return shared || <div className="flex items-center justify-center h-full text-sm text-[#556677]">Widget</div>;
+            const shared = renderSharedWidget(id, articles, caseStats, 'cb', t);
+ return shared || <div className="flex items-center justify-center h-full text-sm " style={{ color: t.textSecondary }}>Widget</div>;
           }}
         />
       </div>

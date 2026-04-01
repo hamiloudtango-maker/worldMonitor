@@ -6,6 +6,7 @@ import { listFeedArticles } from '@/v2/lib/ai-feeds-api';
 import type { AIFeedArticle, PreviewArticle } from '@/v2/lib/ai-feeds-api';
 import { timeAgo } from '@/v2/lib/constants';
 import { useArticleReader } from '@/v2/hooks/useArticleReader';
+import { useTheme } from '@/v2/lib/theme';
 
 interface Props {
   feedId: string | null;
@@ -18,6 +19,7 @@ function formatSource(s: string) {
 }
 
 export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props) {
+  const { t } = useTheme();
   const openArticle = useArticleReader();
   const [articles, setArticles] = useState<(AIFeedArticle | PreviewArticle)[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,7 +42,7 @@ export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props
 
   if (!feedId) {
     return (
-      <div className="text-center py-8 text-xs" style={{ color: '#556677' }}>
+      <div className="text-center py-8 text-xs" style={{ color: t.textSecondary }}>
         Ajoutez des filtres pour voir l'aperçu
       </div>
     );
@@ -49,10 +51,10 @@ export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-[12px] font-bold" style={{ color: '#b0bec9' }}>
+        <h4 className="text-[12px] font-bold" style={{ color: t.textPrimary }}>
           Aperçu{total > 0 && ` · ${total} articles`}
         </h4>
-        <button onClick={load} disabled={loading} className="p-1.5 rounded transition-colors" style={{ color: '#556677' }}>
+        <button onClick={load} disabled={loading} className="p-1.5 rounded transition-colors" style={{ color: t.textSecondary }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
@@ -69,12 +71,12 @@ export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props
               key={i}
               onClick={() => { if (id) openArticle(id); }}
               className="rounded-xl overflow-hidden cursor-pointer transition-all"
-              style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}
+              style={{ background: t.bgCard, border: `1px solid ${t.border}` }}
               onMouseOver={e => (e.currentTarget.style.borderColor = '#2a3f52')}
-              onMouseOut={e => (e.currentTarget.style.borderColor = '#1e2d3d')}
+              onMouseOut={e => (e.currentTarget.style.borderColor = t.border)}
             >
               {/* Image */}
-              <div className="h-36 relative overflow-hidden" style={{ background: '#0f1923' }}>
+              <div className="h-36 relative overflow-hidden" style={{ background: t.bgSidebar }}>
                 {imageUrl ? (
                   <img src={imageUrl} alt="" className="w-full h-full object-cover" loading="lazy"
                     onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -91,27 +93,27 @@ export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props
 
               {/* Content */}
               <div className="p-3">
-                <h3 className="text-[13px] font-semibold leading-snug line-clamp-2 mb-1.5" style={{ color: '#b0bec9' }}>
+                <h3 className="text-[13px] font-semibold leading-snug line-clamp-2 mb-1.5" style={{ color: t.textPrimary }}>
                   {a.title}
                 </h3>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="text-[10px] font-medium" style={{ color: '#4d8cf5' }}>{formatSource(a.source_name)}</span>
+                  <span className="text-[10px] font-medium" style={{ color: t.accent }}>{formatSource(a.source_name)}</span>
                   {'relevance_score' in a && (
                     <>
-                      <span style={{ color: '#3a4a5a' }}>·</span>
+                      <span style={{ color: t.textSecondary }}>·</span>
                       <span className="text-[10px] font-bold" style={{ color: '#42d3a5' }}>{Math.round(a.relevance_score)}%</span>
                     </>
                   )}
                 </div>
                 {a.summary && (
-                  <p className="text-[11px] line-clamp-2 mb-2" style={{ color: '#6b7d93', lineHeight: '1.4' }}>{a.summary}</p>
+                  <p className="text-[11px] line-clamp-2 mb-2" style={{ color: t.textSecondary, lineHeight: '1.4' }}>{a.summary}</p>
                 )}
-                <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid #1e2d3d' }}>
-                  <span className="text-[10px]" style={{ color: '#556677' }}>{a.published_at ? timeAgo(a.published_at) : ''}</span>
+                <div className="flex items-center justify-between pt-1.5" style={{ borderTop: `1px solid ${t.border}` }}>
+                  <span className="text-[10px]" style={{ color: t.textSecondary }}>{a.published_at ? timeAgo(a.published_at) : ''}</span>
                   <div className="flex items-center gap-0.5">
-                    <button className="p-1 rounded" style={{ color: '#3a4a5a' }}><Star size={12} /></button>
-                    <button className="p-1 rounded" style={{ color: '#3a4a5a' }}><BookmarkPlus size={12} /></button>
-                    <button className="p-1 rounded" style={{ color: '#3a4a5a' }}><MoreHorizontal size={12} /></button>
+                    <button className="p-1 rounded" style={{ color: t.textSecondary }}><Star size={12} /></button>
+                    <button className="p-1 rounded" style={{ color: t.textSecondary }}><BookmarkPlus size={12} /></button>
+                    <button className="p-1 rounded" style={{ color: t.textSecondary }}><MoreHorizontal size={12} /></button>
                   </div>
                 </div>
               </div>
@@ -121,13 +123,13 @@ export default function FeedPreview({ feedId, onCountChange, refreshKey }: Props
       </div>
 
       {articles.length === 0 && !loading && (
-        <div className="text-center py-10 text-xs" style={{ color: '#556677' }}>
+        <div className="text-center py-10 text-xs" style={{ color: t.textSecondary }}>
           {feedId ? 'Pas encore d\'articles — ajoutez des sources et lancez un refresh' : 'Aucun article trouvé'}
         </div>
       )}
       {loading && (
         <div className="flex justify-center py-10">
-          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#4d8cf5', borderTopColor: 'transparent' }} />
+          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: t.accent, borderTopColor: 'transparent' }} />
         </div>
       )}
     </div>

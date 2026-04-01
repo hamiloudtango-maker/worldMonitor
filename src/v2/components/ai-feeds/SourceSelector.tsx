@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, Globe, X, Loader2, ExternalLink } from 'lucide-react';
 import { listCatalog, validateUrl, addFeedSource, removeFeedSource, listFeedSources, toggleFeedSource } from '@/v2/lib/ai-feeds-api';
 import type { CatalogSource, AIFeedSourceData } from '@/v2/lib/ai-feeds-api';
+import { useTheme } from '@/v2/lib/theme';
 
 interface Props {
   feedId: string | null;
@@ -11,6 +12,7 @@ interface Props {
 const CONTINENTS = ['Europe', 'Asie', 'Afrique', 'Amerique du Nord', 'Amerique du Sud', 'Oceanie', 'Moyen-Orient'];
 
 export default function SourceSelector({ feedId }: Props) {
+  const { t } = useTheme();
   const [catalog, setCatalog] = useState<CatalogSource[]>([]);
   const [feedSources, setFeedSources] = useState<AIFeedSourceData[]>([]);
   const [search, setSearch] = useState('');
@@ -76,7 +78,7 @@ export default function SourceSelector({ feedId }: Props) {
           url: found.url, name: found.title || customUrl.trim(), origin: 'custom',
         });
         setFeedSources(prev => [...prev, added]);
-        setCustomUrl('');
+        setCustomUrl(``);
       }
     } catch { /* silent */ }
     setValidating(false);
@@ -86,40 +88,40 @@ export default function SourceSelector({ feedId }: Props) {
     // Creation mode: show catalog browser only
     return (
       <div className="flex flex-col h-full">
-        <div className="p-3 border-b border-[#1e2d3d]">
-          <h4 className="text-[11px] font-bold text-[#b0bec9] mb-1">Sources disponibles</h4>
-          <p className="text-[9px] text-[#556677]">Les sources seront ajoutées automatiquement à la sauvegarde</p>
+        <div className="p-3 border-b" style={{ borderColor: t.border }}>
+          <h4 className="text-[11px] font-bold mb-1" style={{ color: t.textPrimary }}>Sources disponibles</h4>
+          <p className="text-[9px]" style={{ color: t.textSecondary }}>Les sources seront ajoutées automatiquement à la sauvegarde</p>
         </div>
         <div className="flex-1 overflow-hidden flex flex-col p-3">
           <div className="flex gap-1.5 mb-2">
             <div className="relative flex-1">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-[#556677]" size={10} />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2" size={10} style={{ color: t.textSecondary }} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Rechercher..."
-                className="w-full pl-6 pr-2 py-1 text-[10px] border border-[#1e2d3d] rounded focus:outline-none focus:border-[#42d3a5] bg-[#0f1923]"
+                className="w-full pl-6 pr-2 py-1 text-[10px] border rounded focus:outline-none focus:border-[#42d3a5]" style={{ borderColor: t.border, background: t.bgSidebar }}
               />
             </div>
             <select
               value={continent}
               onChange={e => setContinent(e.target.value)}
-              className="text-[10px] px-2 py-1 border border-[#1e2d3d] rounded bg-[#0f1923] focus:outline-none focus:border-[#42d3a5]"
+              className="text-[10px] px-2 py-1 border rounded focus:outline-none focus:border-[#42d3a5]" style={{ borderColor: t.border, background: t.bgSidebar }}
             >
               <option value="">Tous continents</option>
               {CONTINENTS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className="text-[10px] text-[#6b7d93] mb-2">{catalog.length} sources</div>
+          <div className="text-[10px] mb-2" style={{ color: t.textSecondary }}>{catalog.length} sources</div>
           <div className="flex-1 overflow-y-auto space-y-0.5">
             {catalog.slice(0, 50).map((s, i) => (
               <div
                 key={i}
                 className="flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-[#162230]"
               >
-                <Globe size={10} className="text-[#556677] shrink-0" />
-                <span className="text-[10px] text-[#8899aa] font-medium flex-1 truncate">{s.name}</span>
-                <span className="text-[8px] text-[#556677]">{s.country}</span>
+                <Globe size={10} className="shrink-0" style={{ color: t.textSecondary }} />
+                <span className="text-[10px] font-medium flex-1 truncate" style={{ color: t.textSecondary }}>{s.name}</span>
+                <span className="text-[8px]" style={{ color: t.textSecondary }}>{s.country}</span>
               </div>
             ))}
           </div>
@@ -131,8 +133,8 @@ export default function SourceSelector({ feedId }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Feed sources (top) */}
-      <div className="p-3 border-b border-[#1e2d3d]">
-        <h4 className="text-[11px] font-bold text-[#b0bec9] mb-2">
+      <div className="p-3 border-b" style={{ borderColor: t.border }}>
+        <h4 className="text-[11px] font-bold mb-2" style={{ color: t.textPrimary }}>
           Sources actives ({feedSources.filter(s => s.enabled).length})
         </h4>
         <div className="space-y-1 max-h-40 overflow-y-auto">
@@ -144,26 +146,26 @@ export default function SourceSelector({ feedId }: Props) {
                 onChange={e => handleToggle(s.id, e.target.checked)}
                 className="rounded text-[#42d3a5] focus:ring-[#42d3a5] w-3 h-3"
               />
-              <span className="text-[10px] text-[#8899aa] flex-1 truncate">{s.name}</span>
-              <span className="text-[8px] text-[#556677]">{s.country || s.origin}</span>
-              <button onClick={() => handleRemove(s.id)} className="opacity-0 group-hover:opacity-100 text-[#556677] hover:text-red-500">
+              <span className="text-[10px] flex-1 truncate" style={{ color: t.textSecondary }}>{s.name}</span>
+              <span className="text-[8px]" style={{ color: t.textSecondary }}>{s.country || s.origin}</span>
+              <button onClick={() => handleRemove(s.id)} className="opacity-0 group-hover:opacity-100 hover:text-red-500" style={{ color: t.textSecondary }}>
                 <X size={10} />
               </button>
             </div>
           ))}
           {feedSources.length === 0 && (
-            <div className="text-[10px] text-[#556677] text-center py-2">Aucune source — ajoutez depuis le catalogue</div>
+            <div className="text-[10px] text-center py-2" style={{ color: t.textSecondary }}>Aucune source — ajoutez depuis le catalogue</div>
           )}
         </div>
       </div>
 
       {/* Custom URLs — single or bulk paste */}
-      <div className="p-3 border-b border-[#1e2d3d]">
+      <div className="p-3 border-b" style={{ borderColor: t.border }}>
         <div className="flex items-center justify-between mb-1.5">
-          <h4 className="text-[10px] font-bold text-[#b0bec9]">Ajouter des sources</h4>
+          <h4 className="text-[10px] font-bold" style={{ color: t.textPrimary }}>Ajouter des sources</h4>
           <button
             onClick={() => setCustomUrl(prev => prev.includes('\n') ? '' : prev)}
-            className="text-[9px] text-[#556677] hover:text-[#42d3a5]"
+            className="text-[9px] hover:text-[#42d3a5]" style={{ color: t.textSecondary }}
           >
             {customUrl.includes('\n') ? 'Mode simple' : 'Coller une liste'}
           </button>
@@ -173,9 +175,9 @@ export default function SourceSelector({ feedId }: Props) {
             <textarea
               value={customUrl}
               onChange={e => setCustomUrl(e.target.value)}
-              placeholder={"Collez une liste d'URLs RSS (une par ligne)\nhttps://example.com/rss\nhttps://other.com/feed"}
+              placeholder={"Collez une liste d`URLs RSS (une par ligne)\nhttps://example.com/rss\nhttps://other.com/feed"}
               rows={4}
-              className="w-full px-2.5 py-1.5 text-[10px] border border-[#1e2d3d] rounded-lg focus:outline-none focus:border-[#42d3a5] bg-[#0f1923] resize-none"
+              className="w-full px-2.5 py-1.5 text-[10px] border rounded-lg focus:outline-none focus:border-[#42d3a5] resize-none" style={{ borderColor: t.border, background: t.bgSidebar }}
             />
             <button
               onClick={async () => {
@@ -207,14 +209,14 @@ export default function SourceSelector({ feedId }: Props) {
             <input
               value={customUrl}
               onChange={e => setCustomUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCustomUrl()}
+              onKeyDown={e => e.key === `Enter` && handleCustomUrl()}
               placeholder="Ajouter une URL RSS..."
-              className="flex-1 px-2.5 py-1.5 text-[10px] border border-[#1e2d3d] rounded-lg focus:outline-none focus:border-[#42d3a5] bg-[#0f1923]"
+              className="flex-1 px-2.5 py-1.5 text-[10px] border rounded-lg focus:outline-none focus:border-[#42d3a5]" style={{ borderColor: t.border, background: t.bgSidebar }}
             />
             <button
               onClick={handleCustomUrl}
               disabled={validating || !customUrl.trim()}
-              className="p-1.5 rounded-lg bg-[#131d2a] text-[#6b7d93] hover:bg-[#42d3a5] hover:text-white disabled:opacity-50 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-[#42d3a5] hover:text-white disabled:opacity-50 transition-colors" style={{ background: t.bgApp, color: t.textSecondary }}
             >
               {validating ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
             </button>
@@ -224,21 +226,21 @@ export default function SourceSelector({ feedId }: Props) {
 
       {/* Catalog browser */}
       <div className="flex-1 overflow-hidden flex flex-col p-3">
-        <h4 className="text-[11px] font-bold text-[#b0bec9] mb-2">Catalogue ({catalog.length} sources)</h4>
+        <h4 className="text-[11px] font-bold mb-2" style={{ color: t.textPrimary }}>Catalogue ({catalog.length} sources)</h4>
         <div className="flex gap-1.5 mb-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-[#556677]" size={10} />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2" size={10} style={{ color: t.textSecondary }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher..."
-              className="w-full pl-6 pr-2 py-1 text-[10px] border border-[#1e2d3d] rounded focus:outline-none focus:border-[#42d3a5] bg-[#0f1923]"
+              className="w-full pl-6 pr-2 py-1 text-[10px] border rounded focus:outline-none focus:border-[#42d3a5]" style={{ borderColor: t.border, background: t.bgSidebar }}
             />
           </div>
           <select
             value={continent}
             onChange={e => setContinent(e.target.value)}
-            className="text-[10px] px-2 py-1 border border-[#1e2d3d] rounded bg-[#0f1923] focus:outline-none focus:border-[#42d3a5]"
+            className="text-[10px] px-2 py-1 border rounded focus:outline-none focus:border-[#42d3a5]" style={{ borderColor: t.border, background: t.bgSidebar }}
           >
             <option value="">Tous continents</option>
             {CONTINENTS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -251,12 +253,12 @@ export default function SourceSelector({ feedId }: Props) {
               onClick={() => handleAddFromCatalog(s)}
               disabled={feedSourceUrls.has(s.url) || loading}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors ${
-                feedSourceUrls.has(s.url) ? 'bg-[#42d3a5]/5 opacity-60' : 'hover:bg-[#162230]'
+                feedSourceUrls.has(s.url) ? `bg-[#42d3a5]/5 opacity-60` : `hover:bg-[#162230]`
               }`}
             >
-              <Globe size={10} className="text-[#556677] shrink-0" />
-              <span className="text-[10px] text-[#8899aa] font-medium flex-1 truncate">{s.name}</span>
-              <span className="text-[8px] text-[#556677]">{s.country}</span>
+ <Globe size={10} className=" shrink-0" style={{ color: t.textSecondary }} />
+ <span className="text-[10px] font-medium flex-1 truncate" style={{ color: t.textSecondary }}>{s.name}</span>
+ <span className="text-[8px] " style={{ color: t.textSecondary }}>{s.country}</span>
               {!feedSourceUrls.has(s.url) && <Plus size={10} className="text-[#42d3a5]" />}
             </button>
           ))}

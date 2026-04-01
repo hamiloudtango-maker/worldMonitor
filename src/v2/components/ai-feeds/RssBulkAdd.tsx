@@ -2,8 +2,10 @@
 import { useState } from 'react';
 import { Rss, Loader2, ChevronDown, ChevronUp, Check, AlertCircle } from 'lucide-react';
 import { bulkAddSources } from '@/v2/lib/ai-feeds-api';
+import { useTheme } from '@/v2/lib/theme';
 
 export default function RssBulkAdd() {
+  const { t } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const [urls, setUrls] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,30 +31,30 @@ export default function RssBulkAdd() {
   }
 
   return (
-    <div className="border-t border-[#1e2d3d]/60">
+    <div className="border-t" style={{ borderColor: `${t.border}99` }}>
       <button
         onClick={() => setExpanded(e => !e)}
         className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-[#162230]/50 transition-colors"
       >
         <Rss size={13} className="text-[#42d3a5]" />
-        <span className="text-[11px] font-semibold text-[#8899aa] flex-1">Ajouter des sources RSS</span>
-        {expanded ? <ChevronUp size={13} className="text-[#556677]" /> : <ChevronDown size={13} className="text-[#556677]" />}
+        <span className="text-[11px] font-semibold flex-1" style={{ color: t.textSecondary }}>Ajouter des sources RSS</span>
+        {expanded ? <ChevronUp size={13} style={{ color: t.textSecondary }} /> : <ChevronDown size={13} style={{ color: t.textSecondary }} />}
       </button>
 
       {expanded && (
         <div className="px-4 pb-3 space-y-2">
-          <p className="text-[9px] text-[#556677]">
-            Collez une liste d'URLs RSS (une par ligne). L'IA catégorise automatiquement chaque source.
+          <p className="text-[9px]" style={{ color: t.textSecondary }}>
+            Collez une liste d`URLs RSS (une par ligne). L`IA catégorise automatiquement chaque source.
           </p>
           <textarea
             value={urls}
             onChange={e => setUrls(e.target.value)}
             placeholder={"https://example.com/rss\nhttps://news.site/feed.xml\nhttps://blog.com/atom.xml"}
             rows={5}
-            className="w-full px-2.5 py-2 text-[10px] border border-[#1e2d3d] rounded-lg focus:outline-none focus:border-[#42d3a5] bg-[#0f1923] resize-none font-mono"
+            className="w-full px-2.5 py-2 text-[10px] border rounded-lg focus:outline-none focus:border-[#42d3a5] resize-none font-mono" style={{ borderColor: t.border, background: t.bgSidebar }}
           />
           <div className="flex items-center justify-between">
-            <span className="text-[9px] text-[#556677]">
+            <span className="text-[9px]" style={{ color: t.textSecondary }}>
               {urls.split('\n').filter(u => u.trim().startsWith('http')).length} URLs détectées
             </span>
             <button

@@ -15,6 +15,7 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { X, Plus, Search, Settings, RotateCcw, Maximize2, Minimize2, ChevronUp, RefreshCw, MoreHorizontal } from 'lucide-react';
 import ErrorBoundary from './shared/ErrorBoundary';
+import { useTheme } from '@/v2/lib/theme';
 
 const ACCENT = '#42d3a5';
 const ReactGridLayout = RGL.WidthProvider ? RGL.WidthProvider(RGL) : RGL;
@@ -188,6 +189,7 @@ function WidgetSettingsPanel({ def, config, onChange, onClose }: {
 
 /* ═══ Component ═══ */
 export default function WidgetGrid({ catalog, storageKey, defaultWidgets, renderContent }: Props) {
+  const { t } = useTheme();
   const catalogMap = Object.fromEntries(catalog.map(w => [w.id, w]));
   const [layout, setLayout] = useState<LayoutItem[]>(() => loadLayout(storageKey, defaultWidgets, catalogMap));
   const [showCatalog, setShowCatalog] = useState(false);
@@ -260,15 +262,15 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
 
       {/* Catalog */}
       {showCatalog && (
-        <div className="rounded-xl p-4 shadow-lg max-h-[60vh] overflow-y-auto" style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}>
-          <div className="flex items-center justify-between mb-3 sticky top-0 pb-2 z-10" style={{ background: '#1a2836' }}>
-            <h3 className="text-sm font-bold" style={{ color: '#b0bec9' }}>Ajouter un widget</h3>
-            <button onClick={() => { setShowCatalog(false); setCatalogSearch(''); }} style={{ color: '#556677' }}><X size={16} /></button>
+        <div className="rounded-xl p-4 shadow-lg max-h-[60vh] overflow-y-auto" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
+          <div className="flex items-center justify-between mb-3 sticky top-0 pb-2 z-10" style={{ background: t.bgCard }}>
+            <h3 className="text-sm font-bold" style={{ color: t.textPrimary }}>Ajouter un widget</h3>
+            <button onClick={() => { setShowCatalog(false); setCatalogSearch(''); }} style={{ color: t.textSecondary }}><X size={16} /></button>
           </div>
-          <div className="relative mb-3 sticky top-8 z-10" style={{ background: '#1a2836' }}>
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2" size={13} style={{ color: '#556677' }} />
+          <div className="relative mb-3 sticky top-8 z-10" style={{ background: t.bgCard }}>
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2" size={13} style={{ color: t.textSecondary }} />
             <input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Rechercher..."
-              className="w-full pl-8 pr-3 py-1.5 text-[12px] rounded-lg focus:outline-none" style={{ background: '#0f1923', border: '1px solid #1e2d3d', color: '#b0bec9' }} autoFocus />
+              className="w-full pl-8 pr-3 py-1.5 text-[12px] rounded-lg focus:outline-none" style={{ background: t.bgSidebar, border: `1px solid ${t.border}`, color: t.textPrimary }} autoFocus />
           </div>
           {available.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-4">Tous les widgets sont affichés</p>
@@ -285,17 +287,17 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4">
                   {coreCategories.map(cat => (
                     <div key={cat} className="break-inside-avoid mb-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#556677' }}>{cat}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: t.textSecondary }}>{cat}</div>
                       <div className="space-y-1">
                         {filtered.filter(w => w.category === cat).map(w => (
-                          <button key={w.id} onClick={() => addWidget(w.id)} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors" style={{ color: '#8899aa' }} onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
-                            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#0f1923' }}>
-                              <w.icon size={13} style={{ color: '#4d8cf5' }} />
+                          <button key={w.id} onClick={() => addWidget(w.id)} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors" style={{ color: t.textSecondary }} onMouseOver={e => (e.currentTarget.style.background = '#162230')} onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: t.bgSidebar }}>
+                              <w.icon size={13} style={{ color: t.accent }} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="text-[11px] font-medium block truncate" style={{ color: '#b0bec9' }}>{w.title}</span>
+                              <span className="text-[11px] font-medium block truncate" style={{ color: t.textPrimary }}>{w.title}</span>
                             </div>
-                            <Plus size={14} style={{ color: '#556677' }} />
+                            <Plus size={14} style={{ color: t.textSecondary }} />
                           </button>
                         ))}
                       </div>
@@ -354,21 +356,21 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
               const Icon = def.icon;
               const hasConfig = def.configFields && def.configFields.length > 0;
               return (
-                <div key={item.i} className="rounded-xl shadow-sm flex flex-col overflow-hidden group relative" style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}>
+                <div key={item.i} className="rounded-xl shadow-sm flex flex-col overflow-hidden group relative" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                   {/* Header — Inoreader-style */}
-                  <div className="wg-drag px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none" style={{ borderBottom: '1px solid #1e2d3d' }}>
+                  <div className="wg-drag px-3 py-2 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing select-none" style={{ borderBottom: `1px solid ${t.border}` }}>
                     <div className="flex items-center gap-2">
-                      <Icon size={14} style={{ color: '#4d8cf5' }} />
-                      <span className="text-[13px] font-semibold" style={{ color: '#b0bec9' }}>{def.title}</span>
+                      <Icon size={14} style={{ color: t.accent }} />
+                      <span className="text-[13px] font-semibold" style={{ color: t.textPrimary }}>{def.title}</span>
                     </div>
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onMouseDown={e => e.stopPropagation()} className="p-1 rounded" style={{ color: '#556677' }} title="Réduire">
+                      <button onMouseDown={e => e.stopPropagation()} className="p-1 rounded" style={{ color: t.textSecondary }} title="Réduire">
                         <ChevronUp size={13} />
                       </button>
-                      <button onMouseDown={e => e.stopPropagation()} className="p-1 rounded" style={{ color: '#556677' }} title="Rafraîchir">
+                      <button onMouseDown={e => e.stopPropagation()} className="p-1 rounded" style={{ color: t.textSecondary }} title="Rafraîchir">
                         <RefreshCw size={13} />
                       </button>
-                      <button onMouseDown={e => e.stopPropagation()} onClick={() => removeWidget(item.i)} className="p-1 rounded" style={{ color: '#556677' }} title="Menu">
+                      <button onMouseDown={e => e.stopPropagation()} onClick={() => removeWidget(item.i)} className="p-1 rounded" style={{ color: t.textSecondary }} title="Menu">
                         <MoreHorizontal size={13} />
                       </button>
                     </div>
@@ -394,7 +396,7 @@ export default function WidgetGrid({ catalog, storageKey, defaultWidgets, render
           ))}
         </>
       ) : (
-        <div className="rounded-xl p-12 text-center" style={{ background: '#1a2836', border: '1px dashed #1e2d3d' }}>
+        <div className="rounded-xl p-12 text-center" style={{ background: t.bgCard, border: `1px dashed ${t.border}` }}>
           <p className="text-sm text-slate-500 mb-4">Aucun widget.</p>
           <button onClick={() => setShowCatalog(true)} className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl" style={{ background: ACCENT }}>
             <Plus size={16} /> Ajouter

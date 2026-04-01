@@ -7,15 +7,8 @@ import {
   Mail, Headphones, Upload, Eye, Newspaper,
 } from 'lucide-react';
 import { detectSource, addSource, listFolders, createFolder, importOpml, type DetectedSource, type FolderData } from '@/v2/lib/sources-api';
+import { useTheme } from '@/v2/lib/theme';
 
-/* ── Theme tokens (must match Dashboard.tsx) ── */
-const BG_APP    = '#131d2a';
-const BG_CARD   = '#1a2836';
-const ACCENT    = '#4d8cf5';
-const TEXT_P    = '#b0bec9';
-const TEXT_S    = '#6b7d93';
-const TEXT_H    = '#e2e8f0';
-const BORDER    = '#1e2d3d';
 
 /* ── Source types ── */
 interface SourceTab {
@@ -46,6 +39,7 @@ interface Props {
 }
 
 export default function AddSourceModal({ open, onClose, onAdded }: Props) {
+  const { t } = useTheme();
   const [activeTab, setActiveTab] = useState('web-feed');
   const [url, setUrl] = useState('');
   const [detecting, setDetecting] = useState(false);
@@ -61,7 +55,7 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const tab = SOURCE_TABS.find(t => t.id === activeTab)!;
+  const tab = SOURCE_TABS.find(st => st.id === activeTab)!;
 
   useEffect(() => {
     if (open) {
@@ -148,26 +142,26 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
     <>
       <div className="fixed inset-0 z-[60]" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
       <div className="fixed top-[8vh] left-1/2 -translate-x-1/2 w-full max-w-[680px] rounded-2xl shadow-2xl z-[61] overflow-hidden"
-        style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+        style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
-          <h2 className="text-[15px] font-bold" style={{ color: TEXT_H }}>Ajouter</h2>
-          <button onClick={onClose} className="p-1 rounded" style={{ color: TEXT_S }}><X size={16} /></button>
+        <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: `1px solid ${t.border}` }}>
+          <h2 className="text-[15px] font-bold" style={{ color: t.textHeading }}>Ajouter</h2>
+          <button onClick={onClose} className="p-1 rounded" style={{ color: t.textSecondary }}><X size={16} /></button>
         </div>
 
         <div className="flex" style={{ minHeight: 400 }}>
           {/* Left — Tabs */}
-          <div className="w-[180px] shrink-0 py-2 overflow-y-auto" style={{ borderRight: `1px solid ${BORDER}` }}>
+          <div className="w-[180px] shrink-0 py-2 overflow-y-auto" style={{ borderRight: `1px solid ${t.border}` }}>
             {SOURCE_TABS.map(t => {
               const isActive = t.id === activeTab;
               const Icon = t.icon;
               return (
                 <button key={t.id} onClick={() => setActiveTab(t.id)}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors"
-                  style={{ background: isActive ? `${ACCENT}15` : 'transparent', color: isActive ? ACCENT : TEXT_S }}
-                  onMouseOver={e => { if (!isActive) e.currentTarget.style.background = `${ACCENT}08`; }}
-                  onMouseOut={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${ACCENT}15` : 'transparent'; }}
+                  style={{ background: isActive ? `${t.accent}15` : 'transparent', color: isActive ? t.accent : t.textSecondary }}
+                  onMouseOver={e => { if (!isActive) e.currentTarget.style.background = `${t.accent}08`; }}
+                  onMouseOut={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${t.accent}15` : 'transparent'; }}
                 >
                   <Icon size={15} />
                   <span className="text-[12px] font-medium">{t.label}</span>
@@ -181,13 +175,13 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
             {activeTab === 'import' ? (
               /* ── OPML Import ── */
               <div className="space-y-4">
-                <p className="text-[13px]" style={{ color: TEXT_P }}>{tab.hint}</p>
+                <p className="text-[13px]" style={{ color: t.textPrimary }}>{tab.hint}</p>
                 <input ref={fileRef} type="file" accept=".opml,.xml" onChange={handleFileSelect} className="hidden" />
                 <button onClick={() => fileRef.current?.click()}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-xl text-[13px] font-medium transition-colors"
-                  style={{ border: `2px dashed ${BORDER}`, color: ACCENT }}
-                  onMouseOver={e => { e.currentTarget.style.borderColor = ACCENT; }}
-                  onMouseOut={e => { e.currentTarget.style.borderColor = BORDER; }}
+                  style={{ border: `2px dashed ${t.border}`, color: t.accent }}
+                  onMouseOver={e => { e.currentTarget.style.borderColor = t.accent; }}
+                  onMouseOut={e => { e.currentTarget.style.borderColor = t.border; }}
                 >
                   <Upload size={18} />
                   {opmlContent ? 'Fichier charg\u00e9 \u2713' : 'Choisir un fichier OPML'}
@@ -195,7 +189,7 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
                 {opmlContent && (
                   <button onClick={handleOpmlImport} disabled={adding}
                     className="w-full py-2.5 text-[13px] font-semibold text-white rounded-xl flex items-center justify-center gap-2"
-                    style={{ background: ACCENT }}>
+                    style={{ background: t.accent }}>
                     {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                     Importer
                   </button>
@@ -205,56 +199,56 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
               /* ── Standard URL input ── */
               <div className="space-y-4">
                 <div>
-                  <label className="text-[11px] font-semibold mb-2 block" style={{ color: TEXT_S }}>{tab.label}</label>
+                  <label className="text-[11px] font-semibold mb-2 block" style={{ color: t.textSecondary }}>{tab.label}</label>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 relative">
-                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: TEXT_S }} />
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: t.textSecondary }} />
                       <input ref={inputRef} type="text" value={url}
                         onChange={e => { setUrl(e.target.value); setDetected(null); setAdded(false); setError(''); }}
                         onKeyDown={handleKeyDown}
                         placeholder={tab.placeholder}
                         className="w-full pl-10 pr-4 py-2.5 text-[13px] rounded-xl outline-none"
-                        style={{ background: BG_APP, border: `1px solid ${BORDER}`, color: TEXT_P }}
+                        style={{ background: t.bgApp, border: `1px solid ${t.border}`, color: t.textPrimary }}
                       />
                     </div>
                     <button onClick={handleDetect} disabled={detecting || !url.trim()}
                       className="px-4 py-2.5 text-[12px] font-semibold text-white rounded-xl shrink-0 disabled:opacity-40"
-                      style={{ background: ACCENT }}>
+                      style={{ background: t.accent }}>
                       {detecting ? <Loader2 size={14} className="animate-spin" /> : 'D\u00e9tecter'}
                     </button>
                   </div>
-                  <p className="text-[10px] mt-1.5 px-1" style={{ color: TEXT_S }}>{tab.hint}</p>
+                  <p className="text-[10px] mt-1.5 px-1" style={{ color: t.textSecondary }}>{tab.hint}</p>
                 </div>
 
                 {/* Detection result */}
                 {detected && !added && (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: BG_APP, border: `1px solid ${BORDER}` }}>
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${ACCENT}15` }}>
-                        <tab.icon size={20} style={{ color: ACCENT }} />
+                    <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: t.bgApp, border: `1px solid ${t.border}` }}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${t.accent}15` }}>
+                        <tab.icon size={20} style={{ color: t.accent }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold" style={{ color: TEXT_H }}>{detected.name}</p>
-                        <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: TEXT_S }}>{detected.type}</p>
+                        <p className="text-[13px] font-semibold" style={{ color: t.textHeading }}>{detected.name}</p>
+                        <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: t.textSecondary }}>{detected.type}</p>
                       </div>
                       <Check size={16} style={{ color: '#22c55e' }} />
                     </div>
 
                     {/* Folder selector */}
                     <div>
-                      <label className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: TEXT_S }}>
+                      <label className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: t.textSecondary }}>
                         Dossier (optionnel)
                       </label>
                       {!showNewFolder ? (
                         <div className="flex items-center gap-2">
                           <select value={selectedFolder} onChange={e => setSelectedFolder(e.target.value)}
                             className="flex-1 text-[12px] px-3 py-2 rounded-lg outline-none"
-                            style={{ background: BG_APP, border: `1px solid ${BORDER}`, color: TEXT_P }}>
+                            style={{ background: t.bgApp, border: `1px solid ${t.border}`, color: t.textPrimary }}>
                             <option value="">Sans dossier</option>
                             {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                           </select>
                           <button onClick={() => setShowNewFolder(true)}
-                            className="p-2 rounded-lg transition-colors" style={{ color: TEXT_S, border: `1px solid ${BORDER}` }} title="Nouveau dossier">
+                            className="p-2 rounded-lg transition-colors" style={{ color: t.textSecondary, border: `1px solid ${t.border}` }} title="Nouveau dossier">
                             <FolderPlus size={14} />
                           </button>
                         </div>
@@ -263,8 +257,8 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
                           <input type="text" value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
                             placeholder="Nom du dossier..." autoFocus
                             className="flex-1 text-[12px] px-3 py-2 rounded-lg outline-none"
-                            style={{ background: BG_APP, border: `1px solid ${BORDER}`, color: TEXT_P }} />
-                          <button onClick={() => setShowNewFolder(false)} className="p-2 rounded-lg" style={{ color: TEXT_S }}>
+                            style={{ background: t.bgApp, border: `1px solid ${t.border}`, color: t.textPrimary }} />
+                          <button onClick={() => setShowNewFolder(false)} className="p-2 rounded-lg" style={{ color: t.textSecondary }}>
                             <X size={14} />
                           </button>
                         </div>
@@ -273,7 +267,7 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
 
                     <button onClick={handleAdd} disabled={adding}
                       className="w-full py-2.5 text-[13px] font-semibold text-white rounded-xl flex items-center justify-center gap-2"
-                      style={{ background: ACCENT }}>
+                      style={{ background: t.accent }}>
                       {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                       Ajouter cette source
                     </button>

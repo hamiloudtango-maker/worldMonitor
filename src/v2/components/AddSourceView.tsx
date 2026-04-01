@@ -7,15 +7,8 @@ import {
   Mail, Headphones, Upload, Eye, Newspaper, FileText, Info,
 } from 'lucide-react';
 import { detectSource, addSource, listFolders, createFolder, importOpml, type DetectedSource, type FolderData } from '@/v2/lib/sources-api';
+import { useTheme } from '@/v2/lib/theme';
 
-/* ── Theme tokens ── */
-const BG_APP  = '#131d2a';
-const BG_CARD = '#1a2836';
-const ACCENT  = '#4d8cf5';
-const TEXT_P  = '#b0bec9';
-const TEXT_S  = '#6b7d93';
-const TEXT_H  = '#e2e8f0';
-const BORDER  = '#1e2d3d';
 
 /* ── Source types ── */
 interface SourceTab {
@@ -54,6 +47,7 @@ const COLLECTIONS = [
 ];
 
 export default function AddSourceView() {
+  const { t } = useTheme();
   const [activeTab, setActiveTab] = useState('website');
   const [url, setUrl] = useState('');
   const [detecting, setDetecting] = useState(false);
@@ -69,7 +63,7 @@ export default function AddSourceView() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const tab = SOURCE_TABS.find(t => t.id === activeTab)!;
+  const tab = SOURCE_TABS.find(st => st.id === activeTab)!;
 
   useEffect(() => {
     listFolders().then(d => setFolders(d.folders)).catch(() => {});
@@ -137,19 +131,19 @@ export default function AddSourceView() {
   };
 
   return (
-    <div className="flex h-full" style={{ background: BG_APP }}>
+    <div className="flex h-full" style={{ background: t.bgApp }}>
       {/* ── Left sidebar: source type tabs ── */}
-      <div className="w-[190px] shrink-0 py-4 overflow-y-auto" style={{ borderRight: `1px solid ${BORDER}` }}>
-        <h6 className="text-[11px] font-bold uppercase tracking-wider px-4 mb-3" style={{ color: TEXT_S }}>Ajouter</h6>
+      <div className="w-[190px] shrink-0 py-4 overflow-y-auto" style={{ borderRight: `1px solid ${t.border}` }}>
+        <h6 className="text-[11px] font-bold uppercase tracking-wider px-4 mb-3" style={{ color: t.textSecondary }}>Ajouter</h6>
         {SOURCE_TABS.map(t => {
           const isActive = t.id === activeTab;
           const Icon = t.icon;
           return (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
               className="w-full flex items-center gap-2.5 px-4 py-2 text-left transition-colors"
-              style={{ background: isActive ? `${ACCENT}12` : 'transparent', color: isActive ? ACCENT : TEXT_S }}
-              onMouseOver={e => { if (!isActive) e.currentTarget.style.background = `${ACCENT}08`; }}
-              onMouseOut={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${ACCENT}12` : 'transparent'; }}
+              style={{ background: isActive ? `${t.accent}12` : 'transparent', color: isActive ? t.accent : t.textSecondary }}
+              onMouseOver={e => { if (!isActive) e.currentTarget.style.background = `${t.accent}08`; }}
+              onMouseOut={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${t.accent}12` : 'transparent'; }}
             >
               <Icon size={14} />
               <span className="text-[12px] font-medium">{t.label}</span>
@@ -160,42 +154,42 @@ export default function AddSourceView() {
 
       {/* ── Right: content ── */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        <h2 className="text-[22px] font-bold mb-6" style={{ color: TEXT_H }}>{tab.title}</h2>
+        <h2 className="text-[22px] font-bold mb-6" style={{ color: t.textHeading }}>{tab.title}</h2>
 
         {/* ── IMPORT tab ── */}
         {activeTab === 'import' && (
           <div className="max-w-2xl">
             <input ref={fileRef} type="file" accept=".opml,.xml,.zip,.gz" onChange={handleFileSelect} className="hidden" />
             {/* Drag & drop zone — exact Inoreader style */}
-            <div className="rounded-xl p-8 flex flex-col items-center" style={{ border: `2px dashed ${BORDER}` }}
-              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = ACCENT; }}
-              onDragLeave={e => { e.currentTarget.style.borderColor = BORDER; }}
-              onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = BORDER; const f = e.dataTransfer.files[0]; if (f) { const r = new FileReader(); r.onload = () => setOpmlContent(r.result as string); r.readAsText(f); } }}>
-              <p className="text-[15px] font-semibold mb-5" style={{ color: TEXT_H }}>Importer depuis</p>
+            <div className="rounded-xl p-8 flex flex-col items-center" style={{ border: `2px dashed ${t.border}` }}
+              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = t.accent; }}
+              onDragLeave={e => { e.currentTarget.style.borderColor = t.border; }}
+              onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = t.border; const f = e.dataTransfer.files[0]; if (f) { const r = new FileReader(); r.onload = () => setOpmlContent(r.result as string); r.readAsText(f); } }}>
+              <p className="text-[15px] font-semibold mb-5" style={{ color: t.textHeading }}>Importer depuis</p>
               <div className="flex items-center gap-3 mb-6">
                 <button onClick={() => fileRef.current?.click()}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-medium"
-                  style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_P }}>
+                  style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textPrimary }}>
                   <FileText size={14} /> Appareil
                 </button>
                 <button onClick={() => { const u = prompt('URL du fichier OPML :'); if (u) setUrl(u); }}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-medium"
-                  style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_P }}>
+                  style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textPrimary }}>
                   <Globe size={14} /> URL
                 </button>
                 <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-medium"
-                  style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: '#22c55e' }}>
+                  style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: '#22c55e' }}>
                   <Rss size={14} /> Feedly
                 </button>
               </div>
-              <p className="text-[12px]" style={{ color: TEXT_S }}>
+              <p className="text-[12px]" style={{ color: t.textSecondary }}>
                 ou glisser-d\époser votre fichier ici (*.zip, *.gz, *.xml, *.opml)
               </p>
             </div>
             {opmlContent && (
               <button onClick={handleOpmlImport} disabled={adding}
                 className="w-full mt-4 py-3 text-[14px] font-semibold text-white rounded-xl flex items-center justify-center gap-2"
-                style={{ background: ACCENT }}>
+                style={{ background: t.accent }}>
                 {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                 Importer les abonnements
               </button>
@@ -210,61 +204,61 @@ export default function AddSourceView() {
             {(activeTab === 'web-feed' || activeTab === 'track') ? (
               /* Web feed & Track changes: input + "Charger" button */
               <div className="flex items-center gap-3">
-                <div className="flex-1 flex items-center rounded-xl overflow-hidden" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+                <div className="flex-1 flex items-center rounded-xl overflow-hidden" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                   <div className="flex items-center gap-2 flex-1 px-4">
-                    <Search size={16} style={{ color: TEXT_S }} />
+                    <Search size={16} style={{ color: t.textSecondary }} />
                     <input ref={inputRef} type="text" value={url}
                       onChange={e => { setUrl(e.target.value); setDetected(null); setAdded(false); setError(''); }}
                       onKeyDown={e => { if (e.key === 'Enter') handleDetect(); }}
                       placeholder={tab.placeholder}
-                      className="flex-1 py-3.5 text-[14px] bg-transparent outline-none" style={{ color: TEXT_P }} />
+                      className="flex-1 py-3.5 text-[14px] bg-transparent outline-none" style={{ color: t.textPrimary }} />
                   </div>
                 </div>
                 <button onClick={handleDetect} disabled={detecting || !url.trim()}
                   className="px-5 py-3 text-[13px] font-medium rounded-xl shrink-0 transition-colors disabled:opacity-40"
-                  style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_P }}
-                  onMouseOver={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT; }}
-                  onMouseOut={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT_P; }}>
+                  style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textPrimary }}
+                  onMouseOver={e => { e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.color = t.accent; }}
+                  onMouseOut={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textPrimary; }}>
                   {detecting ? <Loader2 size={14} className="animate-spin" /> : (activeTab === 'web-feed' ? 'Charger le site web' : 'Charger la page Web')}
                 </button>
               </div>
             ) : activeTab === 'watch' ? (
               /* Flux de veille: source dropdown + search + filter + add button */
-              <div className="flex items-center rounded-xl overflow-hidden" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-                <select className="px-3 py-3.5 text-[12px] outline-none border-r font-medium" style={{ background: BG_CARD, borderColor: BORDER, color: TEXT_P }}>
+              <div className="flex items-center rounded-xl overflow-hidden" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
+                <select className="px-3 py-3.5 text-[12px] outline-none border-r font-medium" style={{ background: t.bgCard, borderColor: t.border, color: t.textPrimary }}>
                   <option>Fil d'actualit\é</option>
                 </select>
                 <div className="flex items-center gap-2 flex-1 px-4">
-                  <Search size={16} style={{ color: TEXT_S }} />
+                  <Search size={16} style={{ color: t.textSecondary }} />
                   <input ref={inputRef} type="text" value={url}
                     onChange={e => { setUrl(e.target.value); setDetected(null); setAdded(false); setError(''); }}
                     onKeyDown={e => { if (e.key === 'Enter') handleDetect(); }}
                     placeholder="Tapez pour commencer votre recherche"
-                    className="flex-1 py-3.5 text-[14px] bg-transparent outline-none" style={{ color: TEXT_P }} />
+                    className="flex-1 py-3.5 text-[14px] bg-transparent outline-none" style={{ color: t.textPrimary }} />
                 </div>
-                <button className="px-3 py-3.5 border-l" style={{ borderColor: BORDER, color: TEXT_S }}><Search size={14} /></button>
-                <button className="px-3 py-3.5 border-l" style={{ borderColor: BORDER, color: ACCENT }}><Plus size={16} /></button>
+                <button className="px-3 py-3.5 border-l" style={{ borderColor: t.border, color: t.textSecondary }}><Search size={14} /></button>
+                <button className="px-3 py-3.5 border-l" style={{ borderColor: t.border, color: t.accent }}><Plus size={16} /></button>
               </div>
             ) : (
               /* Standard: search input + optional dropdowns */
-              <div className="flex items-center rounded-xl overflow-hidden" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+              <div className="flex items-center rounded-xl overflow-hidden" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                 <div className="flex items-center gap-2 flex-1 px-4">
-                  <Search size={16} style={{ color: TEXT_S }} />
+                  <Search size={16} style={{ color: t.textSecondary }} />
                   <input ref={inputRef} type="text" value={url}
                     onChange={e => { setUrl(e.target.value); setDetected(null); setAdded(false); setError(''); }}
                     onKeyDown={e => { if (e.key === 'Enter') { if (!detected) handleDetect(); else handleAdd(); } }}
                     placeholder={tab.placeholder}
-                    className="flex-1 py-3.5 text-[14px] bg-transparent outline-none" style={{ color: TEXT_P }} />
+                    className="flex-1 py-3.5 text-[14px] bg-transparent outline-none" style={{ color: t.textPrimary }} />
                 </div>
                 {activeTab === 'google-news' && (
-                  <select className="px-3 py-3.5 text-[12px] outline-none border-l" style={{ background: BG_CARD, borderColor: BORDER, color: TEXT_S }}>
+                  <select className="px-3 py-3.5 text-[12px] outline-none border-l" style={{ background: t.bgCard, borderColor: t.border, color: t.textSecondary }}>
                     <option>Tous les sites web</option>
                     <option>Actualit\és</option>
                     <option>Blogs</option>
                   </select>
                 )}
                 {(activeTab === 'website' || activeTab === 'google-news') && (
-                  <select className="px-3 py-3.5 text-[12px] outline-none border-l" style={{ background: BG_CARD, borderColor: BORDER, color: TEXT_S }}>
+                  <select className="px-3 py-3.5 text-[12px] outline-none border-l" style={{ background: t.bgCard, borderColor: t.border, color: t.textSecondary }}>
                     <option>Toutes les langues</option>
                     <option value="fr">Fran\çais</option>
                     <option value="en">English</option>
@@ -282,7 +276,7 @@ export default function AddSourceView() {
                 {/* Site Web: collections vedettes */}
                 {activeTab === 'website' && !url && (
                   <div>
-                    <h4 className="text-[14px] font-semibold mb-4" style={{ color: TEXT_P }}>
+                    <h4 className="text-[14px] font-semibold mb-4" style={{ color: t.textPrimary }}>
                       Vous ne savez pas par où commencer ? Explorez nos collections vedettes :
                     </h4>
                     <div className="grid grid-cols-4 gap-3">
@@ -300,7 +294,7 @@ export default function AddSourceView() {
                 {/* Google News: search tips with examples */}
                 {activeTab === 'google-news' && !url && (
                   <div className="space-y-5">
-                    <h4 className="text-[16px] font-bold" style={{ color: TEXT_H }}>Rechercher plus intelligemment</h4>
+                    <h4 className="text-[16px] font-bold" style={{ color: t.textHeading }}>Rechercher plus intelligemment</h4>
                     {[
                       { tip: 'Utilisez des guillemets pour une correspondance exacte des noms', ex: '"Nikola Tesla"' },
                       { tip: 'Utilisez "intitle:" pour rechercher des mots-cl\és dans les titres', ex: 'intitle:"electric vehicles"' },
@@ -309,12 +303,12 @@ export default function AddSourceView() {
                       { tip: 'Utilisez "OR" pour combiner plusieurs mots-cl\és', ex: '"Nikola Tesla" OR "Thomas Edison"' },
                     ].map((item, i) => (
                       <div key={i}>
-                        <p className="text-[12px] mb-1.5" style={{ color: TEXT_P }}>{item.tip}</p>
+                        <p className="text-[12px] mb-1.5" style={{ color: t.textPrimary }}>{item.tip}</p>
                         <button onClick={() => setUrl(item.ex)}
                           className="inline-block px-3 py-1.5 rounded-md text-[12px] font-mono transition-colors"
-                          style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: ACCENT }}
-                          onMouseOver={e => { e.currentTarget.style.borderColor = ACCENT; }}
-                          onMouseOut={e => { e.currentTarget.style.borderColor = BORDER; }}>
+                          style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.accent }}
+                          onMouseOver={e => { e.currentTarget.style.borderColor = t.accent; }}
+                          onMouseOut={e => { e.currentTarget.style.borderColor = t.border; }}>
                           {item.ex}
                         </button>
                       </div>
@@ -325,10 +319,10 @@ export default function AddSourceView() {
                 {/* Telegram: illustration + description */}
                 {activeTab === 'telegram' && !url && (
                   <div className="flex flex-col items-center py-8">
-                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                       <Send size={48} style={{ color: '#0088cc' }} />
                     </div>
-                    <p className="text-[14px] text-center max-w-md" style={{ color: TEXT_P }}>
+                    <p className="text-[14px] text-center max-w-md" style={{ color: t.textPrimary }}>
                       Suivez vos canaux Telegram pr\éf\ér\és directement dans WorldMonitor. Collez l'URL d'un canal public ou son @username.
                     </p>
                   </div>
@@ -337,10 +331,10 @@ export default function AddSourceView() {
                 {/* Bluesky: illustration */}
                 {activeTab === 'bluesky' && !url && (
                   <div className="flex flex-col items-center py-8">
-                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                       <Cloud size={48} style={{ color: '#0085ff' }} />
                     </div>
-                    <p className="text-[14px] text-center max-w-md" style={{ color: TEXT_P }}>
+                    <p className="text-[14px] text-center max-w-md" style={{ color: t.textPrimary }}>
                       Suivez des profils et feeds Bluesky. Entrez un handle (@user.bsky.social) ou l'URL d'un feed.
                     </p>
                   </div>
@@ -349,10 +343,10 @@ export default function AddSourceView() {
                 {/* Facebook: illustration */}
                 {activeTab === 'facebook' && !url && (
                   <div className="flex flex-col items-center py-8">
-                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                       <MessageCircle size={48} style={{ color: '#1877f2' }} />
                     </div>
-                    <p className="text-[14px] text-center max-w-md" style={{ color: TEXT_P }}>
+                    <p className="text-[14px] text-center max-w-md" style={{ color: t.textPrimary }}>
                       Suivez les publications de pages Facebook publiques. Collez l'URL de la page.
                     </p>
                   </div>
@@ -361,10 +355,10 @@ export default function AddSourceView() {
                 {/* Newsletter: illustration */}
                 {activeTab === 'newsletter' && !url && (
                   <div className="flex flex-col items-center py-8">
-                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                       <Mail size={48} style={{ color: '#f59e0b' }} />
                     </div>
-                    <p className="text-[14px] text-center max-w-md" style={{ color: TEXT_P }}>
+                    <p className="text-[14px] text-center max-w-md" style={{ color: t.textPrimary }}>
                       D\ésencombrez votre bo\îte de r\éception en recevant vos newsletters directement dans WorldMonitor.
                     </p>
                   </div>
@@ -373,10 +367,10 @@ export default function AddSourceView() {
                 {/* Podcast: illustration */}
                 {activeTab === 'podcast' && !url && (
                   <div className="flex flex-col items-center py-8">
-                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
                       <Headphones size={48} style={{ color: '#8b5cf6' }} />
                     </div>
-                    <p className="text-[14px] text-center max-w-md" style={{ color: TEXT_P }}>
+                    <p className="text-[14px] text-center max-w-md" style={{ color: t.textPrimary }}>
                       Suivez vos podcasts pr\éf\ér\és via leur flux RSS. Recherchez par nom ou collez l'URL du flux.
                     </p>
                   </div>
@@ -391,19 +385,19 @@ export default function AddSourceView() {
                       { n: 3, text: 'Pr\évisualisez et suivez votre nouveau flux.', ex: null },
                     ].map(step => (
                       <div key={step.n} className="flex items-start gap-4">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[13px] font-bold" style={{ background: `${ACCENT}20`, color: ACCENT }}>{step.n}</div>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[13px] font-bold" style={{ background: `${t.accent}20`, color: t.accent }}>{step.n}</div>
                         <div>
-                          <p className="text-[13px]" style={{ color: TEXT_P }}>{step.text}</p>
+                          <p className="text-[13px]" style={{ color: t.textPrimary }}>{step.text}</p>
                           {step.ex && (
                             <button onClick={() => setUrl(step.ex!)} className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[12px] font-mono"
-                              style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_S }}>
+                              style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textSecondary }}>
                               <Search size={12} /> {step.ex}
                             </button>
                           )}
                         </div>
                       </div>
                     ))}
-                    <a href="#" className="text-[12px] font-medium" style={{ color: ACCENT }}>What is a Web feed?</a>
+                    <a href="#" className="text-[12px] font-medium" style={{ color: t.accent }}>What is a Web feed?</a>
                   </div>
                 )}
 
@@ -416,37 +410,37 @@ export default function AddSourceView() {
                       { n: 3, text: 'D\éfinissez vos pr\éf\érences et cliquez sur "Suivre le flux".', ex: null },
                     ].map(step => (
                       <div key={step.n} className="flex items-start gap-4">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[13px] font-bold" style={{ background: `${ACCENT}20`, color: ACCENT }}>{step.n}</div>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[13px] font-bold" style={{ background: `${t.accent}20`, color: t.accent }}>{step.n}</div>
                         <div>
-                          <p className="text-[13px]" style={{ color: TEXT_P }}>{step.text}</p>
+                          <p className="text-[13px]" style={{ color: t.textPrimary }}>{step.text}</p>
                           {step.ex && (
                             <button onClick={() => setUrl(step.ex!)} className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[12px] font-mono"
-                              style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_S }}>
+                              style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textSecondary }}>
                               <Search size={12} /> {step.ex}
                             </button>
                           )}
                         </div>
                       </div>
                     ))}
-                    <a href="#" className="text-[12px] font-medium" style={{ color: ACCENT }}>What is a Track changes feed?</a>
+                    <a href="#" className="text-[12px] font-medium" style={{ color: t.accent }}>What is a Track changes feed?</a>
                   </div>
                 )}
 
                 {/* Podcast: search tips with examples */}
                 {activeTab === 'podcast' && !url && (
                   <div className="space-y-5">
-                    <h4 className="text-[16px] font-bold" style={{ color: TEXT_H }}>Rechercher plus intelligemment</h4>
+                    <h4 className="text-[16px] font-bold" style={{ color: t.textHeading }}>Rechercher plus intelligemment</h4>
                     <div>
-                      <p className="text-[12px] mb-1.5" style={{ color: TEXT_P }}>D\écouvrez des podcasts en saisissant un mot-cl\é</p>
+                      <p className="text-[12px] mb-1.5" style={{ color: t.textPrimary }}>D\écouvrez des podcasts en saisissant un mot-cl\é</p>
                       <button onClick={() => setUrl('The Wirecutter Show')} className="inline-block px-3 py-1.5 rounded-md text-[12px] font-mono"
-                        style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: ACCENT }}>
+                        style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.accent }}>
                         The Wirecutter Show
                       </button>
                     </div>
                     <div>
-                      <p className="text-[12px] mb-1.5" style={{ color: TEXT_P }}>Suivez les podcasts en collant leur URL</p>
+                      <p className="text-[12px] mb-1.5" style={{ color: t.textPrimary }}>Suivez les podcasts en collant leur URL</p>
                       <button onClick={() => setUrl('https://feeds.simplecast.com/XT57_IN')} className="inline-block px-3 py-1.5 rounded-md text-[12px] font-mono"
-                        style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: ACCENT }}>
+                        style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.accent }}>
                         https://feeds.simplecast.com/XT57_IN
                       </button>
                     </div>
@@ -457,17 +451,17 @@ export default function AddSourceView() {
                 {activeTab === 'watch' && !url && (
                   <div className="flex flex-col items-center py-6">
                     <div className="flex items-center gap-4 mb-8 self-start">
-                      <button className="text-[12px] font-semibold pb-1" style={{ color: ACCENT, borderBottom: `2px solid ${ACCENT}` }}>DANS VOTRE COMPTE</button>
-                      <button className="text-[12px] font-semibold pb-1" style={{ color: TEXT_S }}>DANS TOUS LES FLUX PUBLICS</button>
+                      <button className="text-[12px] font-semibold pb-1" style={{ color: t.accent, borderBottom: `2px solid ${t.accent}` }}>DANS VOTRE COMPTE</button>
+                      <button className="text-[12px] font-semibold pb-1" style={{ color: t.textSecondary }}>DANS TOUS LES FLUX PUBLICS</button>
                     </div>
-                    <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-                      <Search size={40} style={{ color: ACCENT, opacity: 0.5 }} />
+                    <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
+                      <Search size={40} style={{ color: t.accent, opacity: 0.5 }} />
                     </div>
-                    <p className="text-[15px] font-semibold mb-2" style={{ color: TEXT_H }}>Recherchez des articles dans vos flux</p>
-                    <p className="text-[13px] text-center max-w-md" style={{ color: TEXT_S }}>
+                    <p className="text-[15px] font-semibold mb-2" style={{ color: t.textHeading }}>Recherchez des articles dans vos flux</p>
+                    <p className="text-[13px] text-center max-w-md" style={{ color: t.textSecondary }}>
                       Explorez des articles depuis des sources que vous suivez. Convertissez vos recherches en flux de veilles.
                     </p>
-                    <button className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium" style={{ border: `1px solid ${BORDER}`, color: TEXT_P }}>
+                    <button className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium" style={{ border: `1px solid ${t.border}`, color: t.textPrimary }}>
                       <Info size={14} /> Astuces de recherche
                     </button>
                   </div>
@@ -478,29 +472,29 @@ export default function AddSourceView() {
             {/* ── Detection result (shared across all search tabs) ── */}
             {detected && !added && (
               <div className="max-w-lg space-y-4">
-                <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${ACCENT}15` }}>
-                    <tab.icon size={22} style={{ color: ACCENT }} />
+                <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: t.bgCard, border: `1px solid ${t.border}` }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${t.accent}15` }}>
+                    <tab.icon size={22} style={{ color: t.accent }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold" style={{ color: TEXT_H }}>{detected.name}</p>
-                    <p className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: TEXT_S }}>{detected.type}</p>
+                    <p className="text-[14px] font-semibold" style={{ color: t.textHeading }}>{detected.name}</p>
+                    <p className="text-[11px] uppercase tracking-wider mt-0.5" style={{ color: t.textSecondary }}>{detected.type}</p>
                   </div>
                   <Check size={18} style={{ color: '#22c55e' }} />
                 </div>
 
                 {/* Folder selector */}
                 <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider mb-2 block" style={{ color: TEXT_S }}>Dossier (optionnel)</label>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider mb-2 block" style={{ color: t.textSecondary }}>Dossier (optionnel)</label>
                   {!showNewFolder ? (
                     <div className="flex items-center gap-2">
                       <select value={selectedFolder} onChange={e => setSelectedFolder(e.target.value)}
                         className="flex-1 text-[13px] px-3 py-2.5 rounded-lg outline-none"
-                        style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_P }}>
+                        style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textPrimary }}>
                         <option value="">Sans dossier</option>
                         {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                       </select>
-                      <button onClick={() => setShowNewFolder(true)} className="p-2.5 rounded-lg" style={{ color: TEXT_S, border: `1px solid ${BORDER}` }}>
+                      <button onClick={() => setShowNewFolder(true)} className="p-2.5 rounded-lg" style={{ color: t.textSecondary, border: `1px solid ${t.border}` }}>
                         <FolderPlus size={15} />
                       </button>
                     </div>
@@ -508,15 +502,15 @@ export default function AddSourceView() {
                     <div className="flex items-center gap-2">
                       <input type="text" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Nom du dossier..." autoFocus
                         className="flex-1 text-[13px] px-3 py-2.5 rounded-lg outline-none"
-                        style={{ background: BG_CARD, border: `1px solid ${BORDER}`, color: TEXT_P }} />
-                      <button onClick={() => setShowNewFolder(false)} className="p-2.5 rounded-lg" style={{ color: TEXT_S }}><X size={15} /></button>
+                        style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textPrimary }} />
+                      <button onClick={() => setShowNewFolder(false)} className="p-2.5 rounded-lg" style={{ color: t.textSecondary }}><X size={15} /></button>
                     </div>
                   )}
                 </div>
 
                 <button onClick={handleAdd} disabled={adding}
                   className="w-full py-3 text-[14px] font-semibold text-white rounded-xl flex items-center justify-center gap-2"
-                  style={{ background: ACCENT }}>
+                  style={{ background: t.accent }}>
                   {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                   S'abonner
                 </button>
@@ -534,7 +528,7 @@ export default function AddSourceView() {
                   </div>
                 </div>
                 <button onClick={() => { setUrl(''); setDetected(null); setAdded(false); }}
-                  className="mt-3 text-[12px] font-medium" style={{ color: ACCENT }}>+ Ajouter une autre source</button>
+                  className="mt-3 text-[12px] font-medium" style={{ color: t.accent }}>+ Ajouter une autre source</button>
               </div>
             )}
           </div>

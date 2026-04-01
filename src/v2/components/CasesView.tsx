@@ -10,6 +10,7 @@ import {
   FileText, AlertTriangle, Loader2, ArrowLeft, X
 } from 'lucide-react';
 import type { CaseData } from '@/v2/lib/api';
+import { useTheme } from '@/v2/lib/theme';
 import CreateCaseModal from './CreateCaseModal';
 import CaseBoard from './CaseBoard';
 
@@ -33,6 +34,7 @@ const TYPE_LABEL: Record<string, string> = { company: 'Entreprise', person: 'Per
 const ACCENT = '#42d3a5';
 
 export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
+  const { t } = useTheme();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -67,7 +69,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
   }
 
   function closeTab(id: string) {
-    const next = openTabs.filter(t => t !== id);
+    const next = openTabs.filter(tabId => tabId !== id);
     setOpenTabs(next);
     saveTabs(next);
     if (activeTab === id) {
@@ -108,22 +110,23 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
     return (
       <div className="flex gap-0 h-[calc(100vh-7.5rem)]">
         {/* ── Sidebar rail ── */}
-        <div className="w-52 flex flex-col shrink-0 bg-[#1a2836] border-r border-[#1e2d3d]/60 rounded-l-xl overflow-hidden">
+        <div className="w-52 flex flex-col shrink-0 border-r rounded-l-xl overflow-hidden" style={{ background: t.bgCard, borderColor: `${t.border}99` }}>
           <button
             onClick={backToGrid}
-            className="flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-[#6b7d93] hover:text-[#2a9d7e] hover:ring-1 hover:ring-[#42d3a5]/30 border-b border-[#1e2d3d] transition-colors"
+            className="flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold hover:text-[#2a9d7e] hover:ring-1 hover:ring-[#42d3a5]/30 transition-colors"
+            style={{ color: t.textSecondary, borderBottom: `1px solid ${t.border}` }}
           >
             <ArrowLeft size={14} /> Tous les cases
           </button>
 
-          <div className="p-2 border-b border-[#1e2d3d]">
+          <div className="p-2 border-b" style={{ borderColor: t.border }}>
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-[#556677]" size={11} />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2" size={11} style={{ color: t.textSecondary }} />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Filtrer..."
-                className="w-full pl-7 pr-2 py-1 bg-[#0f1923] border border-[#1e2d3d] rounded-lg text-[11px] outline-none focus:border-[#42d3a5]"
+                className="w-full pl-7 pr-2 py-1 border rounded-lg text-[11px] outline-none focus:border-[#42d3a5]" style={{ background: t.bgSidebar, borderColor: t.border }}
               />
             </div>
           </div>
@@ -139,18 +142,19 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
                   onClick={() => openCase(c)}
                   className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all ${
                     isActive
-                      ? 'bg-[#42d3a5]/10 border border-[#42d3a5]/30'
+                      ? `bg-[#42d3a5]/10 border border-[#42d3a5]/30`
                       : isOpen
-                        ? 'bg-[#0f1923] border border-[#1e2d3d]/60'
+                        ? ''
                         : 'border border-transparent hover:ring-1 hover:ring-[#42d3a5]/30'
                   }`}
+                  style={isActive ? {} : isOpen ? { background: t.bgSidebar, borderColor: `${t.border}99`, borderWidth: 1, borderStyle: 'solid' } : {}}
                 >
-                  <Icon size={13} className={isActive ? 'text-[#42d3a5]' : isOpen ? 'text-[#6b7d93]' : 'text-[#556677]'} />
+                  <Icon size={13} style={{ color: isActive ? '#42d3a5' : t.textSecondary }} />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-[11px] font-semibold truncate ${isActive ? 'text-[#2a9d7e]' : 'text-[#8899aa]'}`}>
+                    <div className="text-[11px] font-semibold truncate" style={{ color: isActive ? '#2a9d7e' : t.textSecondary }}>
                       {c.name}
                     </div>
-                    <div className="text-[9px] text-[#556677]">{c.article_count} art.</div>
+                    <div className="text-[9px]" style={{ color: t.textSecondary }}>{c.article_count} art.</div>
                   </div>
                   {c.alert_count > 0 && (
                     <span className="text-[8px] font-bold text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded-full">
@@ -162,7 +166,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
             })}
           </div>
 
-          <div className="p-2 border-t border-[#1e2d3d]">
+          <div className="p-2 border-t" style={{ borderColor: t.border }}>
             <button
               onClick={() => setShowModal(true)}
               className="w-full flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-white rounded-lg"
@@ -176,7 +180,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
         {/* ── Right: tabs + board ── */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Tab bar */}
-          <div className="flex items-center gap-0.5 px-2 pt-1 bg-[#0f1923] border-b border-[#1e2d3d]/60 overflow-x-auto shrink-0">
+          <div className="flex items-center gap-0.5 px-2 pt-1 border-b overflow-x-auto shrink-0" style={{ background: t.bgSidebar, borderColor: `${t.border}99` }}>
             {openTabs.map(tabId => {
               const c = cases.find(cs => cs.id === tabId);
               if (!c) return null;
@@ -188,9 +192,13 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
                   onClick={() => { setActiveTab(tabId); window.location.hash = `cases:${tabId}`; }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-[11px] font-medium whitespace-nowrap transition-all ${
                     isActive
-                      ? 'bg-[#1a2836] text-[#2a9d7e] font-semibold border border-b-0 border-[#1e2d3d]/60 -mb-px'
-                      : 'text-[#556677] hover:text-[#8899aa] hover:bg-[#1a2836]/50'
+                      ? 'font-semibold border border-b-0 -mb-px'
+                      : ''
                   }`}
+                  style={isActive
+                    ? { background: t.bgCard, color: '#2a9d7e', borderColor: `${t.border}99` }
+                    : { color: t.textSecondary }
+                  }
                 >
                   <Icon size={11} />
                   {c.name}
@@ -217,7 +225,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
                 onBack={() => closeTab(activeCase.id)}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-sm text-[#556677]">
+              <div className="flex items-center justify-center h-full text-sm" style={{ color: t.textSecondary }}>
                 Sélectionnez un case dans la liste
               </div>
             )}
@@ -233,18 +241,19 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
     );
   }
 
-  /* ═══════ GRID MODE: card overview (page d'accueil) ═══════ */
+  /* ═══════ GRID MODE: card overview (page d`accueil) ═══════ */
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-1 bg-[#1a2836] rounded-lg border border-[#1e2d3d]/60 p-0.5">
+        <div className="flex gap-1 rounded-lg border p-0.5" style={{ background: t.bgCard, borderColor: `${t.border}99` }}>
           {FILTERS.map(f => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
-                filter === f.key ? 'bg-[#42d3a5]/10 text-[#2a9d7e] font-semibold' : 'text-[#556677] hover:text-[#8899aa]'
+                filter === f.key ? 'bg-[#42d3a5]/10 text-[#2a9d7e] font-semibold' : ''
               }`}
+              style={filter !== f.key ? { color: t.textSecondary } : {}}
             >
               {f.label}
             </button>
@@ -252,12 +261,12 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#556677]" size={14} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2" size={14} style={{ color: t.textSecondary }} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Filtrer..."
-              className="w-48 pl-8 pr-3 py-1.5 bg-[#1a2836] border border-[#1e2d3d] rounded-lg text-[13px] outline-none focus:border-[#42d3a5] focus:ring-1 focus:ring-[#42d3a5]/20 transition-all"
+              className="w-48 pl-8 pr-3 py-1.5 border rounded-lg text-[13px] outline-none focus:border-[#42d3a5] focus:ring-1 focus:ring-[#42d3a5]/20 transition-all" style={{ background: t.bgCard, borderColor: t.border }}
             />
           </div>
           <button
@@ -272,15 +281,15 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
 
       {loading && cases.length === 0 && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 size={24} className="animate-spin text-[#556677]" />
+          <Loader2 size={24} className="animate-spin" style={{ color: t.textSecondary }} />
         </div>
       )}
 
       {!loading && cases.length === 0 && (
-        <div className="bg-[#1a2836] rounded-xl border border-[#1e2d3d]/60 p-12 text-center">
+        <div className="rounded-xl border p-12 text-center" style={{ background: t.bgCard, borderColor: `${t.border}99` }}>
           <FileText size={40} className="mx-auto text-[#3a4f63] mb-4" />
-          <h3 className="text-lg font-bold text-[#b0bec9] mb-2">Aucun case</h3>
-          <p className="text-sm text-[#6b7d93] mb-6">Créez votre premier case pour commencer la veille intelligente.</p>
+          <h3 className="text-lg font-bold mb-2" style={{ color: t.textPrimary }}>Aucun case</h3>
+          <p className="text-sm mb-6" style={{ color: t.textSecondary }}>Créez votre premier case pour commencer la veille intelligente.</p>
           <button onClick={() => setShowModal(true)} className="inline-flex items-center gap-2 px-5 py-2.5 text-white text-sm font-semibold rounded-xl shadow-sm" style={{ background: ACCENT }}>
             <Plus size={16} /> Créer un case
           </button>
@@ -288,7 +297,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
       )}
 
       {filtered.length > 0 && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(280px, 1fr))` }}>
           {filtered.map(c => {
             const Icon = TYPE_ICON[c.type] ?? FileText;
             return (
@@ -296,9 +305,9 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
                 key={c.id}
                 onClick={() => openCase(c)}
                 className="rounded-xl overflow-hidden cursor-pointer transition-all group relative"
-                style={{ background: '#1a2836', border: '1px solid #1e2d3d' }}
+                style={{ background: t.bgCard, border: `1px solid ${t.border}` }}
                 onMouseOver={e => { e.currentTarget.style.borderColor = '#42d3a540'; }}
-                onMouseOut={e => { e.currentTarget.style.borderColor = '#1e2d3d'; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = t.border; }}
               >
                 {/* Header band with type color */}
                 <div className="h-1.5" style={{
@@ -309,7 +318,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
                   <button
                     onClick={e => handleDelete(e, c.id)}
                     className="absolute top-4 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all"
-                    style={{ color: '#556677' }}
+                    style={{ color: t.textSecondary }}
                     title="Supprimer"
                   >
                     {deleting === c.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -317,21 +326,21 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
 
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors"
-                      style={{ background: '#131d2a', color: '#6b7d93' }}>
+                      style={{ background: t.bgApp, color: t.textSecondary }}>
                       <Icon size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-[14px] truncate" style={{ color: '#e2e8f0' }}>{c.name}</div>
-                      <div className="text-[10px]" style={{ color: '#556677' }}>{TYPE_LABEL[c.type] ?? c.type}</div>
+                      <div className="font-bold text-[14px] truncate" style={{ color: t.textHeading }}>{c.name}</div>
+                      <div className="text-[10px]" style={{ color: t.textSecondary }}>{TYPE_LABEL[c.type] ?? c.type}</div>
                     </div>
                   </div>
 
                   {c.identity_card?.description && (
-                    <p className="text-[11px] leading-relaxed line-clamp-2 mb-3" style={{ color: '#6b7d93' }}>{c.identity_card.description}</p>
+                    <p className="text-[11px] leading-relaxed line-clamp-2 mb-3" style={{ color: t.textSecondary }}>{c.identity_card.description}</p>
                   )}
 
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-[10px]" style={{ color: '#556677' }}>
+                    <div className="flex items-center gap-3 text-[10px]" style={{ color: t.textSecondary }}>
                       <span className="flex items-center gap-1"><FileText size={11} /> {c.article_count} articles</span>
                       {c.alert_count > 0 && (
                         <span className="flex items-center gap-1 font-semibold" style={{ color: '#f97316' }}>
@@ -339,7 +348,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
                         </span>
                       )}
                     </div>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: '#131d2a', color: '#6b7d93' }}>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: t.bgApp, color: t.textSecondary }}>
                       {c.status || 'actif'}
                     </span>
                   </div>
@@ -351,7 +360,7 @@ export default function CasesView({ cases, loading, onAdd, onRemove }: Props) {
       )}
 
       {!loading && cases.length > 0 && filtered.length === 0 && (
-        <div className="text-center py-8 text-sm text-[#556677]">Aucun case ne correspond aux filtres.</div>
+        <div className="text-center py-8 text-sm" style={{ color: t.textSecondary }}>Aucun case ne correspond aux filtres.</div>
       )}
 
       <CreateCaseModal

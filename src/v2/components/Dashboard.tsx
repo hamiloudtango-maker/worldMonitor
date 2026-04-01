@@ -30,6 +30,7 @@ import ArticleReader from './ArticleReader';
 import AddSourceView from './AddSourceView';
 import SavedView from './SavedView';
 import { ArticleReaderContext } from '@/v2/hooks/useArticleReader';
+import { useTheme, type ThemeId } from '@/v2/lib/theme';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -40,17 +41,15 @@ interface Props {
 }
 type NavKey = 'dashboard' | 'ai-feeds' | 'saved' | 'cases' | 'automate' | 'search-page' | 'add-source' | 'reports' | 'settings';
 
-/* ═══════════════════════════════════════════════════════════════
-   CONSTANTS — Inoreader dark theme tokens
-   ═══════════════════════════════════════════════════════════════ */
-const BG_APP       = '#131d2a';
-const BG_SIDEBAR   = '#0f1923';
-const BG_CARD      = '#1a2836';
-const ACCENT       = '#4d8cf5';
-const TEXT_PRIMARY  = '#b0bec9';
-const TEXT_SECONDARY= '#6b7d93';
-const TEXT_HEADING  = '#e2e8f0';
-const BORDER       = '#1e2d3d';
+/* Module-level defaults (golden) for sub-components not yet migrated to useTheme() */
+let BG_APP       = '#121410';
+let BG_SIDEBAR   = '#0e100b';
+let BG_CARD      = '#1a1d16';
+let ACCENT       = '#d4b85c';
+let TEXT_PRIMARY  = '#b8b098';
+let TEXT_SECONDARY= '#7a7564';
+let TEXT_HEADING  = '#e8e2cc';
+let BORDER        = '#262a1e';
 
 const NAV_ITEMS: { key: NavKey; label: string; icon: typeof LayoutDashboard; sep?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboards',      icon: LayoutDashboard },
@@ -81,6 +80,17 @@ export default function Dashboard(props: Props) {
 }
 
 function DashboardInner({ user, onLogout }: Props) {
+  const { t: theme, id: themeId, setTheme } = useTheme();
+  // Sync module-level vars for sub-components not yet using useTheme()
+  BG_APP = theme.bgApp;
+  BG_SIDEBAR = theme.bgSidebar;
+  BG_CARD = theme.bgCard;
+  ACCENT = theme.accent;
+  TEXT_PRIMARY = theme.textPrimary;
+  TEXT_SECONDARY = theme.textSecondary;
+  TEXT_HEADING = theme.textHeading;
+  BORDER = theme.border;
+
   const [nav, _setNav] = useState<NavKey>(getNavFromHash);
   const setNav = useCallback((key: NavKey) => {
     window.location.hash = key;
@@ -526,7 +536,7 @@ function DashboardView({ articles, stats, cases, loading, onRefresh, onOpenArtic
         onMouseOver={e => { e.currentTarget.style.background = '#1a2d3f'; }}
         onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
       >
-        <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 100, height: 70, background: '#0f1923' }}>
+        <div className="shrink-0 rounded-lg overflow-hidden" style={{ width: 100, height: 70, background: BG_SIDEBAR }}>
           {imgUrl && <img src={imgUrl} alt="" className="w-full h-full object-cover" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
         </div>
         <div className="flex-1 min-w-0 py-0.5">
@@ -553,7 +563,7 @@ function DashboardView({ articles, stats, cases, loading, onRefresh, onOpenArtic
   function TrendingFeatured({ a }: { a: Article | ArticleSummary }) {
     const imgUrl = (a as any).image_url;
     return (
-      <button onClick={() => onOpenArticle(a.id)} className="w-full rounded-xl overflow-hidden cursor-pointer text-left" style={{ background: '#0f1923' }}>
+      <button onClick={() => onOpenArticle(a.id)} className="w-full rounded-xl overflow-hidden cursor-pointer text-left" style={{ background: BG_SIDEBAR }}>
         <div className="relative h-48 overflow-hidden">
           {imgUrl && <img src={imgUrl} alt="" className="w-full h-full object-cover" loading="lazy" />}
           <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }} />
@@ -576,7 +586,7 @@ function DashboardView({ articles, stats, cases, loading, onRefresh, onOpenArtic
         {items.slice(0, count).map(a => {
           const imgUrl = (a as any).image_url;
           return (
-            <button key={a.id} onClick={() => onOpenArticle(a.id)} className="rounded-lg overflow-hidden text-left transition-all" style={{ background: '#0f1923' }}
+            <button key={a.id} onClick={() => onOpenArticle(a.id)} className="rounded-lg overflow-hidden text-left transition-all" style={{ background: BG_SIDEBAR }}
               onMouseOver={e => { e.currentTarget.style.opacity = '0.85'; }} onMouseOut={e => { e.currentTarget.style.opacity = '1'; }}>
               <div className="relative h-28 overflow-hidden">
                 {imgUrl && <img src={imgUrl} alt="" className="w-full h-full object-cover" loading="lazy" />}
@@ -1273,6 +1283,39 @@ function DisplaySettings() {
   );
 }
 
+function ThemePicker() {
+  const { id: currentId, setTheme } = useTheme();
+  const themes: { id: ThemeId; label: string; preview: [string, string, string] }[] = [
+    { id: 'dark', label: 'Dark', preview: ['#131d2a', '#1a2836', '#4d8cf5'] },
+    { id: 'golden', label: 'Golden', preview: ['#121410', '#1a1d16', '#d4b85c'] },
+    { id: 'light', label: 'Clair', preview: ['#f4f6f9', '#ffffff', '#4d8cf5'] },
+  ];
+  return (
+    <div className="rounded-xl p-5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
+      <h3 className="font-bold text-sm mb-3" style={{ color: TEXT_HEADING }}>Thème</h3>
+      <div className="flex gap-3">
+        {themes.map(th => (
+          <button key={th.id} onClick={() => setTheme(th.id)}
+            className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all"
+            style={{
+              border: currentId === th.id ? `2px solid ${ACCENT}` : `1px solid ${BORDER}`,
+              background: currentId === th.id ? `${ACCENT}10` : 'transparent',
+            }}>
+            <div className="flex gap-1 rounded-lg overflow-hidden" style={{ width: 60, height: 36 }}>
+              <div style={{ background: th.preview[0], flex: 1 }} />
+              <div style={{ background: th.preview[1], flex: 2 }}>
+                <div className="mt-2 mx-1 h-1 rounded" style={{ background: th.preview[2] }} />
+                <div className="mt-1 mx-1 h-1 rounded" style={{ background: th.preview[2], opacity: 0.3 }} />
+              </div>
+            </div>
+            <span className="text-[11px] font-medium" style={{ color: currentId === th.id ? ACCENT : TEXT_SECONDARY }}>{th.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SettingsView({ user, stats, cases, onLogout }: {
   user: { email: string; org_name: string };
   stats: Stats | null;
@@ -1307,6 +1350,7 @@ function SettingsView({ user, stats, cases, onLogout }: {
       {tab === 'display' && <DisplaySettings />}
       {tab === 'account' && (
         <div className="max-w-lg space-y-4">
+          <ThemePicker />
           <div className="rounded-xl p-5" style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
             <h3 className="font-bold text-sm mb-3" style={{ color: TEXT_HEADING }}>Compte</h3>
             <div className="space-y-2 text-sm">

@@ -32,6 +32,7 @@ import type { WidgetDef } from '../WidgetGrid';
 import { ListRenderer, ChartRenderer, GaugeRenderer, CHART_COLORS } from './renderers';
 import { LIST_WIDGETS, CHART_WIDGETS, GAUGE_WIDGETS } from './widget-configs';
 import { useArticleReader } from '@/v2/hooks/useArticleReader';
+import { useTheme } from '@/v2/lib/theme';
 
 // ── "Voir plus" for widget lists ──────────────────────────────
 const PAGE = 20;
@@ -150,7 +151,10 @@ export function renderSharedWidget(
   articles: Article[],
   stats: { total: number; by_theme: Record<string, number>; by_threat: Record<string, number>; by_source: Record<string, number> } | null,
   prefix: string = 'sw',
+  t?: { textHeading: string; border: string; textSecondary: string; bgCard: string; textPrimary: string; accent: string; bgApp: string; bgSidebar: string },
 ): React.ReactNode {
+  // Fallback to golden theme defaults if t not provided
+  const _t = t || { textHeading: '#e8e2cc', border: '#262a1e', textSecondary: '#7a7564', bgCard: '#1a1d16', textPrimary: '#b8b098', accent: '#d4b85c', bgApp: '#121410', bgSidebar: '#0e100b' };
 
   // 1. AI Feed widgets
   if (id.startsWith('ai-feed-') && id !== 'ai-feed-placeholder') {
@@ -206,7 +210,7 @@ export function renderSharedWidget(
 
     case 'themes': {
       const data = Object.entries(stats?.by_theme || {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, v]) => ({ name: capitalize(n), value: v }));
-      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 15, left: 5, bottom: 0 }} barSize={12}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#475569', fontWeight: 500 }} width={65} /><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 15, left: 5, bottom: 0 }} barSize={12}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#475569', fontWeight: 500 }} width={65} /><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${_t.textHeading}`, fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
     }
 
     case 'sentiment': {
@@ -219,7 +223,7 @@ export function renderSharedWidget(
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
         <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-        <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+        <Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${_t.textHeading}`, fontSize: 12 }} />
         <Area type="monotone" dataKey="positive" stroke="#34d399" fill={`url(#${prefix}P)`} strokeWidth={2} />
         <Area type="monotone" dataKey="negative" stroke="#f87171" fill={`url(#${prefix}N)`} strokeWidth={2} />
         <Area type="monotone" dataKey="smoothed" stroke="#8b5cf6" fill="none" strokeWidth={2} strokeDasharray="6 3" name="Moyenne 3j" />
@@ -234,13 +238,13 @@ export function renderSharedWidget(
         .map(([n, v]) => ({ name: capitalize(n.replace(/^catalog_/g, '').replace(/_/g, ' ')), value: v }))
         .filter(d => { if (seen.has(d.name)) return false; seen.add(d.name); return true; })
         .slice(0, 8);
-      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={filtered} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={10}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#475569' }} width={80} /><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={filtered} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={10}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#475569' }} width={80} /><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${_t.textHeading}`, fontSize: 12 }} /><Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div>;
     }
 
     case 'countries': {
       const agg = articles.reduce<Record<string, number>>((acc, a) => { for (const c of a.country_codes) acc[c] = (acc[c] || 0) + 1; return acc; }, {});
       const data = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([c, v]) => ({ name: `${FLAGS[c] || ''} ${COUNTRY_NAMES[c] || c}`, value: v }));
-      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={12}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#475569' }} width={55} /><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={12}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#475569' }} width={55} /><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${_t.textHeading}`, fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
     }
 
     case 'conflict': case 'economic': case 'diplomatic': {
@@ -292,7 +296,7 @@ export function renderSharedWidget(
 
     case 'velocity': {
       const data = computeAlertVelocity(articles);
-      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Bar dataKey="high" stackId="a" fill="#f97316" /><Bar dataKey="critical" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${_t.textHeading}`, fontSize: 12 }} /><Bar dataKey="high" stackId="a" fill="#f97316" /><Bar dataKey="critical" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>;
     }
 
     case 'srccover':

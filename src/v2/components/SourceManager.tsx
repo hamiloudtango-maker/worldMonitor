@@ -8,6 +8,7 @@ import {
   listSources, updateSource, deleteSource, bulkAction, bulkAddSources,
 } from '@/v2/lib/source-manager-api';
 import type { CatalogSource } from '@/v2/lib/source-manager-api';
+import { useTheme } from '@/v2/lib/theme';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -61,6 +62,7 @@ interface Filters {
 /* ------------------------------------------------------------------ */
 
 export default function SourceManager() {
+  const { t } = useTheme();
   /* ---- core state ---- */
   const [sources, setSources] = useState<CatalogSource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +108,7 @@ export default function SourceManager() {
     for (const s of sources) {
       if (s.continent) continents.add(s.continent);
       if (s.country) countries.add(s.country);
-      s.tags.forEach(t => tags.add(t));
+      s.tags.forEach(tg => tags.add(tg));
       tiers.add(s.tier);
     }
     return {
@@ -197,10 +199,10 @@ export default function SourceManager() {
           list.push(s);
           map.set('Sans tag', list);
         } else {
-          for (const t of s.tags) {
-            const list = map.get(t) ?? [];
+          for (const tg of s.tags) {
+            const list = map.get(tg) ?? [];
             list.push(s);
-            map.set(t, list);
+            map.set(tg, list);
           }
         }
       }
@@ -231,36 +233,36 @@ export default function SourceManager() {
 
   /* ---- Row ---- */
   const SourceRow = ({ s }: { s: CatalogSource }) => (
-    <tr className="border-b border-[#1e2d3d] hover:ring-1 hover:ring-[#42d3a5]/30 transition-all">
+    <tr className="border-b hover:ring-1 hover:ring-[#42d3a5]/30 transition-all" style={{ borderColor: t.border }}>
       <td className="pl-3 pr-1 py-2">
         <input type="checkbox" checked={selected.has(s.id)}
           onChange={() => toggleOne(s.id)} className="accent-blue-600 rounded" />
       </td>
       <td className="px-2 py-2 max-w-[220px]">
-        <span className="truncate block font-medium text-[#b0bec9]" title={s.name}>{s.name}</span>
-        <span className="text-[11px] text-[#556677] truncate block" title={s.url}>{s.url}</span>
+        <span className="truncate block font-medium" style={{ color: t.textPrimary }} title={s.name}>{s.name}</span>
+        <span className="text-[11px] truncate block" style={{ color: t.textSecondary }} title={s.url}>{s.url}</span>
       </td>
-      <td className="px-2 py-2 text-[#8899aa] whitespace-nowrap">{s.country ?? '—'}</td>
+      <td className="px-2 py-2 whitespace-nowrap" style={{ color: t.textSecondary }}>{s.country ?? `—`}</td>
       <td className="px-2 py-2">
         <div className="flex flex-wrap gap-1">
           {s.tags.length === 0 && <span className="text-[#3a4f63] text-xs">—</span>}
-          {s.tags.map(t => (
-            <span key={t} className="px-2 py-0.5 text-xs rounded-full bg-blue-500/10 text-blue-400">{t}</span>
+          {s.tags.map(tg => (
+            <span key={tg} className="px-2 py-0.5 text-xs rounded-full bg-blue-500/10 text-blue-400">{tg}</span>
           ))}
         </div>
       </td>
       <td className="px-2 py-2">
-        <span className="px-1.5 py-0.5 text-xs font-mono rounded bg-[#131d2a] text-[#8899aa]">T{s.tier}</span>
+        <span className="px-1.5 py-0.5 text-xs font-mono rounded" style={{ background: t.bgApp, color: t.textSecondary }}>T{s.tier}</span>
       </td>
       <td className="px-2 py-2">
-        <span className="inline-flex items-center gap-1.5 text-xs text-[#8899aa]">
-          <span className={`w-2 h-2 rounded-full inline-block ${STATUS_DOT[s.status] ?? 'bg-[#3a4f63]'}`} />
+        <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: t.textSecondary }}>
+          <span className={`w-2 h-2 rounded-full inline-block ${STATUS_DOT[s.status] ?? `bg-[#3a4f63]`}`} />
           {STATUS_LABEL[s.status] ?? s.status}
         </span>
       </td>
-      <td className="px-2 py-2 text-xs text-[#6b7d93] whitespace-nowrap">{timeAgo(s.last_fetched_at)}</td>
+      <td className="px-2 py-2 text-xs whitespace-nowrap" style={{ color: t.textSecondary }}>{timeAgo(s.last_fetched_at)}</td>
       <td className="px-2 py-2 text-xs">
-        <span className={s.fetch_error_count > 0 ? 'text-red-600 font-semibold' : 'text-[#556677]'} title={s.last_error || ''}>
+        <span className={s.fetch_error_count > 0 ? 'text-red-600 font-semibold' : ''} style={s.fetch_error_count > 0 ? {} : { color: t.textSecondary }} title={s.last_error || ''}>
           {s.fetch_error_count > 0 ? `${s.fetch_error_count} — ${s.last_error || 'Erreur'}` : '0'}
         </span>
       </td>
@@ -269,19 +271,19 @@ export default function SourceManager() {
           {/* Toggle active */}
           <button onClick={() => handleToggleActive(s)}
             title={s.active ? 'Désactiver' : 'Activer'}
-            className={`p-1 rounded transition-colors ${s.active ? 'text-green-600 hover:bg-green-500/10' : 'text-[#556677] hover:bg-[#162230]'}`}>
+            className={`p-1 rounded transition-colors ${s.active ? 'text-green-600 hover:bg-green-500/10' : 'hover:bg-[#162230]'}`} style={!s.active ? { color: t.textSecondary } : {}}>
             <div className={`w-8 h-4 rounded-full relative transition-colors ${s.active ? 'bg-green-500' : 'bg-[#3a4f63]'}`}>
               <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${s.active ? 'left-[18px]' : 'left-0.5'}`} />
             </div>
           </button>
           {/* Edit */}
           <button onClick={() => setEditSource(s)}
-            className="p-1 text-[#556677] hover:text-blue-600 hover:bg-blue-500/10 rounded transition-colors" title="Modifier">
+            className="p-1 hover:text-blue-600 hover:bg-blue-500/10 rounded transition-colors" style={{ color: t.textSecondary }} title="Modifier">
             <Pencil size={14} />
           </button>
           {/* Delete */}
           <button onClick={() => handleDelete(s.id)}
-            className="p-1 text-[#556677] hover:text-red-600 hover:bg-red-500/10 rounded transition-colors" title="Supprimer">
+            className="p-1 hover:text-red-600 hover:bg-red-500/10 rounded transition-colors" style={{ color: t.textSecondary }} title="Supprimer">
             <Trash2 size={14} />
           </button>
         </div>
@@ -292,7 +294,7 @@ export default function SourceManager() {
   /* ---- Table header ---- */
   const TableHead = () => (
     <thead>
-      <tr className="border-b border-[#1e2d3d] text-left text-xs text-[#6b7d93] uppercase tracking-wider">
+      <tr className="border-b text-left text-xs uppercase tracking-wider" style={{ borderColor: t.border, color: t.textSecondary }}>
         <th className="pl-3 pr-1 py-2 w-8">
           <input type="checkbox"
             checked={filtered.length > 0 && selected.size === filtered.length}
@@ -318,37 +320,37 @@ export default function SourceManager() {
     <div className="space-y-4">
       {/* ---- Header ---- */}
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold text-[#b0bec9] flex items-center gap-2">
+        <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: t.textPrimary }}>
           Sources RSS
-          <span className="text-xs font-normal bg-[#131d2a] text-[#6b7d93] px-2 py-0.5 rounded-full">
+          <span className="text-xs font-normal px-2 py-0.5 rounded-full" style={{ background: t.bgApp, color: t.textSecondary }}>
             {filtered.length}
           </span>
         </h2>
 
         {/* Search */}
         <div className="relative ml-auto">
-          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#556677]" />
+          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.textSecondary }} />
           <input
             type="text"
             placeholder="Rechercher..."
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-sm border border-[#1e2d3d] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 w-56"
+            className="pl-8 pr-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 w-56" style={{ borderColor: t.border }}
           />
           {searchInput && (
-            <button onClick={() => setSearchInput('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#556677] hover:text-[#8899aa]">
+            <button onClick={() => setSearchInput(``)}
+              className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: t.textSecondary }}>
               <X size={14} />
             </button>
           )}
         </div>
 
         {/* Group-by toggle */}
-        <div className="flex rounded-lg border border-[#1e2d3d] overflow-hidden text-xs">
+        <div className="flex rounded-lg border overflow-hidden text-xs" style={{ borderColor: t.border }}>
           {([['none', 'Liste'], ['tags', 'Par thématique'], ['country', 'Par pays']] as const).map(([val, label]) => (
             <button key={val}
               onClick={() => { setGroupBy(val); setCollapsed(new Set()); }}
-              className={`px-3 py-1.5 transition-all ${groupBy === val ? 'bg-blue-600 text-white' : 'bg-[#1a2836] text-[#8899aa] hover:ring-1 hover:ring-[#42d3a5]/30'}`}>
+              className={`px-3 py-1.5 transition-all ${groupBy === val ? 'bg-blue-600 text-white' : 'hover:ring-1 hover:ring-[#42d3a5]/30'}`} style={groupBy !== val ? { background: t.bgCard, color: t.textSecondary } : {}}>
               {label}
             </button>
           ))}
@@ -363,37 +365,37 @@ export default function SourceManager() {
 
       {/* ---- Filter bar ---- */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <select value={filters.continent ?? ''}
+        <select value={filters.continent ?? ``}
           onChange={e => setFilters(f => ({ ...f, continent: e.target.value || undefined, country: undefined }))}
-          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" style={{ borderColor: t.border, background: t.bgCard }}>
           <option value="">Continent</option>
           {distinctValues.continents.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
 
-        <select value={filters.country ?? ''}
+        <select value={filters.country ?? ``}
           onChange={e => setFilters(f => ({ ...f, country: e.target.value || undefined }))}
-          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" style={{ borderColor: t.border, background: t.bgCard }}>
           <option value="">Pays</option>
           {countriesForContinent.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
 
-        <select value={filters.tag ?? ''}
+        <select value={filters.tag ?? ``}
           onChange={e => setFilters(f => ({ ...f, tag: e.target.value || undefined }))}
-          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" style={{ borderColor: t.border, background: t.bgCard }}>
           <option value="">Tags</option>
-          {distinctValues.tags.map(t => <option key={t} value={t}>{t}</option>)}
+          {distinctValues.tags.map(tg => <option key={tg} value={tg}>{tg}</option>)}
         </select>
 
-        <select value={filters.tier ?? ''}
+        <select value={filters.tier ?? ``}
           onChange={e => setFilters(f => ({ ...f, tier: e.target.value || undefined }))}
-          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" style={{ borderColor: t.border, background: t.bgCard }}>
           <option value="">Tier</option>
-          {distinctValues.tiers.map(t => <option key={t} value={String(t)}>T{t}</option>)}
+          {distinctValues.tiers.map(tier => <option key={tier} value={String(tier)}>T{tier}</option>)}
         </select>
 
-        <select value={filters.status ?? ''}
+        <select value={filters.status ?? ``}
           onChange={e => setFilters(f => ({ ...f, status: e.target.value || undefined }))}
-          className="border border-[#1e2d3d] rounded-lg px-2 py-1.5 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" style={{ borderColor: t.border, background: t.bgCard }}>
           <option value="">Statut</option>
           <option value="active">Actif</option>
           <option value="degraded">Dégradé</option>
@@ -428,16 +430,16 @@ export default function SourceManager() {
       )}
 
       {/* ---- Table ---- */}
-      <div className="border border-[#1e2d3d]/60 rounded-xl bg-[#1a2836] overflow-hidden">
+      <div className="border rounded-xl overflow-hidden" style={{ borderColor: `${t.border}99`, background: t.bgCard }}>
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-[#556677]">
+          <div className="flex items-center justify-center gap-2 py-16" style={{ color: t.textSecondary }}>
             <Loader2 size={20} className="animate-spin" /> Chargement des sources...
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-[#556677] text-sm">
+          <div className="text-center py-16 text-sm" style={{ color: t.textSecondary }}>
             Aucune source trouvée.
           </div>
-        ) : groupBy === 'none' ? (
+        ) : groupBy === `none` ? (
           /* -- Flat list -- */
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -447,7 +449,7 @@ export default function SourceManager() {
               </tbody>
             </table>
           </div>
-        ) : groupBy === 'tags' ? (
+        ) : groupBy === `tags` ? (
           /* -- Grouped by tags -- */
           <div>
             {(grouped as [string, CatalogSource[]][])?.map(([tag, list]) => {
@@ -456,10 +458,10 @@ export default function SourceManager() {
               return (
                 <div key={key}>
                   <button onClick={() => toggleCollapse(key)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-[#0f1923] hover:bg-[#162230] text-sm font-medium text-[#8899aa] transition-colors border-b border-[#1e2d3d]/60">
+                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-[#162230] text-sm font-medium transition-colors border-b" style={{ background: t.bgSidebar, color: t.textSecondary, borderColor: `${t.border}99` }}>
                     {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/10 text-blue-400">{tag}</span>
-                    <span className="text-xs text-[#556677] ml-1">({list.length})</span>
+                    <span className="text-xs ml-1" style={{ color: t.textSecondary }}>({list.length})</span>
                   </button>
                   {isOpen && (
                     <div className="overflow-x-auto">
@@ -485,10 +487,10 @@ export default function SourceManager() {
               return (
                 <div key={contKey}>
                   <button onClick={() => toggleCollapse(contKey)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 bg-[#131d2a] hover:bg-[#162230] text-sm font-semibold text-[#8899aa] transition-colors border-b border-[#1e2d3d]/60">
+                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-[#162230] text-sm font-semibold transition-colors border-b" style={{ background: t.bgApp, color: t.textSecondary, borderColor: `${t.border}99` }}>
                     {contOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     {continent}
-                    <span className="text-xs font-normal text-[#556677]">({total})</span>
+                    <span className="text-xs font-normal" style={{ color: t.textSecondary }}>({total})</span>
                   </button>
                   {contOpen && ctries.map(([country, list]) => {
                     const ctryKey = `ctry:${continent}:${country}`;
@@ -496,10 +498,10 @@ export default function SourceManager() {
                     return (
                       <div key={ctryKey}>
                         <button onClick={() => toggleCollapse(ctryKey)}
-                          className="w-full flex items-center gap-2 pl-8 pr-4 py-2 bg-[#0f1923]/80 hover:bg-[#162230] text-sm text-[#8899aa] transition-colors border-b border-[#1e2d3d]">
+                          className="w-full flex items-center gap-2 pl-8 pr-4 py-2 hover:bg-[#162230] text-sm transition-colors border-b" style={{ background: `${t.bgSidebar}cc`, color: t.textSecondary, borderColor: t.border }}>
                           {ctryOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                           {country}
-                          <span className="text-xs text-[#556677]">({list.length})</span>
+                          <span className="text-xs" style={{ color: t.textSecondary }}>({list.length})</span>
                         </button>
                         {ctryOpen && (
                           <div className="overflow-x-auto">
@@ -550,12 +552,13 @@ function EditModal({ source, onClose, onSave }: {
   onClose: () => void;
   onSave: (data: Partial<CatalogSource>) => Promise<void>;
 }) {
+  const { t } = useTheme();
   const [name, setName] = useState(source.name);
-  const [tagsStr, setTagsStr] = useState(source.tags.join(', '));
+  const [tagsStr, setTagsStr] = useState(source.tags.join(`, `));
   const [tier, setTier] = useState(source.tier);
-  const [country, setCountry] = useState(source.country ?? '');
-  const [continent, setContinent] = useState(source.continent ?? '');
-  const [description, setDescription] = useState(source.description ?? '');
+  const [country, setCountry] = useState(source.country ?? ``);
+  const [continent, setContinent] = useState(source.continent ?? ``);
+  const [description, setDescription] = useState(source.description ?? ``);
   const [active, setActive] = useState(source.active);
   const [saving, setSaving] = useState(false);
 
@@ -565,7 +568,7 @@ function EditModal({ source, onClose, onSave }: {
     try {
       await onSave({
         name,
-        tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
+        tags: tagsStr.split(',').map(s => s.trim()).filter(Boolean),
         tier,
         country: country || null,
         continent: continent || null,
@@ -580,56 +583,56 @@ function EditModal({ source, onClose, onSave }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-[#1a2836] rounded-xl shadow-xl border border-[#1e2d3d]/60 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e2d3d]">
-          <h3 className="font-semibold text-[#b0bec9]">Modifier la source</h3>
-          <button onClick={onClose} className="text-[#556677] hover:text-[#8899aa] transition-colors"><X size={18} /></button>
+      <div className="rounded-xl shadow-xl border w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" style={{ background: t.bgCard, borderColor: `${t.border}99` }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: t.border }}>
+          <h3 className="font-semibold" style={{ color: t.textPrimary }}>Modifier la source</h3>
+          <button onClick={onClose} className="transition-colors" style={{ color: t.textSecondary }}><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Read-only */}
-          <div className="grid grid-cols-2 gap-3 text-xs text-[#6b7d93] bg-[#0f1923] rounded-lg p-3">
-            <div><span className="font-medium text-[#8899aa]">URL:</span> <span className="break-all">{source.url}</span></div>
-            <div><span className="font-medium text-[#8899aa]">Origine:</span> {source.origin}</div>
-            <div><span className="font-medium text-[#8899aa]">Dernier fetch:</span> {timeAgo(source.last_fetched_at)}</div>
-            <div><span className="font-medium text-[#8899aa]">Erreurs:</span> {source.fetch_error_count}{source.last_error && <span className="text-red-500 ml-1">— {source.last_error}</span>}</div>
+          <div className="grid grid-cols-2 gap-3 text-xs rounded-lg p-3" style={{ color: t.textSecondary, background: t.bgSidebar }}>
+            <div><span className="font-medium" style={{ color: t.textSecondary }}>URL:</span> <span className="break-all">{source.url}</span></div>
+            <div><span className="font-medium" style={{ color: t.textSecondary }}>Origine:</span> {source.origin}</div>
+            <div><span className="font-medium" style={{ color: t.textSecondary }}>Dernier fetch:</span> {timeAgo(source.last_fetched_at)}</div>
+            <div><span className="font-medium" style={{ color: t.textSecondary }}>Erreurs:</span> {source.fetch_error_count}{source.last_error && <span className="text-red-500 ml-1">— {source.last_error}</span>}</div>
           </div>
 
           {/* Name */}
           <label className="block">
-            <span className="text-sm font-medium text-[#8899aa]">Nom</span>
+            <span className="text-sm font-medium" style={{ color: t.textSecondary }}>Nom</span>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
-              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
+              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" style={{ borderColor: t.border }} />
           </label>
 
           {/* Tags */}
           <label className="block">
-            <span className="text-sm font-medium text-[#8899aa]">Tags <span className="text-xs text-[#556677] font-normal">(séparés par des virgules)</span></span>
+            <span className="text-sm font-medium" style={{ color: t.textSecondary }}>Tags <span className="text-xs font-normal" style={{ color: t.textSecondary }}>(séparés par des virgules)</span></span>
             <input type="text" value={tagsStr} onChange={e => setTagsStr(e.target.value)}
-              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
+              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" style={{ borderColor: t.border }} />
           </label>
 
           {/* Tier + Country row */}
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-sm font-medium text-[#8899aa]">Tier</span>
+              <span className="text-sm font-medium" style={{ color: t.textSecondary }}>Tier</span>
               <select value={tier} onChange={e => setTier(Number(e.target.value))}
-                className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
-                {[1, 2, 3, 4].map(t => <option key={t} value={t}>T{t}</option>)}
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" style={{ borderColor: t.border, background: t.bgCard }}>
+                {[1, 2, 3, 4].map(tier => <option key={tier} value={tier}>T{tier}</option>)}
               </select>
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-[#8899aa]">Pays</span>
+              <span className="text-sm font-medium" style={{ color: t.textSecondary }}>Pays</span>
               <input type="text" value={country} onChange={e => setCountry(e.target.value)}
-                className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" style={{ borderColor: t.border }} />
             </label>
           </div>
 
           {/* Continent */}
           <label className="block">
-            <span className="text-sm font-medium text-[#8899aa]">Continent</span>
+            <span className="text-sm font-medium" style={{ color: t.textSecondary }}>Continent</span>
             <select value={continent} onChange={e => setContinent(e.target.value)}
-              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" style={{ borderColor: t.border, background: t.bgCard }}>
               <option value="">— Aucun —</option>
               {CONTINENTS.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -637,13 +640,13 @@ function EditModal({ source, onClose, onSave }: {
 
           {/* Description */}
           <label className="block">
-            <span className="text-sm font-medium text-[#8899aa]">Description</span>
+            <span className="text-sm font-medium" style={{ color: t.textSecondary }}>Description</span>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" />
+              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" style={{ borderColor: t.border }} />
           </label>
 
           {/* Active checkbox */}
-          <label className="flex items-center gap-2 text-sm text-[#8899aa]">
+          <label className="flex items-center gap-2 text-sm" style={{ color: t.textSecondary }}>
             <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} className="accent-blue-600 rounded" />
             Source active
           </label>
@@ -651,7 +654,7 @@ function EditModal({ source, onClose, onSave }: {
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm text-[#8899aa] hover:bg-[#162230] rounded-lg transition-colors">
+              className="px-4 py-2 text-sm hover:bg-[#162230] rounded-lg transition-colors" style={{ color: t.textSecondary }}>
               Annuler
             </button>
             <button type="submit" disabled={saving}
@@ -671,6 +674,7 @@ function EditModal({ source, onClose, onSave }: {
 /* ================================================================ */
 
 function AddModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useTheme();
   const [urls, setUrls] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{
@@ -686,7 +690,7 @@ function AddModal({ onClose, onDone }: { onClose: () => void; onDone: () => void
       const res = await bulkAddSources(lines);
       setResult(res);
     } catch (e) {
-      console.error('bulk add failed', e);
+      console.error(`bulk add failed`, e);
     } finally {
       setSubmitting(false);
     }
@@ -695,24 +699,24 @@ function AddModal({ onClose, onDone }: { onClose: () => void; onDone: () => void
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-[#1a2836] rounded-xl shadow-xl border border-[#1e2d3d]/60 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e2d3d]">
-          <h3 className="font-semibold text-[#b0bec9]">Ajouter des sources</h3>
-          <button onClick={onClose} className="text-[#556677] hover:text-[#8899aa] transition-colors"><X size={18} /></button>
+      <div className="rounded-xl shadow-xl border w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" style={{ background: t.bgCard, borderColor: `${t.border}99` }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: t.border }}>
+          <h3 className="font-semibold" style={{ color: t.textPrimary }}>Ajouter des sources</h3>
+          <button onClick={onClose} className="transition-colors" style={{ color: t.textSecondary }}><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-4">
           {!result ? (
             <>
               <label className="block">
-                <span className="text-sm font-medium text-[#8899aa]">URLs RSS <span className="text-xs text-[#556677] font-normal">(une par ligne)</span></span>
+                <span className="text-sm font-medium" style={{ color: t.textSecondary }}>URLs RSS <span className="text-xs font-normal" style={{ color: t.textSecondary }}>(une par ligne)</span></span>
                 <textarea value={urls} onChange={e => setUrls(e.target.value)} rows={6}
                   placeholder="https://example.com/rss&#10;https://other.com/feed.xml"
-                  className="mt-1 w-full border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" />
+                  className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none" style={{ borderColor: t.border }} />
               </label>
               <div className="flex justify-end gap-2">
                 <button onClick={onClose}
-                  className="px-4 py-2 text-sm text-[#8899aa] hover:bg-[#162230] rounded-lg transition-colors">
+                  className="px-4 py-2 text-sm hover:bg-[#162230] rounded-lg transition-colors" style={{ color: t.textSecondary }}>
                   Annuler
                 </button>
                 <button onClick={handleSubmit} disabled={submitting || !urls.trim()}
@@ -729,12 +733,12 @@ function AddModal({ onClose, onDone }: { onClose: () => void; onDone: () => void
                   <h4 className="text-sm font-medium text-green-700 mb-2">
                     {result.added.length} source{result.added.length > 1 ? 's' : ''} ajoutée{result.added.length > 1 ? 's' : ''}
                   </h4>
-                  <ul className="text-xs text-[#8899aa] space-y-1">
+                  <ul className="text-xs space-y-1" style={{ color: t.textSecondary }}>
                     {result.added.map(a => (
                       <li key={a.url} className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
                         <span className="font-medium">{a.name}</span>
-                        <span className="text-[#556677] truncate">{a.url}</span>
+                        <span className="truncate" style={{ color: t.textSecondary }}>{a.url}</span>
                       </li>
                     ))}
                   </ul>

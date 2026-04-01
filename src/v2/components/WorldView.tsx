@@ -17,6 +17,7 @@ import { useGlobalData } from '@/v2/hooks/useData';
 import LiveMap from './LiveMap';
 import WidgetGrid, { type WidgetDef, type WidgetState } from './WidgetGrid';
 import { renderSharedWidget, buildCatalogWithFeeds } from './shared/WidgetCatalog';
+import { useTheme } from '@/v2/lib/theme';
 
 const COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#eab308'];
 
@@ -139,6 +140,7 @@ interface FacetFilters {
 const EMPTY_FACETS: FacetFilters = { themes: [], threats: [], countries: [] };
 
 export default function WorldView() {
+  const { t } = useTheme();
   const { articles, stats, refresh } = useGlobalData();
   const [fullCatalog, setFullCatalog] = useState<WidgetDef[]>(CATALOG);
   const [facets, setFacets] = useState<FacetFilters>(EMPTY_FACETS);
@@ -201,8 +203,8 @@ export default function WorldView() {
       {/* Facet dropdowns */}
       <div className="flex items-center gap-2 flex-wrap">
         <FacetDropdown label="Pays" items={countryOptions} selected={facets.countries} onToggle={v => toggleFacet('countries', v)} />
-        <FacetDropdown label="Thematique" items={themeOptions.map(t => ({ key: t.key, label: capitalize(t.key), count: t.count }))} selected={facets.themes} onToggle={v => toggleFacet('themes', v)} />
-        <FacetDropdown label="Menace" items={threatOptions.filter(t => (stats?.by_threat[t.key] || 0) > 0).map(t => ({ key: t.key, label: t.label, count: stats?.by_threat[t.key] || 0, dot: t.color }))} selected={facets.threats} onToggle={v => toggleFacet('threats', v)} />
+        <FacetDropdown label="Thematique" items={themeOptions.map(item => ({ key: item.key, label: capitalize(item.key), count: item.count }))} selected={facets.themes} onToggle={v => toggleFacet('themes', v)} />
+        <FacetDropdown label="Menace" items={threatOptions.filter(item => (stats?.by_threat[item.key] || 0) > 0).map(item => ({ key: item.key, label: item.label, count: stats?.by_threat[item.key] || 0, dot: item.color }))} selected={facets.threats} onToggle={v => toggleFacet('threats', v)} />
 
         {/* Active chips */}
         {facets.countries.map(c => (
@@ -211,16 +213,16 @@ export default function WorldView() {
             <button onClick={() => toggleFacet('countries', c)}><X size={9} /></button>
           </span>
         ))}
-        {facets.themes.map(t => (
-          <span key={`t-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-            {capitalize(t)}
-            <button onClick={() => toggleFacet('themes', t)}><X size={9} /></button>
+        {facets.themes.map(th => (
+          <span key={`t-${th}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {capitalize(th)}
+            <button onClick={() => toggleFacet('themes', th)}><X size={9} /></button>
           </span>
         ))}
-        {facets.threats.map(t => (
-          <span key={`th-${t}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-red-50 text-red-700 border border-red-200">
-            {t}
-            <button onClick={() => toggleFacet('threats', t)}><X size={9} /></button>
+        {facets.threats.map(th => (
+          <span key={`th-${th}`} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-red-50 text-red-700 border border-red-200">
+            {th}
+            <button onClick={() => toggleFacet('threats', th)}><X size={9} /></button>
           </span>
         ))}
         {hasFilters ? (
@@ -234,7 +236,7 @@ export default function WorldView() {
         storageKey="wm-world-v7"
         defaultWidgets={DEFAULTS}
         renderContent={id => {
-          const shared = renderSharedWidget(id, filteredArticles, filteredStats, 'wv');
+          const shared = renderSharedWidget(id, filteredArticles, filteredStats, 'wv', t);
           if (shared) return shared;
           return <WContent id={id} stats={filteredStats} articles={filteredArticles} onRefresh={refresh} />;
         }}
@@ -329,28 +331,28 @@ function WContent({ id, stats, articles, onRefresh }: { id: string; stats: Stats
       );
     case 'themes': {
       const data = Object.entries(stats?.by_theme || {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, v]) => ({ name: capitalize(n), value: v }));
-      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 15, left: 5, bottom: 0 }} barSize={12}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#475569', fontWeight: 500 }} width={65} /><Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 15, left: 5, bottom: 0 }} barSize={12}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#475569', fontWeight: 500 }} width={65} /><Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
     }
     case 'sentiment': {
       const neg = (stats?.by_threat['critical'] || 0) + (stats?.by_threat['high'] || 0);
       const pos = stats?.by_threat['low'] || 0;
       const neu = stats?.by_threat['info'] || 0;
       const data = ['06', '09', '12', '15', '18', '21'].map(h => ({ time: `${h}:00`, positive: Math.round(pos * 0.8), negative: Math.round(neg * 0.6), neutral: Math.round(neu * 0.7) }));
-      return <div className="p-2 h-full"><ResponsiveContainer><AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}><defs><linearGradient id="wP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.25} /><stop offset="95%" stopColor="#34d399" stopOpacity={0} /></linearGradient><linearGradient id="wN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.25} /><stop offset="95%" stopColor="#f87171" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Area type="monotone" dataKey="positive" stroke="#34d399" fill="url(#wP)" strokeWidth={2} /><Area type="monotone" dataKey="negative" stroke="#f87171" fill="url(#wN)" strokeWidth={2} /><Area type="monotone" dataKey="neutral" stroke="#cbd5e1" fill="none" strokeDasharray="4 4" strokeWidth={1.5} /></AreaChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}><defs><linearGradient id="wP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.25} /><stop offset="95%" stopColor="#34d399" stopOpacity={0} /></linearGradient><linearGradient id="wN" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.25} /><stop offset="95%" stopColor="#f87171" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} /><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 12 }} /><Area type="monotone" dataKey="positive" stroke="#34d399" fill="url(#wP)" strokeWidth={2} /><Area type="monotone" dataKey="negative" stroke="#f87171" fill="url(#wN)" strokeWidth={2} /><Area type="monotone" dataKey="neutral" stroke="#cbd5e1" fill="none" strokeDasharray="4 4" strokeWidth={1.5} /></AreaChart></ResponsiveContainer></div>;
     }
     case 'threats': {
       const data = Object.entries(stats?.by_threat || {}).map(([n, v]) => ({ name: capitalize(n), value: v }));
       const tc = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#64748b'];
-      return <div className="p-2 h-full"><ResponsiveContainer><PieChart><Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="70%" innerRadius="40%" paddingAngle={3}>{data.map((_, i) => <Cell key={i} fill={tc[i] || '#94a3b8'} />)}</Pie><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /></PieChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><PieChart><Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="70%" innerRadius="40%" paddingAngle={3}>{data.map((_, i) => <Cell key={i} fill={tc[i] || '#94a3b8'} />)}</Pie><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 12 }} /></PieChart></ResponsiveContainer></div>;
     }
     case 'sources': {
       const data = Object.entries(stats?.by_source || {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, v]) => ({ name: n.replace(/^gnews_/, '').replace(/_all$/, '').replace(/_/g, ' '), value: v }));
-      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={10}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#475569' }} width={80} /><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={10}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#475569' }} width={80} /><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 12 }} /><Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div>;
     }
     case 'countries': {
       const agg = articles.reduce<Record<string, number>>((acc, a) => { for (const c of a.country_codes) acc[c] = (acc[c] || 0) + 1; return acc; }, {});
       const data = Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([c, v]) => ({ name: `${FLAGS[c] || ''} ${c}`, value: v }));
-      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={12}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#475569' }} width={55} /><Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
+      return <div className="p-2 h-full"><ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 0, right: 10, left: 5, bottom: 0 }} barSize={12}><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#475569' }} width={55} /><Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 12 }} /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div>;
     }
     case 'conflict': case 'economic': case 'diplomatic': {
       const tm: Record<string, string[]> = { conflict: ['conflict', 'military'], economic: ['economic', 'tech'], diplomatic: ['diplomatic', 'protest'] };
@@ -386,13 +388,13 @@ function WContent({ id, stats, articles, onRefresh }: { id: string; stats: Stats
       )} />;
 
     case 'cyber':
-      return <ApiList endpoint="/cyber/v1/list-cyber-threats?page_size=20" renderItem={(t, i) => (
+      return <ApiList endpoint="/cyber/v1/list-cyber-threats?page_size=20" renderItem={(item, i) => (
         <div key={i} className="p-1.5 rounded-lg hover:ring-1 hover:ring-[#42d3a5]/30">
           <div className="flex justify-between items-center">
-            <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-red-50 text-red-600">{t.malware || t.type}</span>
-            <span className="text-[9px] text-slate-400">{t.country}</span>
+            <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-red-50 text-red-600">{item.malware || item.type}</span>
+            <span className="text-[9px] text-slate-400">{item.country}</span>
           </div>
-          <p className="text-[10px] text-slate-600 font-mono mt-0.5">{t.ip}{t.port ? `:${t.port}` : ''}</p>
+          <p className="text-[10px] text-slate-600 font-mono mt-0.5">{item.ip}{item.port ? `:${item.port}` : ''}</p>
         </div>
       )} />;
 

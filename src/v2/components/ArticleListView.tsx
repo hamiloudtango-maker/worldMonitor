@@ -8,15 +8,9 @@ import {
 } from 'lucide-react';
 import { useArticleReader } from '@/v2/hooks/useArticleReader';
 import { markRead, toggleStar, toggleReadLater, type ArticleSummary } from '@/v2/lib/sources-api';
+import { useTheme } from '@/v2/lib/theme';
 
 /* ── Constants ── */
-const BG_APP = '#131d2a';
-const BG_CARD = '#1a2836';
-const BORDER = '#1e2d3d';
-const ACCENT = '#4d8cf5';
-const TEXT_PRIMARY = '#b0bec9';
-const TEXT_SECONDARY = '#6b7d93';
-const TEXT_MUTED = '#3a4a5a';
 
 function timeAgo(dateStr?: string) {
   if (!dateStr) return '';
@@ -47,6 +41,7 @@ interface Props {
 }
 
 export default function ArticleListView({ articles, title, loading, onLoadMore, hasMore, unreadCount, onSearch }: Props) {
+  const { t } = useTheme();
   const [viewMode, setViewMode] = useState<'list' | 'card'>('card');
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
@@ -130,23 +125,23 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
     <div className="flex flex-col h-full">
 
       {/* ── Toolbar — exact Inoreader: title ▾ | "Non lus (N)" pill | search | view toggles ── */}
-      <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ borderBottom: `1px solid ${BORDER}`, background: BG_APP }}>
+      <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ borderBottom: `1px solid ${t.border}`, background: t.bgApp }}>
 
         {/* Left: title + unread filter */}
         <div className="flex items-center gap-4">
           {title && (
-            <h2 className="text-[18px] font-bold flex items-center gap-1.5" style={{ color: '#e2e8f0' }}>
+            <h2 className="text-[18px] font-bold flex items-center gap-1.5" style={{ color: t.textHeading }}>
               {title}
-              <ChevronDown size={16} style={{ color: TEXT_SECONDARY }} />
+              <ChevronDown size={16} style={{ color: t.textSecondary }} />
             </h2>
           )}
           <button
             onClick={() => setShowUnreadOnly(!showUnreadOnly)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors"
             style={{
-              background: showUnreadOnly ? `${ACCENT}20` : '#1a2836',
-              color: showUnreadOnly ? ACCENT : TEXT_SECONDARY,
-              border: `1px solid ${showUnreadOnly ? `${ACCENT}40` : BORDER}`,
+              background: showUnreadOnly ? `${t.accent}20` : t.bgCard,
+              color: showUnreadOnly ? t.accent : t.textSecondary,
+              border: `1px solid ${showUnreadOnly ? `${t.accent}40` : t.border}`,
             }}
           >
             {showUnreadOnly ? `Non lus (${displayCount})` : `Tous (${displayCount})`}
@@ -158,7 +153,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
         <div className="flex items-center gap-2">
           {/* Search in articles */}
           <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: TEXT_SECONDARY }} />
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: t.textSecondary }} />
             <input
               ref={searchRef}
               type="text"
@@ -166,29 +161,29 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); onSearch?.(e.target.value); }}
               className="pl-8 pr-3 py-1.5 rounded-lg text-[12px] outline-none w-52 transition-colors"
-              style={{ background: '#1a2836', border: `1px solid ${BORDER}`, color: TEXT_PRIMARY }}
-              onFocus={e => { e.target.style.borderColor = ACCENT; }}
-              onBlur={e => { e.target.style.borderColor = BORDER; }}
+              style={{ background: t.bgCard, border: `1px solid ${t.border}`, color: t.textPrimary }}
+              onFocus={e => { e.target.style.borderColor = t.accent; }}
+              onBlur={e => { e.target.style.borderColor = t.border; }}
             />
           </div>
 
           {/* Mark all read */}
           <button
             className="p-1.5 rounded-lg transition-colors group"
-            style={{ color: TEXT_SECONDARY }}
+            style={{ color: t.textSecondary }}
             title="Tout marquer comme lu"
           >
             <Check size={16} />
           </button>
 
           {/* View toggles — Inoreader has: list, magazine, card, column */}
-          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
+          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: `1px solid ${t.border}` }}>
             <button
               onClick={() => setViewMode('list')}
               className="p-1.5 transition-colors"
               style={{
-                background: viewMode === 'list' ? `${ACCENT}20` : 'transparent',
-                color: viewMode === 'list' ? ACCENT : TEXT_SECONDARY,
+                background: viewMode === 'list' ? `${t.accent}20` : 'transparent',
+                color: viewMode === 'list' ? t.accent : t.textSecondary,
               }}
               title="Liste"
             >
@@ -198,9 +193,9 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
               onClick={() => setViewMode('card')}
               className="p-1.5 transition-colors"
               style={{
-                background: viewMode === 'card' ? `${ACCENT}20` : 'transparent',
-                color: viewMode === 'card' ? ACCENT : TEXT_SECONDARY,
-                borderLeft: `1px solid ${BORDER}`,
+                background: viewMode === 'card' ? `${t.accent}20` : 'transparent',
+                color: viewMode === 'card' ? t.accent : t.textSecondary,
+                borderLeft: `1px solid ${t.border}`,
               }}
               title="Magazine"
             >
@@ -211,7 +206,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
           {/* Sort */}
           <button
             className="p-1.5 rounded-lg transition-colors"
-            style={{ color: TEXT_SECONDARY }}
+            style={{ color: t.textSecondary }}
             title="Trier"
           >
             <ArrowUpDown size={15} />
@@ -220,7 +215,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
           {/* Settings */}
           <button
             className="p-1.5 rounded-lg transition-colors"
-            style={{ color: TEXT_SECONDARY }}
+            style={{ color: t.textSecondary }}
             title="Personnaliser la vue"
           >
             <ListFilter size={15} />
@@ -229,7 +224,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
       </div>
 
       {/* ── Article content ── */}
-      <div ref={listRef} className="flex-1 overflow-y-auto" style={{ background: BG_APP }}>
+      <div ref={listRef} className="flex-1 overflow-y-auto" style={{ background: t.bgApp }}>
         {viewMode === 'card' ? (
           /* ══════════════════════════════════════════════════════
              CARD MODE — Inoreader exact: responsive grid,
@@ -253,12 +248,12 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                   onClick={() => handleClick(a, idx)}
                   className="rounded-xl overflow-hidden cursor-pointer transition-all group"
                   style={{
-                    background: BG_CARD,
+                    background: t.bgCard,
                     opacity: isRead ? 0.45 : 1,
                   }}
                 >
                   {/* Image area with gradient + title overlay */}
-                  <div className="relative overflow-hidden" style={{ paddingBottom: '65%', background: '#0f1923' }}>
+                  <div className="relative overflow-hidden" style={{ paddingBottom: '65%', background: t.bgSidebar }}>
                     {imgUrl && (
                       <img
                         src={imgUrl}
@@ -290,15 +285,15 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                   </div>
 
                   {/* Bottom bar: time + actions — exact Inoreader */}
-                  <div className="flex items-center justify-between px-3 py-2" style={{ borderTop: `1px solid ${BORDER}` }}>
-                    <span className="text-[11px]" style={{ color: TEXT_SECONDARY }}>
+                  <div className="flex items-center justify-between px-3 py-2" style={{ borderTop: `1px solid ${t.border}` }}>
+                    <span className="text-[11px]" style={{ color: t.textSecondary }}>
                       {timeAgo(a.pub_date)}
                     </span>
                     <div className="flex items-center gap-0.5">
                       <button
                         onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }}
                         className="p-1 rounded transition-colors"
-                        style={{ color: isStarred ? '#d4a843' : TEXT_MUTED }}
+                        style={{ color: isStarred ? '#d4a843' : t.textSecondary }}
                         title="Favoris"
                       >
                         <Star size={14} fill={isStarred ? 'currentColor' : 'none'} />
@@ -306,7 +301,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                       <button
                         onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }}
                         className="p-1 rounded transition-colors"
-                        style={{ color: isReadLater ? ACCENT : TEXT_MUTED }}
+                        style={{ color: isReadLater ? t.accent : t.textSecondary }}
                         title="Lire plus tard"
                       >
                         <BookmarkPlus size={14} />
@@ -314,7 +309,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                       <button
                         onClick={e => { e.stopPropagation(); handleMarkRead(a.id); }}
                         className="p-1 rounded transition-colors"
-                        style={{ color: isRead ? '#42d3a5' : TEXT_MUTED }}
+                        style={{ color: isRead ? '#42d3a5' : t.textSecondary }}
                         title="Marquer comme lu"
                       >
                         <Eye size={14} />
@@ -322,7 +317,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                       <button
                         onClick={e => e.stopPropagation()}
                         className="p-1 rounded transition-colors"
-                        style={{ color: TEXT_MUTED }}
+                        style={{ color: t.textSecondary }}
                         title="Plus"
                       >
                         <MoreHorizontal size={14} />
@@ -350,15 +345,15 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                   onClick={() => handleClick(a, idx)}
                   className="flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors"
                   style={{
-                    borderBottom: `1px solid ${BORDER}`,
-                    background: isSelected ? BG_CARD : 'transparent',
-                    borderLeft: isSelected ? `2px solid ${ACCENT}` : '2px solid transparent',
+                    borderBottom: `1px solid ${t.border}`,
+                    background: isSelected ? t.bgCard : 'transparent',
+                    borderLeft: isSelected ? `2px solid ${t.accent}` : '2px solid transparent',
                     opacity: isRead ? 0.45 : 1,
                   }}
                 >
                   {/* Thumbnail */}
                   {a.image_url && (
-                    <div className="w-20 h-14 rounded-lg shrink-0 overflow-hidden" style={{ background: '#0f1923' }}>
+                    <div className="w-20 h-14 rounded-lg shrink-0 overflow-hidden" style={{ background: t.bgSidebar }}>
                       <img src={a.image_url} alt="" className="w-full h-full object-cover" loading="lazy"
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     </div>
@@ -366,12 +361,12 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] leading-snug line-clamp-2 font-medium" style={{ color: isRead ? TEXT_SECONDARY : '#e2e8f0' }}>
+                    <p className="text-[13px] leading-snug line-clamp-2 font-medium" style={{ color: isRead ? t.textSecondary : t.textHeading }}>
                       {a.title}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: TEXT_SECONDARY }}>
+                    <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: t.textSecondary }}>
                       <span className="font-medium" style={{ color: '#7cb3f5' }}>{formatSource(a.source_id)}</span>
-                      {a.pub_date && <><span style={{ color: TEXT_MUTED }}>·</span><span>{timeAgo(a.pub_date)}</span></>}
+                      {a.pub_date && <><span style={{ color: t.textSecondary }}>·</span><span>{timeAgo(a.pub_date)}</span></>}
                     </div>
                   </div>
 
@@ -380,21 +375,21 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
                     <button
                       onClick={e => { e.stopPropagation(); handleToggleStar(a.id); }}
                       className="p-1 rounded transition-colors"
-                      style={{ color: isStarred ? '#d4a843' : TEXT_MUTED }}
+                      style={{ color: isStarred ? '#d4a843' : t.textSecondary }}
                     >
                       <Star size={13} fill={isStarred ? 'currentColor' : 'none'} />
                     </button>
                     <button
                       onClick={e => { e.stopPropagation(); handleToggleReadLater(a.id); }}
                       className="p-1 rounded transition-colors"
-                      style={{ color: readLaterIds.has(a.id) ? ACCENT : TEXT_MUTED }}
+                      style={{ color: readLaterIds.has(a.id) ? t.accent : t.textSecondary }}
                     >
                       <BookmarkPlus size={13} />
                     </button>
                     <button
                       onClick={e => e.stopPropagation()}
                       className="p-1 rounded transition-colors"
-                      style={{ color: TEXT_MUTED }}
+                      style={{ color: t.textSecondary }}
                     >
                       <MoreHorizontal size={13} />
                     </button>
@@ -411,7 +406,7 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
             <button
               onClick={onLoadMore}
               className="px-4 py-2 text-xs font-medium rounded-lg transition-colors"
-              style={{ color: ACCENT, background: `${ACCENT}15` }}
+              style={{ color: t.accent, background: `${t.accent}15` }}
             >
               Charger plus d'articles
             </button>
@@ -420,13 +415,13 @@ export default function ArticleListView({ articles, title, loading, onLoadMore, 
 
         {loading && (
           <div className="flex justify-center py-6">
-            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${ACCENT} transparent transparent transparent` }} />
+            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${t.accent} transparent transparent transparent` }} />
           </div>
         )}
 
         {!loading && displayedArticles.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16" style={{ color: TEXT_SECONDARY }}>
-            <LayoutList size={32} className="mb-3" style={{ color: TEXT_MUTED }} />
+          <div className="flex flex-col items-center justify-center py-16" style={{ color: t.textSecondary }}>
+            <LayoutList size={32} className="mb-3" style={{ color: t.textSecondary }} />
             <p className="text-sm">Aucun article</p>
           </div>
         )}

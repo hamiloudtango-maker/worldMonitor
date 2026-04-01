@@ -14,6 +14,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Plus, Minus, Sparkles, Loader2, Search } from 'lucide-react';
 import { api } from '@/v2/lib/api';
+import { useTheme } from '@/v2/lib/theme';
 
 export interface ModelLayer {
   operator: 'OR' | 'AND' | 'NOT';
@@ -40,6 +41,7 @@ interface SearchResult extends ModelInfo {
 const ACCENT = '#42d3a5';
 
 export default function ModelQueryBuilder({ layers, onChange }: Props) {
+  const { t } = useTheme();
   const [modelCache, setModelCache] = useState<Map<string, ModelInfo>>(new Map());
   const [showAddBar, setShowAddBar] = useState(false);
   const [addIsNot, setAddIsNot] = useState(false);
@@ -194,19 +196,19 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
           <div key={li} className={`rounded-xl border p-2.5 ${style.bg} border-opacity-50`}>
             <div className="flex items-center gap-2 mb-1.5">
               {li > 0 && <span className={`text-[10px] font-bold ${style.text} px-1.5 py-0.5 rounded`}>{style.label}</span>}
-              <button onClick={() => removeLayer(li)} className="ml-auto p-0.5 text-[#556677] hover:text-red-500">
+              <button onClick={() => removeLayer(li)} className="ml-auto p-0.5 hover:text-red-500" style={{ color: t.textSecondary }}>
                 <X size={12} />
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {layer.model_ids.map(mid => (
                 <div key={mid} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium ${
-                  layer.operator === 'NOT' ? 'bg-red-500/15 text-red-400' : 'bg-[#1a2836] text-[#8899aa] border border-[#1e2d3d]'
-                }`}>
+                  layer.operator === 'NOT' ? 'bg-red-500/15 text-red-400' : 'border'
+                }`} style={layer.operator !== 'NOT' ? { background: t.bgCard, color: t.textSecondary, borderColor: t.border } : {}}>
                   <Sparkles size={10} className={layer.operator === 'NOT' ? 'text-red-400' : 'text-[#42d3a5]'} />
                   <span>{getModelName(mid)}</span>
-                  <span className="text-[8px] text-[#556677]">{getModelMeta(mid)}</span>
-                  <button onClick={() => removeModel(li, mid)} className="p-0.5 text-[#556677] hover:text-red-500">
+                  <span className="text-[8px]" style={{ color: t.textSecondary }}>{getModelMeta(mid)}</span>
+                  <button onClick={() => removeModel(li, mid)} className="p-0.5 hover:text-red-500" style={{ color: t.textSecondary }}>
                     <X size={10} />
                   </button>
                 </div>
@@ -214,7 +216,7 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
               {/* +OR button to add more models to this layer */}
               <button
                 onClick={() => { setAddingOrTo(li); setShowAddBar(true); }}
-                className="text-[10px] text-[#556677] hover:text-[#42d3a5] px-2 py-1 border border-dashed border-[#1e2d3d] rounded-lg hover:border-[#42d3a5]/50"
+                className="text-[10px] hover:text-[#42d3a5] px-2 py-1 border border-dashed rounded-lg hover:border-[#42d3a5]/50" style={{ color: t.textSecondary, borderColor: t.border }}
               >
                 +OR
               </button>
@@ -225,49 +227,49 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
 
       {/* Add bar (fuzzy search) */}
       {showAddBar ? (
-        <div ref={addBarRef} className="border border-[#1e2d3d] rounded-xl p-3 bg-[#1a2836]">
+        <div ref={addBarRef} className="border rounded-xl p-3" style={{ borderColor: t.border, background: t.bgCard }}>
           <div className="flex items-center gap-2 mb-2">
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
               addingOrTo !== null ? 'bg-emerald-500/10 text-emerald-400' : addIsNot ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'
             }`}>
               {addingOrTo !== null ? '+OR' : addIsNot ? 'NOT' : layers.length === 0 ? 'OR' : 'AND'}
             </span>
-            <span className="text-[10px] text-[#556677]">
+            <span className="text-[10px]" style={{ color: t.textSecondary }}>
               {addingOrTo !== null ? 'Ajouter un modèle à cette ligne' : 'Nouvelle ligne de filtre'}
             </span>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#556677]" size={13} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={13} style={{ color: t.textSecondary }} />
             <input
               autoFocus
               value={searchInput}
               onChange={e => { setSearchInput(e.target.value); fetchSuggestions(e.target.value); }}
               placeholder="Rechercher un modèle..."
-              className="w-full pl-9 pr-4 py-2 text-[12px] border border-[#1e2d3d] rounded-xl focus:outline-none focus:border-[#42d3a5] bg-[#1a2836]"
+              className="w-full pl-9 pr-4 py-2 text-[12px] border rounded-xl focus:outline-none focus:border-[#42d3a5]" style={{ borderColor: t.border, background: t.bgCard }}
             />
           </div>
           {/* Suggestions */}
           {searching && (
             <div className="flex items-center gap-2 py-3 justify-center">
               <Loader2 size={14} className="animate-spin text-[#42d3a5]" />
-              <span className="text-[11px] text-[#556677]">Recherche...</span>
+              <span className="text-[11px]" style={{ color: t.textSecondary }}>Recherche...</span>
             </div>
           )}
           {!searching && searchInput.length >= 2 && suggestions.length === 0 && (
             <div className="py-3 text-center">
-              <p className="text-[11px] text-[#556677] mb-2">Aucun modele existant pour "{searchInput}"</p>
+              <p className="text-[11px] mb-2" style={{ color: t.textSecondary }}>Aucun modele existant pour "{searchInput}"</p>
               <button
                 onClick={handleCreateModel}
                 disabled={creating}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg disabled:opacity-50"
-                style={{ background: '#42d3a5' }}
+                style={{ background: `#42d3a5` }}
               >
                 {creating ? <><Loader2 size={12} className="animate-spin" /> Creation...</> : <><Sparkles size={12} /> Creer "{searchInput}"</>}
               </button>
             </div>
           )}
           {suggestions.length > 0 && (
-            <div className="border border-[#1e2d3d] rounded-xl mt-2 overflow-hidden max-h-48 overflow-y-auto">
+            <div className="border rounded-xl mt-2 overflow-hidden max-h-48 overflow-y-auto" style={{ borderColor: t.border }}>
               {suggestions.map(s => {
                 const alreadyInLayer = addingOrTo !== null && layers[addingOrTo]?.model_ids.includes(s.model_id);
                 return (
@@ -275,29 +277,29 @@ export default function ModelQueryBuilder({ layers, onChange }: Props) {
                     key={s.model_id}
                     onClick={() => selectSuggestion(s)}
                     disabled={!!alreadyInLayer}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] border-b border-[#1e2d3d] last:border-b-0 ${
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] border-b last:border-b-0 ${
                       alreadyInLayer ? 'opacity-40' : 'hover:ring-1 hover:ring-[#42d3a5]/30'
-                    }`}
+                    }`} style={{ borderColor: t.border }}
                   >
                     <Sparkles size={12} className="text-[#42d3a5] shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <span className="font-medium text-[#8899aa]">{s.model_name}</span>
-                      <span className="text-[9px] text-[#556677] ml-1.5">{s.family}/{s.section}</span>
+ <span className="font-medium " style={{ color: t.textSecondary }}>{s.model_name}</span>
+ <span className="text-[9px] ml-1.5" style={{ color: t.textSecondary }}>{s.family}/{s.section}</span>
                     </div>
                     {s.matched_term !== s.model_name && (
-                      <span className="text-[9px] text-[#556677] truncate max-w-[80px]">via "{s.matched_term}"</span>
+ <span className="text-[9px] truncate max-w-[80px]" style={{ color: t.textSecondary }}>via "{s.matched_term}"</span>
                     )}
                   </button>
                 );
               })}
             </div>
           )}
-          <button onClick={resetAddBar} className="mt-2 text-[11px] text-[#556677] hover:text-[#8899aa]">Annuler</button>
+ <button onClick={resetAddBar} className="mt-2 text-[11px] hover:" style={{ color: t.textSecondary, color: t.textSecondary }}>Annuler</button>
         </div>
       ) : (
         <div className="flex items-center gap-3 mt-1">
           <button onClick={() => { setAddIsNot(false); setShowAddBar(true); }}
-            className="text-[12px] font-semibold text-[#6b7d93] hover:text-[#42d3a5] flex items-center gap-1">
+ className="text-[12px] font-semibold hover:text-[#42d3a5] flex items-center gap-1" style={{ color: t.textSecondary }}>
             <Plus size={13} /> AND
           </button>
           <span className="text-[#3a4f63]">/</span>

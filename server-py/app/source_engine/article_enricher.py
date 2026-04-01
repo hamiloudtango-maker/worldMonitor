@@ -71,7 +71,10 @@ _END_MARKERS = re.compile(
     r"^(?:\*\*Lien permanent|Espace abonn|TSA \+|Partager cet|Share this|"
     r"Related (?:articles|posts)|Articles? li[ée]s|Laisser un comment|"
     r"Voir aussi|Read more articles|Newsletter|Tags?\s*:|"
-    r"©\s*20|Tous droits r[ée]serv[ée]s)",
+    r"©\s*20|Tous droits r[ée]serv[ée]s|"
+    r"Trending News|Tweet\s*Share|SHARE\s*$|"
+    r"\*\s*Tweet\s*\*\s*Share|Popular This Week|"
+    r"Found this article interesting)",
     re.MULTILINE | re.IGNORECASE,
 )
 
@@ -111,6 +114,12 @@ def _clean_markdown(md: str) -> str:
     md = re.sub(r"A lire aussi\s*:\s*\[.*?\]\(.*?\)\s*", "", md)
     md = re.sub(r"Suivez nous.*$", "", md, flags=re.MULTILINE)
     md = re.sub(r"^\d+ minutes? de lecture$", "", md, flags=re.MULTILINE)
+    # Remove social share lines
+    md = re.sub(r"^.*Tweet\s*Share\s*Share\s*SHARE.*$", "", md, flags=re.MULTILINE)
+    md = re.sub(r"^.*\u25a0\s*(?:Tweet|Share|SHARE)\s*\u25a0.*$", "", md, flags=re.MULTILINE)
+    md = re.sub(r"^\s*(?:Tweet|Share)\s+(?:Tweet|Share)\s+(?:SHARE)\s*$", "", md, flags=re.MULTILINE)
+    # Remove "Found this article interesting?" CTA
+    md = re.sub(r"Found this article interesting\?.*$", "", md, flags=re.MULTILINE | re.DOTALL)
     md = re.sub(r"\n{3,}", "\n\n", md)
     return md.strip()
 
@@ -124,58 +133,81 @@ def _fix_win_encoding():
             pass
 
 
+def _crawl4ai_subprocess_script() -> str:
+    """Return inline Python script for subprocess-based crawl4ai extraction."""
+    return r'''
+import asyncio, json, sys
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+url = sys.argv[1]
+
+async def main():
+    from crawl4ai import AsyncWebCrawler
+    from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig, CacheMode
+    from crawl4ai.content_filter_strategy import PruningContentFilter
+    from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+
+    md_gen = DefaultMarkdownGenerator(
+        content_filter=PruningContentFilter(threshold=0.45, threshold_type="fixed", min_word_threshold=0)
+    )
+    bc = BrowserConfig(headless=True, verbose=False, text_mode=True)
+    rc = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, wait_until="domcontentloaded", page_timeout=30000, markdown_generator=md_gen)
+    async with AsyncWebCrawler(config=bc) as crawler:
+        result = await crawler.arun(url, config=rc)
+    if not result.success:
+        print(json.dumps(None))
+        return
+    md = result.markdown.fit_markdown if result.markdown else ""
+    raw = result.markdown.raw_markdown if result.markdown else ""
+    meta = result.metadata or {}
+    image = meta.get("og:image") or meta.get("og:image:url") or meta.get("twitter:image") or ""
+    author = meta.get("author") or meta.get("article:author") or ""
+    print(json.dumps({"fit": md, "raw": raw, "image": image, "author": author}))
+
+asyncio.run(main())
+'''
+
+
 async def _crawl4ai_fetch(url: str) -> dict | None:
-    """Fetch article with crawl4ai: fit_markdown + og:image + author."""
+    """Fetch article with crawl4ai via subprocess (avoids uvicorn event loop conflict on Windows)."""
+    import json as _json
     try:
         _fix_win_encoding()
-        from crawl4ai import AsyncWebCrawler
-        from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig, CacheMode
-        from crawl4ai.content_filter_strategy import PruningContentFilter
-        from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
-
-        md_generator = DefaultMarkdownGenerator(
-            content_filter=PruningContentFilter(
-                threshold=0.45, threshold_type="fixed", min_word_threshold=0
-            )
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", _crawl4ai_subprocess_script(), url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-        bc = BrowserConfig(headless=True, verbose=False, text_mode=True)
-        rc = CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS,
-            wait_until="domcontentloaded",
-            page_timeout=30000,
-            markdown_generator=md_generator,
-        )
-        async with AsyncWebCrawler(config=bc) as crawler:
-            result = await asyncio.wait_for(crawler.arun(url, config=rc), timeout=35)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
 
-        if not result.success:
+        if proc.returncode != 0:
+            logger.warning(f"crawl4ai subprocess failed: {url} — {stderr.decode('utf-8', errors='replace')[:300]}")
             return None
 
-        # fit_markdown = article only (no nav/footer)
-        md = result.markdown.fit_markdown if result.markdown else ""
+        data = _json.loads(stdout.decode("utf-8").strip().split("\n")[-1])
+        if not data:
+            return None
+
+        # Validate content
+        md = data.get("fit", "")
         if not _is_valid_article(md):
-            md = result.markdown.raw_markdown if result.markdown else ""
+            md = data.get("raw", "")
             if not _is_valid_article(md):
                 return None
 
-        # Clean nav/menu noise from top of markdown
         md = _clean_markdown(md)
-
         if not _is_valid_article(md):
             return None
 
-        meta = result.metadata or {}
-        image = (
-            meta.get("og:image")
-            or meta.get("og:image:url")
-            or meta.get("twitter:image")
-            or ""
-        )
-        author = meta.get("author") or meta.get("article:author") or ""
+        image = data.get("image", "")
+        author = data.get("author", "")
 
         logger.info(f"crawl4ai OK: {url} ({len(md)} chars, img={'yes' if image else 'no'})")
         return {"content_md": md, "image": image, "author": author}
 
+    except asyncio.TimeoutError:
+        logger.warning(f"crawl4ai timeout: {url}")
+        return None
     except Exception as e:
         logger.warning(f"crawl4ai failed: {url} — {e}")
         return None

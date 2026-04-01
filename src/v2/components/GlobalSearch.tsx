@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, X, FileText, Globe, Clock, Shield, ChevronRight, Loader2, Rss } from 'lucide-react';
 import { api } from '@/v2/lib/api';
 import { useArticleReader } from '@/v2/hooks/useArticleReader';
+import { useTheme } from '@/v2/lib/theme';
 
 interface SearchResult {
   id: string;
@@ -49,6 +50,7 @@ function timeAgo(dateStr?: string) {
 }
 
 export default function GlobalSearch() {
+  const { t } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'account' | 'public'>('account');
@@ -134,12 +136,12 @@ export default function GlobalSearch() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-slate-400 bg-[#0f1923] border border-[#1e2d3d] rounded-lg hover:border-slate-300 hover:text-slate-500 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-slate-400 border rounded-lg hover:border-slate-300 hover:text-slate-500 transition-colors" style={{ background: t.bgSidebar, borderColor: t.border }}
         title="Recherche (Ctrl+K)"
       >
         <Search size={12} />
         <span>Rechercher...</span>
-        <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono text-slate-300 bg-[#1a2836] border border-[#1e2d3d] rounded">
+        <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono text-slate-300 border rounded" style={{ background: t.bgCard, borderColor: t.border }}>
           ⌘K
         </kbd>
       </button>
@@ -152,10 +154,10 @@ export default function GlobalSearch() {
       <div className="fixed inset-0 bg-black/40 z-[60] backdrop-blur-[2px]" onClick={() => setOpen(false)} />
 
       {/* Modal */}
-      <div className="fixed top-[15vh] left-1/2 -translate-x-1/2 w-full max-w-[600px] bg-[#1a2836] rounded-2xl shadow-2xl z-[61] overflow-hidden border border-[#1e2d3d]">
+      <div className="fixed top-[15vh] left-1/2 -translate-x-1/2 w-full max-w-[600px] rounded-2xl shadow-2xl z-[61] overflow-hidden border" style={{ background: t.bgCard, borderColor: t.border }}>
 
         {/* Search input */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-[#1e2d3d]">
+        <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: t.border }}>
           <Search size={18} className="text-slate-300 shrink-0" />
           <input
             ref={inputRef}
@@ -164,7 +166,7 @@ export default function GlobalSearch() {
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Rechercher des articles..."
-            className="flex-1 text-[15px] text-[#b0bec9] placeholder-slate-300 outline-none bg-transparent"
+            className="flex-1 text-[15px] placeholder-slate-300 outline-none bg-transparent" style={{ color: t.textPrimary }}
             autoComplete="off"
           />
           {loading && <Loader2 size={16} className="text-slate-300 animate-spin shrink-0" />}
@@ -174,9 +176,9 @@ export default function GlobalSearch() {
         </div>
 
         {/* Scope tabs */}
-        <div className="flex border-b border-[#1e2d3d]">
+        <div className="flex border-b" style={{ borderColor: t.border }}>
           <button
-            onClick={() => setScope('account')}
+            onClick={() => setScope(`account`)}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-medium transition-colors ${
               scope === 'account'
                 ? 'text-[#42d3a5] border-b-2 border-[#42d3a5] bg-teal-50/30'
@@ -208,7 +210,7 @@ export default function GlobalSearch() {
               Aucun article trouvé pour "{query}"
             </div>
           )}
-          {!loading && query.length >= 2 && scope === 'public' && catalogResults.length === 0 && (
+          {!loading && query.length >= 2 && scope === `public` && catalogResults.length === 0 && (
             <div className="px-5 py-8 text-center text-sm text-slate-400">
               Aucune source trouvée pour "{query}"
             </div>
@@ -219,9 +221,9 @@ export default function GlobalSearch() {
             <div className="px-5 py-8 text-center">
               <p className="text-sm text-slate-400">Tapez au moins 2 caractères</p>
               <p className="text-[10px] text-slate-300 mt-2">
-                <kbd className="px-1.5 py-0.5 bg-[#0f1923] border border-[#1e2d3d] rounded text-[9px] font-mono">Tab</kbd> pour changer d'onglet ·
-                <kbd className="px-1.5 py-0.5 bg-[#0f1923] border border-[#1e2d3d] rounded text-[9px] font-mono ml-1">↑↓</kbd> naviguer ·
-                <kbd className="px-1.5 py-0.5 bg-[#0f1923] border border-[#1e2d3d] rounded text-[9px] font-mono ml-1">Enter</kbd> ouvrir
+                <kbd className="px-1.5 py-0.5 border rounded text-[9px] font-mono" style={{ background: t.bgSidebar, borderColor: t.border }}>Tab</kbd> pour changer d`onglet ·
+                <kbd className="px-1.5 py-0.5 border rounded text-[9px] font-mono ml-1" style={{ background: t.bgSidebar, borderColor: t.border }}>↑↓</kbd> naviguer ·
+                <kbd className="px-1.5 py-0.5 border rounded text-[9px] font-mono ml-1" style={{ background: t.bgSidebar, borderColor: t.border }}>Enter</kbd> ouvrir
               </p>
             </div>
           )}
@@ -232,13 +234,13 @@ export default function GlobalSearch() {
               key={r.id}
               onClick={() => { openArticle(r.id); setOpen(false); }}
               className={`w-full text-left px-5 py-3 flex items-start gap-3 transition-colors border-b border-slate-50 ${
-                i === selectedIdx ? 'bg-teal-50/50' : 'hover:bg-[#0f1923]'
+                i === selectedIdx ? 'bg-teal-50/50' : 'hover:bg-[#162230]'
               }`}
             >
               {/* Threat dot */}
               <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${THREAT_DOT[r.threat_level || ''] || 'bg-slate-200'}`} />
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-[#b0bec9] leading-snug line-clamp-2">{r.title}</p>
+                <p className="text-[13px] font-medium leading-snug line-clamp-2" style={{ color: t.textPrimary }}>{r.title}</p>
                 <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
                   <span className="truncate max-w-[150px]">{formatSource(r.source_id)}</span>
                   {r.pub_date && <><span className="text-slate-200">·</span><span>{timeAgo(r.pub_date)}</span></>}
@@ -266,13 +268,13 @@ export default function GlobalSearch() {
                 <Rss size={13} className="text-orange-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-[#b0bec9]">{r.name}</p>
+                <p className="text-[13px] font-medium" style={{ color: t.textPrimary }}>{r.name}</p>
                 <p className="text-[10px] text-slate-400 truncate mt-0.5">{r.url}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  {r.country && <span className="text-[9px] px-1.5 py-0.5 bg-[#0f1923] text-slate-500 rounded">{r.country}</span>}
-                  {r.lang && <span className="text-[9px] px-1.5 py-0.5 bg-[#0f1923] text-slate-500 rounded">{r.lang}</span>}
-                  {r.tags?.slice(0, 3).map(t => (
-                    <span key={t} className="text-[9px] px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded">{t}</span>
+                  {r.country && <span className="text-[9px] px-1.5 py-0.5 text-slate-500 rounded" style={{ background: t.bgSidebar }}>{r.country}</span>}
+                  {r.lang && <span className="text-[9px] px-1.5 py-0.5 text-slate-500 rounded" style={{ background: t.bgSidebar }}>{r.lang}</span>}
+                  {r.tags?.slice(0, 3).map(tag => (
+                    <span key={tag} className="text-[9px] px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded">{tag}</span>
                   ))}
                 </div>
               </div>
@@ -281,7 +283,7 @@ export default function GlobalSearch() {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-2 border-t border-[#1e2d3d] bg-[#0f1923]/50 flex items-center justify-between text-[10px] text-slate-400">
+        <div className="px-5 py-2 border-t flex items-center justify-between text-[10px] text-slate-400" style={{ borderColor: t.border, background: `${t.bgSidebar}80` }}>
           <span>
             {scope === 'account'
               ? `${results.length} article${results.length !== 1 ? 's' : ''}`

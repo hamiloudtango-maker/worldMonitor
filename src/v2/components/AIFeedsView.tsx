@@ -8,8 +8,10 @@ import ModelQueryBuilder, { type ModelLayer } from './shared/ModelQueryBuilder';
 import FeedPreview from './ai-feeds/FeedPreview';
 import FeedCreator from './ai-feeds/FeedCreator';
 import RssBulkAdd from './ai-feeds/RssBulkAdd';
+import { useTheme } from '@/v2/lib/theme';
 
 export default function AIFeedsView() {
+  const { t } = useTheme();
   const { feeds, add, remove, update } = useAIFeeds();
   const [selected, setSelected] = useState<AIFeedData | null>(null);
   const [localModelLayers, setLocalModelLayers] = useState<ModelLayer[]>([]);
@@ -94,9 +96,9 @@ export default function AIFeedsView() {
 
 
   return (
-    <div className="flex h-full -m-5 rounded-xl overflow-hidden" style={{ background: '#131d2a', border: '1px solid #1e2d3d' }}>
+    <div className="flex h-full -m-5 rounded-xl overflow-hidden" style={{ background: t.bgApp, border: `1px solid ${t.border}` }}>
       {/* Left: Feed list + RSS bulk add */}
-      <div className="w-72 flex flex-col shrink-0" style={{ borderRight: '1px solid #1e2d3d', background: '#0f1923' }}>
+      <div className="w-72 flex flex-col shrink-0" style={{ borderRight: `1px solid ${t.border}`, background: t.bgSidebar }}>
         <div className="flex-1 overflow-hidden">
           <FeedList
             feeds={feeds}
@@ -121,7 +123,7 @@ export default function AIFeedsView() {
         <>
           {/* Center: Query builder + Preview */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1e2d3d' }}>
+            <div className="p-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${t.border}` }}>
               <div>
                 {editingName ? (
                   <input
@@ -139,18 +141,18 @@ export default function AIFeedsView() {
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                       if (e.key === 'Escape') setEditingName(false);
                     }}
-                    className="text-sm font-bold text-[#b0bec9] bg-transparent border-b border-[#42d3a5] focus:outline-none px-0 py-0"
+                    className="text-sm font-bold bg-transparent border-b border-[#42d3a5] focus:outline-none px-0 py-0" style={{ color: t.textPrimary }}
                   />
                 ) : (
                   <h2
-                    className="text-sm font-bold text-[#b0bec9] cursor-pointer hover:text-[#42d3a5] transition-colors"
+                    className="text-sm font-bold cursor-pointer hover:text-[#42d3a5] transition-colors" style={{ color: t.textPrimary }}
                     onClick={() => { setEditName(selected.name); setEditingName(true); }}
                     title="Cliquer pour renommer"
                   >
                     {selected.name}
                   </h2>
                 )}
-                <p className="text-[10px]" style={{ color: '#6b7d93' }}>
+                <p className="text-[10px]" style={{ color: `${t.textSecondary}` }}>
                   {previewCount || selected.result_count} articles · {selected.status}
                   {selected.description && <span className="ml-1">— {selected.description}</span>}
                 </p>
@@ -159,7 +161,7 @@ export default function AIFeedsView() {
                 <button
                   onClick={handleRefresh}
                   className="px-3 py-1.5 text-[11px] font-medium rounded-lg transition-colors"
-                  style={{ color: '#b0bec9', border: '1px solid #1e2d3d' }}
+                  style={{ color: t.textPrimary, border: `1px solid ${t.border}` }}
                 >
                   Rafraichir
                 </button>
@@ -177,7 +179,7 @@ export default function AIFeedsView() {
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <ModelQueryBuilder layers={localModelLayers} onChange={handleModelLayersChange} />
-              <div className="pt-4" style={{ borderTop: '1px solid #1e2d3d' }}>
+              <div className="pt-4" style={{ borderTop: `1px solid ${t.border}` }}>
                 <FeedPreview feedId={selected.id} onCountChange={setPreviewCount} refreshKey={previewKey} />
               </div>
             </div>
@@ -187,13 +189,13 @@ export default function AIFeedsView() {
         /* Empty state — prompt to create */
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #1a2836, #0f1923)' }}>
-              <svg className="w-8 h-8" style={{ color: '#42d3a5' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: `linear-gradient(135deg, ${t.bgCard}, ${t.bgSidebar})` }}>
+              <svg className="w-8 h-8" style={{ color: `#42d3a5` }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 110-2 1 1 0 010 2z" />
               </svg>
             </div>
-            <h3 className="text-sm font-bold mb-1" style={{ color: '#e2e8f0' }}>AI Feeds</h3>
-            <p className="text-[11px] leading-relaxed mb-4" style={{ color: '#6b7d93' }}>
+            <h3 className="text-sm font-bold mb-1" style={{ color: t.textHeading }}>AI Feeds</h3>
+            <p className="text-[11px] leading-relaxed mb-4" style={{ color: t.textSecondary }}>
               Créez un feed intelligent pour surveiller les sujets qui comptent. L'IA configure automatiquement vos filtres et sources.
             </p>
             <button

@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { api } from '@/v2/lib/api';
 import { timeAgo, FLAGS } from '@/v2/lib/constants';
+import { useTheme } from '@/v2/lib/theme';
 
 export const CHART_COLORS = ['#42d3a5', '#3b82f6', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#eab308'];
 
@@ -155,6 +156,7 @@ export interface ChartConfig {
 }
 
 export function ChartRenderer({ config, data: passedData }: { config: ChartConfig; data?: any[] }) {
+  const { t } = useTheme();
   const [fetched, setFetched] = useState<any[] | null>(passedData || null);
   const [loading, setLoading] = useState(!passedData);
 
@@ -184,13 +186,13 @@ export function ChartRenderer({ config, data: passedData }: { config: ChartConfi
       <div className="p-2 h-full">
         <ResponsiveContainer>
           <RadarChart data={data} cx="50%" cy="50%" outerRadius="70%">
-            <PolarGrid stroke="#e2e8f0" />
+            <PolarGrid stroke={t.textHeading} />
             <PolarAngleAxis dataKey="x" tick={{ fontSize: 9, fill: '#475569' }} />
             <PolarRadiusAxis tick={{ fontSize: 8 }} />
             {config.series.map((s, i) => (
               <Radar key={i} dataKey={s.label || s.key} stroke={s.color} fill={s.color} fillOpacity={0.3} strokeWidth={2} />
             ))}
-            <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+            <Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 12 }} />
           </RadarChart>
         </ResponsiveContainer>
       </div>
@@ -205,7 +207,7 @@ export function ChartRenderer({ config, data: passedData }: { config: ChartConfi
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
             <XAxis type="number" hide />
             <YAxis dataKey="x" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#475569', fontWeight: 500 }} width={70} />
-            <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
+            <Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 12 }} />
             {config.series.map((s, i) => (
               <Bar key={i} dataKey={s.label || s.key} fill={s.color} radius={[0, 4, 4, 0]}>
                 {!s.color.startsWith('#') ? null : data.map((_, j) => <Cell key={j} fill={CHART_COLORS[j % CHART_COLORS.length]} />)}
@@ -235,7 +237,7 @@ export function ChartRenderer({ config, data: passedData }: { config: ChartConfi
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis dataKey="x" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
             <YAxis domain={['auto', 'auto']} tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 11 }} />
+            <Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${t.textHeading}`, fontSize: 11 }} />
             {config.series.map((s, i) => (
               <Area key={i} type="monotone" dataKey={s.label || s.key} stroke={s.color}
                 fill={s.color} fillOpacity={s.stack ? 0.6 : 0.15} stackId={s.stack}

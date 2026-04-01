@@ -5,6 +5,7 @@ import { Layers, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Article } from '@/v2/lib/constants';
 import { LAYER_DEFS, getLayersByCategory, type LayerDef } from '@/v2/lib/map-layers';
 import { api } from '@/v2/lib/api';
+import { useTheme } from '@/v2/lib/theme';
 
 const COORDS: Record<string, [number, number]> = {
   US:[39.8,-98.5],FR:[46.6,2.2],UA:[48.4,31.2],RU:[61.5,105.3],CN:[35.9,104.2],
@@ -20,8 +21,8 @@ const COORDS: Record<string, [number, number]> = {
 };
 
 // ─── SVG icons as data URIs (same approach as V1 DeckGLMap) ───
-const PLANE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M16 2 L17.5 10 L17 12 L27 17 L27 19 L17 16 L17 24 L20 26.5 L20 28 L16 27 L12 28 L12 26.5 L15 24 L15 16 L5 19 L5 17 L15 12 L14.5 10 Z" fill="#60a5fa"/></svg>`;
-const SHIP_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 3 L14 8 L14 14 L18 18 L12 21 L6 18 L10 14 L10 8 Z" fill="#22d3ee"/></svg>`;
+const PLANE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M16 2 L17.5 10 L17 12 L27 17 L27 19 L17 16 L17 24 L20 26.5 L20 28 L16 27 L12 28 L12 26.5 L15 24 L15 16 L5 19 L5 17 L15 12 L14.5 10 Z" fill="#60a5fa"/></svg>';
+const SHIP_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 3 L14 8 L14 14 L18 18 L12 21 L6 18 L10 14 L10 8 Z" fill="#22d3ee"/></svg>';
 
 const LS_KEY = 'wm-map-layers';
 
@@ -42,6 +43,7 @@ function saveEnabled(set: Set<string>) {
 }
 
 export default function LiveMap({ articles }: { articles: Article[] }) {
+  const { t } = useTheme();
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [showPanel, setShowPanel] = useState(false);
@@ -131,7 +133,7 @@ export default function LiveMap({ articles }: { articles: Article[] }) {
           .map(([k, v]) => `<span style="color:#94a3b8">${k}:</span> ${v}`).join('<br>');
         new maplibregl.Popup({ closeButton: false, className: 'wm-popup', maxWidth: '260px' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-size:11px;color:#e2e8f0"><strong>${layer.icon} ${name}</strong>${details ? '<br>' + details : ''}</div>`)
+          .setHTML(`<div style="font-size:11px;color:${t.textHeading}"><strong>${layer.icon} ${name}</strong>${details ? '<br>' + details : ''}</div>`)
           .addTo(map);
       });
       map.on('mouseenter', `lyr_${layer.id}`, () => { map.getCanvas().style.cursor = 'pointer'; });
@@ -214,7 +216,7 @@ export default function LiveMap({ articles }: { articles: Article[] }) {
         if (!p) return;
         new maplibregl.Popup({ closeButton: false, className: 'wm-popup' })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-size:12px;color:#e2e8f0"><strong>${p.code}</strong> — ${p.count} docs${p.crit > 0 ? `<br><span style="color:#ef4444">${p.crit} critical</span>` : ''}${p.high > 0 ? `<br><span style="color:#f97316">${p.high} high</span>` : ''}</div>`)
+          .setHTML(`<div style="font-size:12px;color:${t.textHeading}"><strong>${p.code}</strong> — ${p.count} docs${p.crit > 0 ? `<br><span style="color:#ef4444">${p.crit} critical</span>` : ''}${p.high > 0 ? `<br><span style="color:#f97316">${p.high} high</span>` : ''}</div>`)
           .addTo(map);
       });
       map.on('mouseenter', 'circles', () => { map.getCanvas().style.cursor = 'pointer'; });
