@@ -8,6 +8,7 @@ Two modes:
     (dedup+classify locally, then one big LLM batch across all feeds)
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -160,6 +161,49 @@ async def enrich_batch(titles: list[str], *, client=None, token=None) -> list[di
 
 # ── Helpers ──────────────────────────────────────────────────────
 
+# Patterns that signal end of actual article content in RSS descriptions
+_NOISE_MARKERS = re.compile(
+    r"(?:^|\n)\s*(?:"
+    r"\(END\)"
+    r"|Keywords\s*$"
+    r"|Most Viewed"
+    r"|Read full article"
+    r"|Read more"
+    r"|Related (?:articles|stories|news)"
+    r"|You may also like"
+    r"|Share this"
+    r"|Tags\s*:"
+    r"|Filed under"
+    r"|Also read"
+    r"|More from"
+    r"|Sponsored"
+    r"|Advertisement"
+    r")",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+# HTML tags to strip
+_HTML_TAG = re.compile(r"<[^>]+>")
+
+
+def _clean_description(raw: str) -> str:
+    """Clean RSS description: strip HTML, cut at noise markers, limit length."""
+    # Strip HTML tags
+    text = _HTML_TAG.sub(" ", raw)
+    # Normalize whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+    # Cut at first noise marker
+    m = _NOISE_MARKERS.search(text)
+    if m:
+        text = text[:m.start()].strip()
+    # Remove trailing dashes (wire service style: "Title - \n")
+    text = re.sub(r"\s*-\s*$", "", text)
+    # Limit to 1000 chars
+    if len(text) > 1000:
+        text = text[:997] + "..."
+    return text
+
+
 def _hash_article(link: str) -> str:
     return hashlib.sha256(link.encode()).hexdigest()
 
@@ -204,7 +248,7 @@ def _build_article(
         source_id=source_id,
         title=title,
         title_translated=translated,
-        description=str(row.get("description", "") or "")[:500],
+        description=_clean_description(str(row.get("description", "") or "")),
         link=link,
         image_url=row.get("image") or None,
         pub_date=_parse_pub_date(row),
@@ -404,14 +448,27 @@ async def enrich_and_store(
     import httpx
     titles = [a.title for a in articles]
 
-    # One token, one client for all LLM calls
-    token = await get_gemini_token()
+    # One token, one client for all LLM calls — skip if no GCP credentials
+    import os
+    token = None
+    if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.environ.get("GOOGLE_CLOUD_PROJECT"):
+        try:
+            token = await asyncio.wait_for(get_gemini_token(), timeout=10)
+        except Exception as e:
+            print(f"[INGEST] Gemini unavailable ({type(e).__name__}) — skipping LLM")
+    else:
+        print("[INGEST] No GCP credentials — skipping LLM enrichment")
+
     all_enriched: list[dict] = []
-    async with httpx.AsyncClient(timeout=30) as client:
-        for batch_start in range(0, len(titles), LLM_BATCH_SIZE):
-            batch = titles[batch_start:batch_start + LLM_BATCH_SIZE]
-            enriched = await enrich_batch(batch, client=client, token=token)
-            all_enriched.extend(enriched)
+    if token:
+        import httpx
+        async with httpx.AsyncClient(timeout=30) as client:
+            for batch_start in range(0, len(titles), LLM_BATCH_SIZE):
+                batch = titles[batch_start:batch_start + LLM_BATCH_SIZE]
+                enriched = await enrich_batch(batch, client=client, token=token)
+                all_enriched.extend(enriched)
+    else:
+        all_enriched = [dict(_EMPTY_ENRICHMENT) for _ in titles]
 
     new_articles: list[Article] = []
     for i, a in enumerate(articles):
@@ -422,7 +479,11 @@ async def enrich_and_store(
 
     try:
         await db.commit()
-    except Exception:
+        print(f"[INGEST] COMMIT OK: {len(new_articles)} articles")
+    except Exception as e:
+        print(f"[INGEST] COMMIT FAILED: {e}")
+        import traceback
+        traceback.print_exc()
         await db.rollback()
         return 0
 

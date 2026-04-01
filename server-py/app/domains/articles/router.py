@@ -100,6 +100,8 @@ async def search_articles(
                 "description": a.description,
                 "link": a.link,
                 "image_url": a.image_url,
+                "content_md": a.content_md or "",
+                "author": a.author or "",
                 "pub_date": a.pub_date.isoformat() if a.pub_date else None,
                 "lang": a.lang,
                 "threat_level": a.threat_level,
@@ -357,6 +359,8 @@ def _article_meta(article: Article) -> dict:
         "title_translated": article.title_translated,
         "description": article.description,
         "url": article.link,
+        "image_url": article.image_url,
+        "author": article.author,
         "source_id": article.source_id,
         "pub_date": article.pub_date.isoformat() if article.pub_date else None,
         "lang": article.lang,
@@ -381,9 +385,12 @@ async def get_article_content(
     article_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Scrape full article content as markdown. Returns rich metadata + content."""
+    """Get article content: file cache (feed/case) → trafilatura live (others)."""
     import uuid as _uuid
-    from app.source_engine.scraper import scrape_and_save, read_scraped
+    from app.source_engine.article_enricher import (
+        read_cached_content, fetch_article_content, fetch_and_cache, has_cached_content,
+    )
+    from app.models.case import CaseArticle
 
     article = await db.get(Article, _uuid.UUID(article_id))
     if not article:
@@ -391,50 +398,52 @@ async def get_article_content(
         raise HTTPException(404, "Article not found")
 
     meta = _article_meta(article)
-    pub_str = str(article.pub_date) if article.pub_date else None
 
-    # Estimate reading time (words / 200 wpm)
-    reading_time = None
+    # 1. Check file cache (feed/case articles are pre-cached)
+    cached_md = read_cached_content(article_id)
+    if cached_md:
+        word_count = len(cached_md.split())
+        return {**meta, "content_md": cached_md, "word_count": word_count,
+                "reading_time_min": max(1, word_count // 200), "cached": True}
 
-    # Check cache
-    cached = read_scraped(article.source_id, pub_str, article.hash)
-    if cached:
-        word_count = len(cached.split())
-        reading_time = max(1, word_count // 200)
-        return {
-            **meta,
-            "content_md": cached,
-            "word_count": word_count,
-            "reading_time_min": reading_time,
-            "cached": True,
-        }
-
-    # Scrape
-    content = await scrape_and_save(
-        url=article.link,
-        source_id=article.source_id,
-        pub_date=pub_str,
-        article_hash=article.hash,
-        title=article.title,
+    # 2. Check if article is in a case → fetch + cache
+    is_case = await db.scalar(
+        select(CaseArticle.case_id)
+        .where(CaseArticle.article_id == article.id)
+        .limit(1)
     )
+    if is_case:
+        data = await fetch_and_cache(article_id, article.link)
+        if data and data["content_md"]:
+            if data["image"] and not article.image_url:
+                article.image_url = data["image"]
+            if data["author"] and not article.author:
+                article.author = data["author"]
+            await db.commit()
+            word_count = len(data["content_md"].split())
+            return {**meta, "content_md": data["content_md"], "word_count": word_count,
+                    "reading_time_min": max(1, word_count // 200), "cached": False}
 
-    if not content:
-        return {
-            **meta,
-            "content_md": None,
-            "error": "Scraping failed — content could not be extracted",
-            "cached": False,
-        }
+    # 3. Any other article → fetch live, no cache
+    data = await fetch_article_content(article.link)
+    if data and data["content_md"]:
+        changed = False
+        if data["image"] and not article.image_url:
+            article.image_url = data["image"]
+            changed = True
+        if data.get("author") and not article.author:
+            article.author = data["author"]
+            changed = True
+        if changed:
+            await db.commit()
+        # Rebuild meta after DB update (image_url may have changed)
+        meta = _article_meta(article)
+        word_count = len(data["content_md"].split())
+        return {**meta, "content_md": data["content_md"], "word_count": word_count,
+                "reading_time_min": max(1, word_count // 200), "cached": False}
 
-    word_count = len(content.split())
-    reading_time = max(1, word_count // 200)
-    return {
-        **meta,
-        "content_md": content,
-        "word_count": word_count,
-        "reading_time_min": reading_time,
-        "cached": False,
-    }
+    # 4. Fallback: return description from RSS
+    return {**meta, "content_md": None, "error": "Content could not be extracted", "cached": False}
 
 
 @router.delete("/{article_id}/content")

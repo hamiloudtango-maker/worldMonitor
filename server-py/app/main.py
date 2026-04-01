@@ -58,6 +58,44 @@ ROUTERS = [
 _db_ready = None  # asyncio.Event — set after lifespan init completes
 
 
+async def _auto_enrich_images():
+    """Background task: fetch og:image for articles missing image_url (all articles)."""
+    import asyncio, logging
+    from app.db import async_session
+    from app.source_engine.image_enricher import enrich_missing_images
+    logger = logging.getLogger("image-enricher")
+    await _db_ready.wait()
+    await asyncio.sleep(30)
+    while True:
+        try:
+            async with async_session() as db:
+                n = await enrich_missing_images(db, batch_size=50, max_concurrent=10)
+            if n > 0:
+                logger.info(f"Enriched {n} articles with og:image")
+        except Exception as e:
+            logger.warning(f"Image enrichment failed: {e}")
+        await asyncio.sleep(300)
+
+
+async def _auto_enrich_articles():
+    """Background task: trafilatura full content ONLY for Feed/Case articles → file cache."""
+    import asyncio, logging
+    from app.db import async_session
+    from app.source_engine.article_enricher import enrich_feed_case_articles
+    logger = logging.getLogger("article-enricher")
+    await _db_ready.wait()
+    await asyncio.sleep(60)
+    while True:
+        try:
+            async with async_session() as db:
+                n = await enrich_feed_case_articles(db, batch_size=20, max_concurrent=5)
+            if n > 0:
+                logger.info(f"Enriched {n} feed/case articles (trafilatura → file)")
+        except Exception as e:
+            logger.warning(f"Article enrichment failed: {e}")
+        await asyncio.sleep(300)
+
+
 async def _auto_ingest_by_priority(priority: str, interval_min: int):
     """Background task: ingest RSS sources of a given priority at a fixed interval."""
     import asyncio
@@ -434,11 +472,13 @@ async def lifespan(app: FastAPI):
     classify_task = asyncio.create_task(_auto_classify_articles())
     purge_task    = asyncio.create_task(_auto_purge_old_articles())
     plugin_task   = asyncio.create_task(_auto_plugin_ingest())
+    image_task    = asyncio.create_task(_auto_enrich_images())
+    article_task  = asyncio.create_task(_auto_enrich_articles())
 
     yield
 
     for t in [ingest_high, ingest_medium, ingest_low, scorer_task, feeds_gnews,
-              refresh_task, category_task, classify_task, purge_task, plugin_task]:
+              refresh_task, category_task, classify_task, purge_task, plugin_task, image_task, article_task]:
         t.cancel()
     from app.source_engine.scheduler import shutdown
     await shutdown()

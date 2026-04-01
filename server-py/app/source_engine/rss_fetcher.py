@@ -104,7 +104,7 @@ def _parse_rss(root: etree._Element, max_items: int) -> list[ParsedRow]:
             continue
         rows.append({
             "title": title,
-            "description": (item.findtext("description") or "")[:500],
+            "description": (item.findtext("description") or "").strip(),
             "link": link,
             "pubDate": item.findtext("pubDate") or item.findtext("dc:date") or "",
             "source": item.findtext("source") or "",
@@ -134,7 +134,7 @@ def _parse_atom(root: etree._Element, max_items: int) -> list[ParsedRow]:
         desc = (entry.findtext("atom:summary", namespaces=ATOM_NS)
                 or entry.findtext("summary")
                 or entry.findtext("atom:content", namespaces=ATOM_NS)
-                or entry.findtext("content") or "")[:500]
+                or entry.findtext("content") or "").strip()
 
         pub = (entry.findtext("atom:published", namespaces=ATOM_NS)
                or entry.findtext("published")

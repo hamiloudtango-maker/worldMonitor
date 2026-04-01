@@ -1,10 +1,11 @@
 // src/v2/components/ArticleReader.tsx
-// Inoreader-inspired article reader — clean, airy, image-first
+// Inoreader-style article reader — hero image, markdown content, action bar
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, ExternalLink, Loader2, AlertTriangle, Clock, Globe,
   Copy, ChevronRight, User, Building2, MapPin, Tag,
-  Shield, FileText, Languages, ArrowUp,
+  Shield, FileText, Languages, ArrowUp, Bookmark, Heart,
+  Share2, Pin, MessageSquare,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { getArticleContent } from '@/v2/lib/article-api';
@@ -34,6 +35,19 @@ const CRITICALITY_LABELS: Record<string, { label: string; cls: string }> = {
   developing: { label: 'EN COURS', cls: 'bg-amber-500 text-white' },
   background: { label: 'CONTEXTE', cls: 'bg-slate-200 text-[#8899aa]' },
 };
+
+function cleanMarkdown(md: string, heroImage: string | null): string {
+  let clean = md;
+  // Remove all markdown images (hero is shown separately)
+  if (heroImage) {
+    clean = clean.replace(/!\[[^\]]*\]\([^)]*\)\s*/g, '');
+  }
+  // Remove "Photograph: ..." credit lines (duplicated from caption)
+  clean = clean.replace(/^.*Photograph:.*$/gm, '');
+  // Remove duplicate consecutive blank lines
+  clean = clean.replace(/\n{3,}/g, '\n\n');
+  return clean.trim();
+}
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return '';
@@ -103,65 +117,32 @@ export default function ArticleReader({ articleId, onClose }: Props) {
 
   if (!articleId) return null;
 
-  // Extract first image from markdown for hero
-  const heroImage = data?.content_md?.match(/!\[([^\]]*)\]\(([^)]+)\)/)?.[2];
+  // Hero image: prefer image_url (og:image), fallback to first markdown image
+  const heroImage = data?.image_url || data?.content_md?.match(/!\[([^\]]*)\]\(([^)]+)\)/)?.[2] || null;
   const hasEntities = (data?.persons?.length || 0) + (data?.orgs?.length || 0) > 0;
 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="fixed inset-0 z-40" style={{ background: '#131d2a' }} onClick={onClose} />
 
-      {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-full sm:w-[62%] md:w-[56%] lg:w-[50%] xl:w-[44%] z-50 flex flex-col shadow-2xl" style={{ background: '#131d2a' }}>
+      {/* Centered overlay — Inoreader style */}
+      <div className="fixed inset-0 z-50 flex justify-center overflow-hidden">
+        <div className="w-full max-w-[760px] h-full flex flex-col" style={{ background: '#131d2a' }}>
 
-        {/* ── Reading progress bar ──────────────────────── */}
+        {/* ── Reading progress bar ── */}
         <div className="h-[3px] shrink-0" style={{ background: '#1e2d3d' }}>
-          <div
-            className="h-full bg-gradient-to-r from-[#42d3a5] to-[#36b891] transition-all duration-150"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="h-full transition-all duration-150" style={{ width: `${progress}%`, background: '#4d8cf5' }} />
         </div>
 
-        {/* ── Minimal top bar ────────────────────────────── */}
-        <div className="flex items-center justify-between px-5 py-2 shrink-0" style={{ borderBottom: '1px solid #1e2d3d' }}>
-          <div className="flex items-center gap-2 text-[11px] min-w-0" style={{ color: '#6b7d93' }}>
-            <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: '#1a2836' }}>
-              <Globe size={11} style={{ color: '#6b7d93' }} />
-            </div>
-            <span className="font-medium text-[#8899aa] truncate max-w-[180px]">
-              {formatSourceName(data?.source_id)}
-            </span>
-            {data?.pub_date && (
-              <>
-                <span className="text-slate-200">·</span>
-                <span>{formatDate(data.pub_date)}</span>
-              </>
-            )}
-            {data?.reading_time_min && (
-              <>
-                <span className="text-slate-200">·</span>
-                <span className="flex items-center gap-0.5"><Clock size={10} />{data.reading_time_min} min</span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <button
-              onClick={handleCopy}
-              className="p-1.5 text-slate-300 hover:text-[#8899aa] rounded-md hover:bg-[#1a2836] transition-colors"
-              title={copied ? 'Copié !' : 'Copier le lien'}
-            >
-              <Copy size={13} />
-            </button>
-            {data?.url && (
-              <a href={data.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-slate-300 hover:text-[#8899aa] rounded-md hover:bg-[#1a2836] transition-colors" title="Original">
-                <ExternalLink size={13} />
-              </a>
-            )}
-            <button onClick={onClose} className="p-1.5 text-slate-300 hover:text-[#8899aa] rounded-md hover:bg-[#1a2836] transition-colors ml-1">
-              <X size={15} />
-            </button>
-          </div>
+        {/* ── Top bar ── */}
+        <div className="flex items-center justify-between px-6 py-2 shrink-0" style={{ borderBottom: '1px solid #1e2d3d' }}>
+          <div />
+          <button onClick={onClose} className="p-1.5 rounded-md transition-colors" style={{ color: '#6b7d93' }}
+            onMouseOver={e => { e.currentTarget.style.background = '#1a2836'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}>
+            <X size={16} />
+          </button>
         </div>
 
         {/* ── Scrollable article ─────────────────────────── */}
@@ -209,172 +190,164 @@ export default function ArticleReader({ articleId, onClose }: Props) {
             </div>
           )}
 
-          {/* ── Article content ──────────────────────────── */}
+          {/* ── Article content — Inoreader layout ── */}
           {!loading && data && !data.error && (
             <>
-              {/* Hero image */}
-              {heroImage && (
-                <div className="w-full bg-[#1a2836]">
-                  <img
-                    src={heroImage}
-                    alt=""
-                    className="w-full max-h-[320px] object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
-                  />
-                </div>
-              )}
+              <div className="px-8 py-6 max-w-[700px] mx-auto">
 
-              <div className="px-8 py-6 max-w-[680px] mx-auto">
-
-                {/* Criticality badge */}
-                {data.criticality && CRITICALITY_LABELS[data.criticality] && (
-                  <span className={`inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md mb-4 ${CRITICALITY_LABELS[data.criticality].cls}`}>
-                    {CRITICALITY_LABELS[data.criticality].label}
-                  </span>
-                )}
-
-                {/* Title */}
-                <h1 className="text-[26px] font-extrabold text-[#b0bec9] leading-[1.25] tracking-tight mb-2">
+                {/* Title — large, bold, white */}
+                <h1 className="text-[24px] font-extrabold leading-[1.3] tracking-tight mb-3" style={{ color: '#e2e8f0' }}>
                   {data.title_translated || data.title}
                 </h1>
                 {data.title_translated && data.title !== data.title_translated && (
-                  <p className="text-sm text-slate-400 italic mb-1">{data.title}</p>
+                  <p className="text-[13px] italic mb-2" style={{ color: '#6b7d93' }}>{data.title}</p>
                 )}
 
-                {/* Metadata line */}
-                <div className="flex flex-wrap items-center gap-2 mt-4 mb-6">
-                  {data.threat_level && (
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded ${THREAT_COLORS[data.threat_level]}`}>
-                      <Shield size={10} />{data.threat_level}
-                    </span>
+                {/* Source + Author + Time — Inoreader style */}
+                <div className="flex items-center gap-1.5 mb-4 text-[12px]">
+                  <ExternalLink size={11} style={{ color: '#4d8cf5' }} />
+                  <span className="font-medium" style={{ color: '#4d8cf5' }}>{formatSourceName(data.source_id)}</span>
+                  {(data.author || (data as any).author) && (
+                    <>
+                      <span style={{ color: '#6b7d93' }}>·</span>
+                      <span style={{ color: '#6b7d93' }}>par {(data as any).author || data.author}</span>
+                    </>
                   )}
-                  {data.sentiment && (
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded border ${SENTIMENT_COLORS[data.sentiment] || ''}`}>
-                      {data.sentiment === 'positive' ? '↑' : data.sentiment === 'negative' ? '↓' : '→'} {data.sentiment}
-                    </span>
-                  )}
-                  {data.family && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded bg-indigo-50 text-indigo-600">
-                      <FileText size={9} />{data.family}{data.section && <><ChevronRight size={8} />{data.section}</>}
-                    </span>
-                  )}
-                  {data.lang && data.lang !== 'en' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 bg-[#1a2836] rounded">
-                      <Languages size={9} />{data.lang.toUpperCase()}
-                    </span>
+                  {data.pub_date && (
+                    <>
+                      <span style={{ color: '#6b7d93' }}>·</span>
+                      <span style={{ color: '#6b7d93' }}>{formatDate(data.pub_date)}</span>
+                    </>
                   )}
                 </div>
 
-                {/* Countries */}
-                {data.countries?.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 mb-5">
-                    <MapPin size={11} className="text-slate-300" />
-                    {data.countries.map(c => (
-                      <span key={c} className="px-1.5 py-0.5 text-[10px] font-medium text-slate-500 bg-[#1a2836] rounded border border-[#1e2d3d]">{c}</span>
-                    ))}
-                  </div>
+                {/* Action bar — Inoreader icons */}
+                <div className="flex items-center gap-1 mb-6 pb-4" style={{ borderBottom: '1px solid #1e2d3d' }}>
+                  {[
+                    { icon: Bookmark, title: 'Sauvegarder', color: data?.threat_level === 'critical' ? '#f59e0b' : '#6b7d93' },
+                    { icon: Heart, title: 'Favori' },
+                    { icon: MessageSquare, title: 'Annoter' },
+                    { icon: Pin, title: 'Épingler' },
+                    { icon: Share2, title: 'Partager' },
+                    { icon: Copy, title: copied ? 'Copié !' : 'Copier le lien', onClick: handleCopy },
+                  ].map((btn, i) => (
+                    <button key={i} onClick={btn.onClick} title={btn.title}
+                      className="p-2 rounded-md transition-colors" style={{ color: btn.color || '#6b7d93' }}
+                      onMouseOver={e => { e.currentTarget.style.background = '#1a2836'; e.currentTarget.style.color = '#b0bec9'; }}
+                      onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = btn.color || '#6b7d93'; }}>
+                      <btn.icon size={16} />
+                    </button>
+                  ))}
+                  <div className="flex-1" />
+                  {data.url && (
+                    <a href={data.url} target="_blank" rel="noopener noreferrer" title="Ouvrir l'original"
+                      className="p-2 rounded-md transition-colors" style={{ color: '#6b7d93' }}
+                      onMouseOver={e => { (e.currentTarget as HTMLElement).style.background = '#1a2836'; }}
+                      onMouseOut={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                      <ExternalLink size={16} />
+                    </a>
+                  )}
+                </div>
+
+                {/* Hero image with caption */}
+                {heroImage && (
+                  <figure className="mb-6">
+                    <div className="rounded-lg overflow-hidden" style={{ background: '#1a2836' }}>
+                      <img src={heroImage} alt="" className="w-full object-cover" style={{ maxHeight: 400 }}
+                        onError={e => { (e.target as HTMLImageElement).closest('figure')!.style.display = 'none'; }} />
+                    </div>
+                    <figcaption className="text-[11px] mt-2 px-1" style={{ color: '#6b7d93' }}>
+                      {formatSourceName(data.source_id)}{(data as any).author ? ` / ${(data as any).author}` : ''}
+                    </figcaption>
+                  </figure>
                 )}
 
-                {/* Tags */}
-                {data.tags?.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-5">
-                    {data.tags.map(tag => (
-                      <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-teal-50 text-teal-700 border border-teal-100">
-                        <Tag size={8} />{tag}
+                {/* Threat + sentiment badges (compact) */}
+                {(data.threat_level || data.sentiment) && (
+                  <div className="flex flex-wrap items-center gap-2 mb-5">
+                    {data.threat_level && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded"
+                        style={{ background: data.threat_level === 'critical' ? '#7f1d1d' : data.threat_level === 'high' ? '#7c2d12' : '#1a2836',
+                                 color: data.threat_level === 'critical' ? '#fca5a5' : data.threat_level === 'high' ? '#fdba74' : '#6b7d93' }}>
+                        <Shield size={10} />{data.threat_level}
                       </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Summary */}
-                {data.summary && (
-                  <div className="relative bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-5 mb-8 border border-[#1e2d3d]">
-                    <div className="absolute top-4 left-5 w-6 h-6 rounded-lg bg-[#1a2836] shadow-sm flex items-center justify-center">
-                      <span className="text-[10px]">✨</span>
-                    </div>
-                    <div className="pl-9">
-                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Résumé IA</p>
-                      <p className="text-[13px] text-[#8899aa] leading-relaxed">{data.summary}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Entities */}
-                {hasEntities && (
-                  <div className="grid grid-cols-2 gap-3 mb-8">
-                    {data.persons && data.persons.length > 0 && (
-                      <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100/60">
-                        <p className="text-[9px] uppercase font-bold text-blue-400 tracking-wider mb-2 flex items-center gap-1">
-                          <User size={9} />Personnes
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {data.persons.slice(0, 8).map(p => (
-                            <span key={p} className="px-1.5 py-0.5 bg-[#1a2836] text-blue-700 text-[10px] rounded shadow-sm">{p}</span>
-                          ))}
-                        </div>
-                      </div>
                     )}
-                    {data.orgs && data.orgs.length > 0 && (
-                      <div className="p-3 rounded-xl bg-violet-50/50 border border-violet-100/60">
-                        <p className="text-[9px] uppercase font-bold text-violet-400 tracking-wider mb-2 flex items-center gap-1">
-                          <Building2 size={9} />Organisations
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {data.orgs.slice(0, 8).map(o => (
-                            <span key={o} className="px-1.5 py-0.5 bg-[#1a2836] text-violet-700 text-[10px] rounded shadow-sm">{o}</span>
-                          ))}
-                        </div>
-                      </div>
+                    {data.sentiment && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded"
+                        style={{ background: '#1a2836', color: data.sentiment === 'positive' ? '#22c55e' : data.sentiment === 'negative' ? '#ef4444' : '#6b7d93' }}>
+                        {data.sentiment === 'positive' ? '↑' : data.sentiment === 'negative' ? '↓' : '→'} {data.sentiment}
+                      </span>
+                    )}
+                    {data.lang && data.lang !== 'en' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded" style={{ background: '#1a2836', color: '#6b7d93' }}>
+                        <Languages size={9} />{data.lang.toUpperCase()}
+                      </span>
                     )}
                   </div>
                 )}
-
-                {/* Separator */}
-                <hr className="border-[#1e2d3d] mb-8" />
 
                 {/* ── Full content ─────────────────────────── */}
                 {data.content_md && (
-                  <article className="
-                    prose prose-invert max-w-none
-                    prose-headings:text-[#b0bec9] prose-headings:font-bold prose-headings:tracking-tight
-                    prose-h1:text-[22px] prose-h1:mt-10 prose-h1:mb-4
-                    prose-h2:text-[18px] prose-h2:mt-8 prose-h2:mb-3
-                    prose-h3:text-[15px] prose-h3:mt-6 prose-h3:mb-2
-                    prose-p:text-[15px] prose-p:text-[#8899aa] prose-p:leading-[1.8] prose-p:my-4
-                    prose-a:text-[#42d3a5] prose-a:font-medium prose-a:no-underline hover:prose-a:underline
-                    prose-strong:text-[#b0bec9] prose-strong:font-semibold
-                    prose-blockquote:border-l-[3px] prose-blockquote:border-[#42d3a5] prose-blockquote:bg-[#1a2836]/70
-                    prose-blockquote:rounded-r-xl prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:my-6
-                    prose-blockquote:not-italic prose-blockquote:text-[14px] prose-blockquote:text-[#8899aa]
-                    prose-code:text-xs prose-code:bg-[#0f1923] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-                    prose-li:text-[15px] prose-li:text-[#8899aa] prose-li:leading-[1.7]
-                    prose-ul:my-4 prose-ol:my-4
-                    prose-hr:border-[#1e2d3d] prose-hr:my-8
-                    prose-img:rounded-2xl prose-img:shadow-sm prose-img:my-6
-                  ">
+                  <article className="max-w-none" style={{ color: '#c8d4e0', fontSize: 16, lineHeight: 1.85 }}>
                     <Markdown
                       components={{
-                        img: ({ src, alt, ...props }) => (
-                          <figure className="my-8">
-                            <img
-                              src={src}
-                              alt={alt || ''}
-                              loading="lazy"
-                              className="rounded-2xl shadow-md w-full object-cover max-h-[500px]"
-                              onError={(e) => { (e.target as HTMLImageElement).closest('figure')!.style.display = 'none'; }}
-                              {...props}
-                            />
+                        h1: ({ children }) => (
+                          <h1 style={{ color: '#e2e8f0', fontSize: 22, fontWeight: 800, marginTop: 32, marginBottom: 16, lineHeight: 1.3 }}>{children}</h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 style={{ color: '#e2e8f0', fontSize: 19, fontWeight: 700, marginTop: 28, marginBottom: 12, lineHeight: 1.3 }}>{children}</h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 style={{ color: '#e2e8f0', fontSize: 17, fontWeight: 700, marginTop: 24, marginBottom: 10, lineHeight: 1.3 }}>{children}</h3>
+                        ),
+                        p: ({ children }) => (
+                          <p style={{ marginTop: 16, marginBottom: 16 }}>{children}</p>
+                        ),
+                        a: ({ href, children }) => (
+                          <a href={href} target="_blank" rel="noopener noreferrer"
+                            style={{ color: '#4d8cf5', fontWeight: 500, textDecoration: 'none' }}
+                            onMouseOver={e => { (e.target as HTMLElement).style.textDecoration = 'underline'; }}
+                            onMouseOut={e => { (e.target as HTMLElement).style.textDecoration = 'none'; }}
+                          >{children}</a>
+                        ),
+                        strong: ({ children }) => (
+                          <strong style={{ color: '#e2e8f0', fontWeight: 600 }}>{children}</strong>
+                        ),
+                        em: ({ children }) => (
+                          <em style={{ color: '#9aafca', fontStyle: 'italic' }}>{children}</em>
+                        ),
+                        blockquote: ({ children }) => (
+                          <blockquote style={{
+                            borderLeft: '3px solid #4d8cf5', background: '#1a2836',
+                            borderRadius: '0 12px 12px 0', padding: '12px 20px', margin: '20px 0',
+                            color: '#9aafca', fontSize: 15, fontStyle: 'italic',
+                          }}>{children}</blockquote>
+                        ),
+                        ul: ({ children }) => (
+                          <ul style={{ paddingLeft: 20, margin: '12px 0' }}>{children}</ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol style={{ paddingLeft: 20, margin: '12px 0' }}>{children}</ol>
+                        ),
+                        li: ({ children }) => (
+                          <li style={{ marginBottom: 6 }}>{children}</li>
+                        ),
+                        hr: () => (
+                          <hr style={{ border: 'none', borderTop: '1px solid #1e2d3d', margin: '28px 0' }} />
+                        ),
+                        img: ({ src, alt }) => (
+                          <figure style={{ margin: '24px 0' }}>
+                            <img src={src} alt={alt || ''} loading="lazy"
+                              style={{ width: '100%', borderRadius: 12, maxHeight: 500, objectFit: 'cover' }}
+                              onError={e => { (e.target as HTMLImageElement).closest('figure')!.style.display = 'none'; }} />
                             {alt && alt.length > 3 && (
-                              <figcaption className="text-center text-[11px] text-slate-400 mt-3 px-4">{alt}</figcaption>
+                              <figcaption style={{ textAlign: 'center', fontSize: 11, color: '#6b7d93', marginTop: 8 }}>{alt}</figcaption>
                             )}
                           </figure>
                         ),
-                        a: ({ href, children, ...props }) => (
-                          <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
-                        ),
                       }}
                     >
-                      {data.content_md}
+                      {cleanMarkdown(data.content_md, heroImage)}
                     </Markdown>
                   </article>
                 )}
@@ -382,14 +355,30 @@ export default function ArticleReader({ articleId, onClose }: Props) {
                 {/* Fallback description */}
                 {!data.content_md && data.description && (
                   <div className="mt-2">
-                    <p className="text-[15px] text-[#8899aa] leading-[1.8]">{data.description}</p>
-                    {data.url && (
-                      <a href={data.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[#42d3a5] font-medium hover:underline mt-4">
-                        Lire l'article complet <ExternalLink size={13} />
-                      </a>
-                    )}
+                    <p className="text-[15px] leading-[1.8]" style={{ color: '#8899aa' }}>{data.description}</p>
                   </div>
                 )}
+
+                {/* Read full article — always visible */}
+                {data.url && (
+                  <div className="mt-8 pt-6" style={{ borderTop: '1px solid #1e2d3d' }}>
+                    <a href={data.url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-[14px] font-semibold transition-colors"
+                      style={{ color: '#4d8cf5' }}
+                      onMouseOver={e => { e.currentTarget.style.textDecoration = 'underline'; }}
+                      onMouseOut={e => { e.currentTarget.style.textDecoration = 'none'; }}>
+                      <ExternalLink size={14} />
+                      Read full article
+                    </a>
+                  </div>
+                )}
+
+                {/* Comments placeholder */}
+                <div className="mt-6 pt-4" style={{ borderTop: '1px solid #1e2d3d' }}>
+                  <button className="flex items-center gap-2 text-[12px] font-medium" style={{ color: '#6b7d93' }}>
+                    <MessageSquare size={14} /> Ajouter ses mots
+                  </button>
+                </div>
 
                 {/* Bottom spacer */}
                 <div className="h-16" />
@@ -408,28 +397,7 @@ export default function ArticleReader({ articleId, onClose }: Props) {
           </button>
         )}
 
-        {/* ── Bottom bar ────────────────────────────────── */}
-        {data && !loading && (
-          <div className="flex items-center justify-between px-5 py-2 shrink-0" style={{ borderTop: '1px solid #1e2d3d', background: '#0f1923' }}>
-            <div className="flex items-center gap-3 text-[10px] text-slate-400">
-              {data.word_count && <span>{data.word_count.toLocaleString('fr-FR')} mots</span>}
-              {data.cached !== undefined && (
-                <span className="text-slate-300">{data.cached ? '● cache' : '● extrait'}</span>
-              )}
-            </div>
-            {data.url && (
-              <a
-                href={data.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-white bg-[#42d3a5] rounded-lg hover:bg-[#36b891] transition-colors shadow-sm"
-              >
-                <ExternalLink size={11} />
-                Ouvrir l'original
-              </a>
-            )}
-          </div>
-        )}
+        </div>
       </div>
     </>
   );

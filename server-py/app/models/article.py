@@ -43,6 +43,8 @@ class Article(Base):
     criticality: Mapped[str | None] = mapped_column(String(15), nullable=True, index=True)  # breaking, developing, background
     sentiment: Mapped[str | None] = mapped_column(String(10), nullable=True)  # positive, negative, neutral
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)  # 2-3 sentence summary
+    content_md: Mapped[str | None] = mapped_column(Text, nullable=True)  # Full article in Markdown (trafilatura)
+    author: Mapped[str | None] = mapped_column(String(200), nullable=True)
     tags_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: ["conflict", "nuclear", "diplomacy"]
     countries_mentioned_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: ["France", "Iran", "United States"]
 

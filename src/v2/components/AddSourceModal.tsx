@@ -1,26 +1,43 @@
 // src/v2/components/AddSourceModal.tsx
-// Inoreader-style: paste URL → auto-detect → add to folder
+// Inoreader-style: tabbed source type selector with dark theme
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { X, Search, Loader2, Rss, Globe, Send, AtSign, Cloud, MessageCircle, Plus, FolderPlus, Check } from 'lucide-react';
-import { detectSource, addSource, listFolders, createFolder, type DetectedSource, type FolderData } from '@/v2/lib/sources-api';
+import {
+  X, Search, Loader2, Rss, Globe, Send, AtSign, Cloud,
+  MessageCircle, Plus, FolderPlus, Check, FileText,
+  Mail, Headphones, Upload, Eye, Newspaper,
+} from 'lucide-react';
+import { detectSource, addSource, listFolders, createFolder, importOpml, type DetectedSource, type FolderData } from '@/v2/lib/sources-api';
 
-const TYPE_ICONS: Record<string, typeof Rss> = {
-  rss: Rss,
-  telegram: Send,
-  twitter: AtSign,
-  bluesky: Cloud,
-  facebook: MessageCircle,
-  web_scraper: Globe,
-};
+/* ── Theme tokens (must match Dashboard.tsx) ── */
+const BG_APP    = '#131d2a';
+const BG_CARD   = '#1a2836';
+const ACCENT    = '#4d8cf5';
+const TEXT_P    = '#b0bec9';
+const TEXT_S    = '#6b7d93';
+const TEXT_H    = '#e2e8f0';
+const BORDER    = '#1e2d3d';
 
-const TYPE_COLORS: Record<string, string> = {
-  rss: 'text-orange-500 bg-orange-50',
-  telegram: 'text-blue-500 bg-blue-50',
-  twitter: 'text-sky-500 bg-sky-50',
-  bluesky: 'text-indigo-500 bg-indigo-50',
-  facebook: 'text-blue-600 bg-blue-50',
-  web_scraper: 'text-slate-500 bg-slate-50',
-};
+/* ── Source types ── */
+interface SourceTab {
+  id: string;
+  label: string;
+  icon: typeof Rss;
+  placeholder: string;
+  hint: string;
+}
+
+const SOURCE_TABS: SourceTab[] = [
+  { id: 'web-feed',   label: 'Web feed',       icon: Rss,            placeholder: 'https://example.com/feed.xml', hint: 'URL d\u2019un flux RSS ou Atom' },
+  { id: 'website',    label: 'Site Web',        icon: Globe,          placeholder: 'https://example.com', hint: 'On d\u00e9tecte automatiquement les flux RSS du site' },
+  { id: 'google-news',label: 'Google News',     icon: Newspaper,      placeholder: 'Mot-cl\u00e9 ou sujet (ex: intelligence artificielle)', hint: 'Cr\u00e9e un flux \u00e0 partir de Google News' },
+  { id: 'bluesky',    label: 'Bluesky',         icon: Cloud,          placeholder: '@user.bsky.social', hint: 'Profil ou feed Bluesky' },
+  { id: 'facebook',   label: 'Page Facebook',   icon: MessageCircle,  placeholder: 'https://facebook.com/page', hint: 'URL d\u2019une page publique' },
+  { id: 'telegram',   label: 'Canal Telegram',  icon: Send,           placeholder: 'https://t.me/channel ou @channel', hint: 'Canal Telegram public' },
+  { id: 'newsletter', label: 'Newsletter',      icon: Mail,           placeholder: 'email@newsletters.example.com', hint: 'Adresse email de la newsletter' },
+  { id: 'import',     label: 'Importer OPML',   icon: Upload,         placeholder: '', hint: 'Importez vos abonnements depuis un fichier OPML' },
+  { id: 'watch',      label: 'Flux de veille',  icon: Eye,            placeholder: 'https://example.com/page-to-watch', hint: 'Surveille les changements d\u2019une page web' },
+  { id: 'podcast',    label: 'Podcast',         icon: Headphones,     placeholder: 'https://podcast.example.com/feed', hint: 'URL du flux podcast RSS' },
+];
 
 interface Props {
   open: boolean;
@@ -29,6 +46,7 @@ interface Props {
 }
 
 export default function AddSourceModal({ open, onClose, onAdded }: Props) {
+  const [activeTab, setActiveTab] = useState('web-feed');
   const [url, setUrl] = useState('');
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState<DetectedSource | null>(null);
@@ -39,202 +57,250 @@ export default function AddSourceModal({ open, onClose, onAdded }: Props) {
   const [selectedFolder, setSelectedFolder] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [opmlContent, setOpmlContent] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const tab = SOURCE_TABS.find(t => t.id === activeTab)!;
 
   useEffect(() => {
     if (open) {
-      setUrl('');
-      setDetected(null);
-      setAdded(false);
-      setError('');
-      setSelectedFolder('');
+      setUrl(''); setDetected(null); setAdded(false); setError('');
+      setSelectedFolder(''); setOpmlContent('');
       setTimeout(() => inputRef.current?.focus(), 100);
       listFolders().then(d => setFolders(d.folders)).catch(() => {});
     }
   }, [open]);
 
+  // Reset form when switching tabs
+  useEffect(() => {
+    setUrl(''); setDetected(null); setAdded(false); setError(''); setOpmlContent('');
+  }, [activeTab]);
+
   const handleDetect = useCallback(async () => {
     if (!url.trim()) return;
-    setDetecting(true);
-    setError('');
-    setDetected(null);
+    setDetecting(true); setError(''); setDetected(null);
     try {
-      const result = await detectSource(url.trim());
+      // For Google News, construct the RSS URL
+      let detectUrl = url.trim();
+      if (activeTab === 'google-news') {
+        detectUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(detectUrl)}&hl=fr&gl=FR&ceid=FR:fr`;
+      }
+      const result = await detectSource(detectUrl);
       setDetected(result);
     } catch (e: any) {
-      setError(e.message || 'Impossible de détecter cette source');
+      setError(e.message || 'Impossible de d\u00e9tecter cette source');
     } finally {
       setDetecting(false);
     }
-  }, [url]);
+  }, [url, activeTab]);
 
   const handleAdd = useCallback(async () => {
     if (!detected) return;
-    setAdding(true);
-    setError('');
+    setAdding(true); setError('');
     try {
       let folderId = selectedFolder;
-
-      // Create new folder if needed
       if (showNewFolder && newFolderName.trim()) {
         const f = await createFolder({ name: newFolderName.trim() });
         folderId = f.id;
       }
-
-      await addSource({
-        type: detected.type,
-        config: detected.config,
-        name: detected.name,
-        folder_id: folderId || undefined,
-      });
+      await addSource({ type: detected.type, config: detected.config, name: detected.name, folder_id: folderId || undefined });
       setAdded(true);
       onAdded?.();
-      setTimeout(() => { onClose(); }, 1500);
+      setTimeout(onClose, 1500);
     } catch (e: any) {
-      const msg = e.message || 'Erreur lors de l\'ajout';
-      setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setError(typeof e.message === 'string' ? e.message : JSON.stringify(e.message));
     } finally {
       setAdding(false);
     }
   }, [detected, selectedFolder, showNewFolder, newFolderName, onAdded, onClose]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      if (!detected) handleDetect();
-      else handleAdd();
+  const handleOpmlImport = useCallback(async () => {
+    if (!opmlContent) return;
+    setAdding(true); setError('');
+    try {
+      await importOpml(opmlContent);
+      setAdded(true);
+      onAdded?.();
+      setTimeout(onClose, 1500);
+    } catch (e: any) {
+      setError(e.message || 'Erreur lors de l\u2019import');
+    } finally {
+      setAdding(false);
     }
-  }, [detected, handleDetect, handleAdd]);
+  }, [opmlContent, onAdded, onClose]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setOpmlContent(reader.result as string);
+    reader.readAsText(file);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { if (!detected) handleDetect(); else handleAdd(); }
+  };
 
   if (!open) return null;
 
-  const Icon = detected ? (TYPE_ICONS[detected.type] || Globe) : Search;
-  const colorCls = detected ? (TYPE_COLORS[detected.type] || 'text-slate-500 bg-slate-50') : '';
-
   return (
     <>
-      <div className="fixed inset-0 bg-black/40 z-[60] backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed top-[12vh] left-1/2 -translate-x-1/2 w-full max-w-[520px] bg-white rounded-2xl shadow-2xl z-[61] overflow-hidden border border-slate-200">
+      <div className="fixed inset-0 z-[60]" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div className="fixed top-[8vh] left-1/2 -translate-x-1/2 w-full max-w-[680px] rounded-2xl shadow-2xl z-[61] overflow-hidden"
+        style={{ background: BG_CARD, border: `1px solid ${BORDER}` }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-          <h2 className="text-sm font-bold text-slate-900">Ajouter une source</h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded"><X size={16} /></button>
+        <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
+          <h2 className="text-[15px] font-bold" style={{ color: TEXT_H }}>Ajouter</h2>
+          <button onClick={onClose} className="p-1 rounded" style={{ color: TEXT_S }}><X size={16} /></button>
         </div>
 
-        {/* URL Input */}
-        <div className="px-5 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={url}
-                onChange={e => { setUrl(e.target.value); setDetected(null); setAdded(false); setError(''); }}
-                onKeyDown={handleKeyDown}
-                placeholder="Coller une URL (RSS, Twitter, Telegram, Facebook, site web...)"
-                className="w-full pl-10 pr-4 py-3 text-[14px] text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#42d3a5] focus:ring-1 focus:ring-[#42d3a5]/20 placeholder-slate-400"
-              />
-            </div>
-            <button
-              onClick={handleDetect}
-              disabled={detecting || !url.trim()}
-              className="px-4 py-3 text-sm font-semibold text-white bg-[#42d3a5] rounded-xl hover:bg-[#36b891] disabled:opacity-40 transition-colors shrink-0"
-            >
-              {detecting ? <Loader2 size={16} className="animate-spin" /> : 'Détecter'}
-            </button>
+        <div className="flex" style={{ minHeight: 400 }}>
+          {/* Left — Tabs */}
+          <div className="w-[180px] shrink-0 py-2 overflow-y-auto" style={{ borderRight: `1px solid ${BORDER}` }}>
+            {SOURCE_TABS.map(t => {
+              const isActive = t.id === activeTab;
+              const Icon = t.icon;
+              return (
+                <button key={t.id} onClick={() => setActiveTab(t.id)}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors"
+                  style={{ background: isActive ? `${ACCENT}15` : 'transparent', color: isActive ? ACCENT : TEXT_S }}
+                  onMouseOver={e => { if (!isActive) e.currentTarget.style.background = `${ACCENT}08`; }}
+                  onMouseOut={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${ACCENT}15` : 'transparent'; }}
+                >
+                  <Icon size={15} />
+                  <span className="text-[12px] font-medium">{t.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <p className="text-[10px] text-slate-400 mt-2 px-1">
-            RSS · Twitter/X · Facebook · Telegram · Bluesky · YouTube · Page web
-          </p>
+          {/* Right — Form */}
+          <div className="flex-1 p-5 overflow-y-auto">
+            {activeTab === 'import' ? (
+              /* ── OPML Import ── */
+              <div className="space-y-4">
+                <p className="text-[13px]" style={{ color: TEXT_P }}>{tab.hint}</p>
+                <input ref={fileRef} type="file" accept=".opml,.xml" onChange={handleFileSelect} className="hidden" />
+                <button onClick={() => fileRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-xl text-[13px] font-medium transition-colors"
+                  style={{ border: `2px dashed ${BORDER}`, color: ACCENT }}
+                  onMouseOver={e => { e.currentTarget.style.borderColor = ACCENT; }}
+                  onMouseOut={e => { e.currentTarget.style.borderColor = BORDER; }}
+                >
+                  <Upload size={18} />
+                  {opmlContent ? 'Fichier charg\u00e9 \u2713' : 'Choisir un fichier OPML'}
+                </button>
+                {opmlContent && (
+                  <button onClick={handleOpmlImport} disabled={adding}
+                    className="w-full py-2.5 text-[13px] font-semibold text-white rounded-xl flex items-center justify-center gap-2"
+                    style={{ background: ACCENT }}>
+                    {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                    Importer
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* ── Standard URL input ── */
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[11px] font-semibold mb-2 block" style={{ color: TEXT_S }}>{tab.label}</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 relative">
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: TEXT_S }} />
+                      <input ref={inputRef} type="text" value={url}
+                        onChange={e => { setUrl(e.target.value); setDetected(null); setAdded(false); setError(''); }}
+                        onKeyDown={handleKeyDown}
+                        placeholder={tab.placeholder}
+                        className="w-full pl-10 pr-4 py-2.5 text-[13px] rounded-xl outline-none"
+                        style={{ background: BG_APP, border: `1px solid ${BORDER}`, color: TEXT_P }}
+                      />
+                    </div>
+                    <button onClick={handleDetect} disabled={detecting || !url.trim()}
+                      className="px-4 py-2.5 text-[12px] font-semibold text-white rounded-xl shrink-0 disabled:opacity-40"
+                      style={{ background: ACCENT }}>
+                      {detecting ? <Loader2 size={14} className="animate-spin" /> : 'D\u00e9tecter'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] mt-1.5 px-1" style={{ color: TEXT_S }}>{tab.hint}</p>
+                </div>
+
+                {/* Detection result */}
+                {detected && !added && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: BG_APP, border: `1px solid ${BORDER}` }}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${ACCENT}15` }}>
+                        <tab.icon size={20} style={{ color: ACCENT }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold" style={{ color: TEXT_H }}>{detected.name}</p>
+                        <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: TEXT_S }}>{detected.type}</p>
+                      </div>
+                      <Check size={16} style={{ color: '#22c55e' }} />
+                    </div>
+
+                    {/* Folder selector */}
+                    <div>
+                      <label className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 block" style={{ color: TEXT_S }}>
+                        Dossier (optionnel)
+                      </label>
+                      {!showNewFolder ? (
+                        <div className="flex items-center gap-2">
+                          <select value={selectedFolder} onChange={e => setSelectedFolder(e.target.value)}
+                            className="flex-1 text-[12px] px-3 py-2 rounded-lg outline-none"
+                            style={{ background: BG_APP, border: `1px solid ${BORDER}`, color: TEXT_P }}>
+                            <option value="">Sans dossier</option>
+                            {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                          </select>
+                          <button onClick={() => setShowNewFolder(true)}
+                            className="p-2 rounded-lg transition-colors" style={{ color: TEXT_S, border: `1px solid ${BORDER}` }} title="Nouveau dossier">
+                            <FolderPlus size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <input type="text" value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+                            placeholder="Nom du dossier..." autoFocus
+                            className="flex-1 text-[12px] px-3 py-2 rounded-lg outline-none"
+                            style={{ background: BG_APP, border: `1px solid ${BORDER}`, color: TEXT_P }} />
+                          <button onClick={() => setShowNewFolder(false)} className="p-2 rounded-lg" style={{ color: TEXT_S }}>
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <button onClick={handleAdd} disabled={adding}
+                      className="w-full py-2.5 text-[13px] font-semibold text-white rounded-xl flex items-center justify-center gap-2"
+                      style={{ background: ACCENT }}>
+                      {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Ajouter cette source
+                    </button>
+                  </div>
+                )}
+
+                {/* Success */}
+                {added && (
+                  <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: '#0f2d1a', border: '1px solid #22c55e30' }}>
+                    <Check size={20} style={{ color: '#22c55e' }} />
+                    <div>
+                      <p className="text-[13px] font-semibold" style={{ color: '#22c55e' }}>Source ajout\u00e9e</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: '#4ade80' }}>{detected?.name}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="mt-3">
+                <p className="text-[12px] px-3 py-2 rounded-lg" style={{ color: '#ef4444', background: '#2d1515', border: '1px solid #ef444430' }}>{error}</p>
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* Detection result */}
-        {detected && !added && (
-          <div className="px-5 pb-4 space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorCls}`}>
-                <Icon size={20} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold text-slate-900">{detected.name}</p>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{detected.type}</p>
-              </div>
-              <Check size={16} className="text-emerald-500 shrink-0" />
-            </div>
-
-            {/* Folder selector */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-                Dossier (optionnel)
-              </label>
-              {!showNewFolder ? (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedFolder}
-                    onChange={e => setSelectedFolder(e.target.value)}
-                    className="flex-1 text-[12px] px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-[#42d3a5] text-slate-700"
-                  >
-                    <option value="">Sans dossier</option>
-                    {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                  </select>
-                  <button
-                    onClick={() => setShowNewFolder(true)}
-                    className="p-2 text-slate-400 hover:text-[#42d3a5] border border-slate-200 rounded-lg hover:border-[#42d3a5]/30 transition-colors"
-                    title="Nouveau dossier"
-                  >
-                    <FolderPlus size={14} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newFolderName}
-                    onChange={e => setNewFolderName(e.target.value)}
-                    placeholder="Nom du dossier..."
-                    className="flex-1 text-[12px] px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-[#42d3a5] text-slate-700"
-                    autoFocus
-                  />
-                  <button onClick={() => setShowNewFolder(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg">
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Add button */}
-            <button
-              onClick={handleAdd}
-              disabled={adding}
-              className="w-full py-2.5 text-sm font-semibold text-white bg-[#42d3a5] rounded-xl hover:bg-[#36b891] disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
-            >
-              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              Ajouter cette source
-            </button>
-          </div>
-        )}
-
-        {/* Success */}
-        {added && (
-          <div className="px-5 pb-5">
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              <Check size={20} className="text-emerald-500" />
-              <div>
-                <p className="text-sm font-semibold text-emerald-800">Source ajoutée</p>
-                <p className="text-[11px] text-emerald-600 mt-0.5">{detected?.name}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="px-5 pb-4">
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
-          </div>
-        )}
       </div>
     </>
   );

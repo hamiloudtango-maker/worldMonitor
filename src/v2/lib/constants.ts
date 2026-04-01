@@ -10,6 +10,9 @@ export interface Article {
   title_translated?: string;
   description: string;
   link: string;
+  image_url?: string | null;
+  content_md?: string;
+  author?: string;
   pub_date: string | null;
   lang: string;
   threat_level: string;

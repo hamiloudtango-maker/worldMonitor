@@ -199,6 +199,13 @@ _SOURCES: list[dict] = [
 ]
 
 
+# Sources to activate by default (clean, reliable, FR/EN only)
+_DEFAULT_ACTIVE = {
+    "BBC World", "Guardian World", "Al Jazeera (EN)", "France 24 (EN)",
+    "Le Monde", "Ars Technica", "CNBC", "RFI", "NPR", "The Hacker News",
+}
+
+
 async def seed_catalog(db) -> int:
     """Insert builtin sources into rss_catalog table. Skips existing URLs."""
     from sqlalchemy import select
@@ -220,6 +227,7 @@ async def seed_catalog(db) -> int:
                 continent=src.get("continent"),
                 tags=src.get("tags", []),
                 origin="builtin",
+                active=src["name"] in _DEFAULT_ACTIVE,
             )
             db.add(entry)
             inserted += 1
