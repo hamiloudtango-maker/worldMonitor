@@ -38,6 +38,58 @@ def _to_response(rule: AutomationRule) -> dict:
     }
 
 
+@router.get("/templates")
+async def rule_templates():
+    """Pre-built rule templates for common OSINT use cases."""
+    return {
+        "templates": [
+            {
+                "name": "Alerte menace critique",
+                "description": "Notifier quand un article a un niveau de menace critical",
+                "conditions": {"operator": "AND", "children": [
+                    {"type": "condition", "field": "threat_level", "op": "gte", "value": "critical"},
+                ]},
+                "actions": [
+                    {"type": "notify", "params": {"title": "\U0001f534 Menace critique: {title}"}},
+                ],
+            },
+            {
+                "name": "Veille pays",
+                "description": "Tagger les articles mentionnant des pays sp\u00e9cifiques",
+                "conditions": {"operator": "AND", "children": [
+                    {"type": "condition", "field": "country", "op": "in", "value": ["FR", "DE", "GB"]},
+                ]},
+                "actions": [
+                    {"type": "add_tag", "params": {"tag": "europe"}},
+                ],
+            },
+            {
+                "name": "Breaking news",
+                "description": "Notifier sur les articles breaking avec menace high+",
+                "conditions": {"operator": "AND", "children": [
+                    {"type": "condition", "field": "criticality", "op": "eq", "value": "breaking"},
+                    {"type": "condition", "field": "threat_level", "op": "gte", "value": "high"},
+                ]},
+                "actions": [
+                    {"type": "notify", "params": {"title": "\u26a1 Breaking: {title}"}},
+                    {"type": "add_tag", "params": {"tag": "breaking"}},
+                ],
+            },
+            {
+                "name": "Filtre bruit",
+                "description": "Supprimer les articles info/low d'une source sp\u00e9cifique",
+                "conditions": {"operator": "AND", "children": [
+                    {"type": "condition", "field": "threat_level", "op": "in", "value": ["info", "low"]},
+                    {"type": "condition", "field": "article_type", "op": "eq", "value": "opinion"},
+                ]},
+                "actions": [
+                    {"type": "suppress", "params": {}},
+                ],
+            },
+        ],
+    }
+
+
 @router.get("/")
 async def list_rules(
     scope: str = Query(""),
@@ -229,53 +281,3 @@ async def rule_logs(
     }
 
 
-@router.get("/templates")
-async def rule_templates():
-    """Pre-built rule templates for common OSINT use cases."""
-    return {
-        "templates": [
-            {
-                "name": "Alerte menace critique",
-                "description": "Notifier quand un article a un niveau de menace critical",
-                "conditions": {"operator": "AND", "children": [
-                    {"type": "condition", "field": "threat_level", "op": "gte", "value": "critical"},
-                ]},
-                "actions": [
-                    {"type": "notify", "params": {"title": "🔴 Menace critique: {title}"}},
-                ],
-            },
-            {
-                "name": "Veille pays",
-                "description": "Tagger les articles mentionnant des pays spécifiques",
-                "conditions": {"operator": "AND", "children": [
-                    {"type": "condition", "field": "country", "op": "in", "value": ["FR", "DE", "GB"]},
-                ]},
-                "actions": [
-                    {"type": "add_tag", "params": {"tag": "europe"}},
-                ],
-            },
-            {
-                "name": "Breaking news",
-                "description": "Notifier sur les articles breaking avec menace high+",
-                "conditions": {"operator": "AND", "children": [
-                    {"type": "condition", "field": "criticality", "op": "eq", "value": "breaking"},
-                    {"type": "condition", "field": "threat_level", "op": "gte", "value": "high"},
-                ]},
-                "actions": [
-                    {"type": "notify", "params": {"title": "⚡ Breaking: {title}"}},
-                    {"type": "add_tag", "params": {"tag": "breaking"}},
-                ],
-            },
-            {
-                "name": "Filtre bruit",
-                "description": "Supprimer les articles info/low d'une source spécifique",
-                "conditions": {"operator": "AND", "children": [
-                    {"type": "condition", "field": "threat_level", "op": "in", "value": ["info", "low"]},
-                    {"type": "condition", "field": "article_type", "op": "eq", "value": "opinion"},
-                ]},
-                "actions": [
-                    {"type": "suppress", "params": {}},
-                ],
-            },
-        ],
-    }
