@@ -46,12 +46,18 @@ ROUTERS = [
     "app.plugins.router",
     # Notifications
     "app.notifications.router",
+    # Email digests
+    "app.notifications.digests_router",
     # Rules engine
     "app.rules_engine.router",
     # Unified sources v2
     "app.domains.sources.router",
     # Spotlights
     "app.domains.sources.spotlights_router",
+    # OPML import/export
+    "app.domains.sources.opml_router",
+    # Automated reports
+    "app.automation.reports_router",
 ]
 
 
@@ -383,6 +389,7 @@ async def lifespan(app: FastAPI):
         import app.models.user_article  # noqa: F401 — register UserArticleState
         import app.models.spotlight  # noqa: F401 — register Spotlight
         import app.notifications.digests  # noqa: F401 — register EmailDigest
+        import app.automation.reports_model  # noqa: F401 — register AutoReport
 
         await create_all_tables()
 

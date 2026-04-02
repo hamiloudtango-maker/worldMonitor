@@ -78,9 +78,33 @@ _END_MARKERS = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
+# Paywall / subscription cut markers — everything after these is noise
+_PAYWALL_CUT = re.compile(
+    r"(?:"
+    r"Il vous reste \d+[\.,]?\d*\s*% de cet article"
+    r"|La suite est r[ée]serv[ée]e aux abonn[ée]s"
+    r"|Article r[ée]serv[ée] aux abonn[ée]s"
+    r"|Lecture du Monde en cours sur un autre"
+    r"|Envie de lire la suite"
+    r"|Vous n'êtes pas inscrit sur"
+    r"|Contenu réservé aux abonnés"
+    r"|This (?:article|content) is (?:for|available to) (?:paid )?(?:subscribers|members) only"
+    r"|Already a subscriber\? (?:Sign|Log) in"
+    r"|Subscribe to (?:continue|read|unlock)"
+    r"|Create (?:a )?free account to"
+    r"|Register for free to"
+    r"|Lecture restreinte"
+    r"|Votre abonnement n'autorise pas"
+    r"|Votre carte bancaire a expir"
+    r"|Votre paiement a échoué"
+    r"|Je m'abonne"
+    r")",
+    re.IGNORECASE,
+)
+
 
 def _clean_markdown(md: str) -> str:
-    """Remove navigation, menu, footer noise from crawl4ai markdown."""
+    """Remove navigation, menu, footer noise, paywall blocks, and duplicate paragraphs."""
     lines = md.split("\n")
 
     # --- Find START: first real paragraph (> 80 chars, not nav/link list) ---
@@ -109,6 +133,16 @@ def _clean_markdown(md: str) -> str:
 
     md = "\n".join(lines[start:end])
 
+    # --- Paywall cut: truncate at first paywall marker found after some real content ---
+    # Search after the first 100 chars to avoid cutting when paywall banner is the opener
+    for m in _PAYWALL_CUT.finditer(md):
+        if m.start() > 100:
+            md = md[:m.start()]
+            break
+
+    # Remove paywall/subscription opener lines
+    md = re.sub(r"^.*(?:Vous n'êtes pas inscrit|Inscrivez-vous gratuitement|Article réservé aux abonnés).*$", "", md, flags=re.MULTILINE | re.IGNORECASE)
+
     # Remove inline noise
     md = _NAV_NOISE.sub("", md)
     md = re.sub(r"A lire aussi\s*:\s*\[.*?\]\(.*?\)\s*", "", md)
@@ -120,8 +154,30 @@ def _clean_markdown(md: str) -> str:
     md = re.sub(r"^\s*(?:Tweet|Share)\s+(?:Tweet|Share)\s+(?:SHARE)\s*$", "", md, flags=re.MULTILINE)
     # Remove "Found this article interesting?" CTA
     md = re.sub(r"Found this article interesting\?.*$", "", md, flags=re.MULTILINE | re.DOTALL)
+
+    # --- Deduplicate repeated blocks (paywall modals, consent popups) ---
+    md = _dedup_blocks(md)
+
     md = re.sub(r"\n{3,}", "\n\n", md)
     return md.strip()
+
+
+def _dedup_blocks(md: str) -> str:
+    """Remove duplicate paragraphs/blocks. Keeps the first occurrence."""
+    paragraphs = re.split(r"\n{2,}", md)
+    seen: set[str] = set()
+    unique = []
+    for p in paragraphs:
+        # Normalize whitespace for comparison
+        key = re.sub(r"\s+", " ", p.strip())
+        if len(key) < 20:
+            # Short lines (headings, etc.) — keep even if repeated
+            unique.append(p)
+            continue
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+    return "\n\n".join(unique)
 
 
 def _fix_win_encoding():
@@ -169,23 +225,29 @@ asyncio.run(main())
 
 
 async def _crawl4ai_fetch(url: str) -> dict | None:
-    """Fetch article with crawl4ai via subprocess (avoids uvicorn event loop conflict on Windows)."""
+    """Fetch article with crawl4ai via subprocess (avoids uvicorn event loop conflict on Windows).
+    Uses subprocess.run in a thread because asyncio.create_subprocess_exec is NOT supported
+    on Windows with uvicorn's SelectorEventLoop (raises NotImplementedError).
+    """
     import json as _json
+    import subprocess
     try:
         _fix_win_encoding()
         logger.info(f"crawl4ai subprocess starting for: {url}")
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-c", _crawl4ai_subprocess_script(), url,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+
+        def _run_sync():
+            return subprocess.run(
+                [sys.executable, "-c", _crawl4ai_subprocess_script(), url],
+                capture_output=True, timeout=60,
+            )
+
+        proc = await asyncio.to_thread(_run_sync)
 
         if proc.returncode != 0:
-            logger.warning(f"crawl4ai subprocess failed: {url} — {stderr.decode('utf-8', errors='replace')[:300]}")
+            logger.warning(f"crawl4ai subprocess failed: {url} — {proc.stderr.decode('utf-8', errors='replace')[:300]}")
             return None
 
-        data = _json.loads(stdout.decode("utf-8").strip().split("\n")[-1])
+        data = _json.loads(proc.stdout.decode("utf-8").strip().split("\n")[-1])
         if not data:
             return None
 
